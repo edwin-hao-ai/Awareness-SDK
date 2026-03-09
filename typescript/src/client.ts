@@ -185,6 +185,7 @@ export class MemoryCloudClient {
     agentRole?: string;
     multiLevel?: boolean;
     clusterExpand?: boolean;
+    includeInstalled?: boolean;
     traceId?: string;
   }): Promise<RetrieveResponse> {
     const merged: JsonObject = {
@@ -241,6 +242,7 @@ export class MemoryCloudClient {
     if (input.agentRole) body["agent_role"] = input.agentRole;
     if (input.multiLevel) body["multi_level"] = true;
     if (input.clusterExpand) body["cluster_expand"] = true;
+    if (input.includeInstalled) body["include_installed"] = true;
 
     return this.requestJson<RetrieveResponse>({
       method: "POST",
@@ -494,6 +496,7 @@ export class MemoryCloudClient {
     agentRole?: string;
     multiLevel?: boolean;
     clusterExpand?: boolean;
+    includeInstalled?: boolean;
     traceId?: string;
   }): Promise<JsonObject> {
     const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
@@ -529,6 +532,7 @@ export class MemoryCloudClient {
       agentRole: input.agentRole,
       multiLevel: input.multiLevel,
       clusterExpand: input.clusterExpand,
+      includeInstalled: input.includeInstalled,
       traceId: input.traceId,
     });
 

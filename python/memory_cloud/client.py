@@ -167,6 +167,7 @@ class MemoryCloudClient:
         agent_role: Optional[str] = None,
         multi_level: bool = False,
         cluster_expand: bool = False,
+        include_installed: bool = False,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Retrieve from memory using the specified recall mode.
@@ -183,6 +184,7 @@ class MemoryCloudClient:
 
         multi_level: Enable session/daily centroid retrieval for broader context.
         cluster_expand: Enable RAPTOR cluster expansion for topic exploration.
+        include_installed: Search installed market memories alongside primary memory.
         """
         merged: Dict[str, Any] = {
             "limit": limit,
@@ -237,6 +239,8 @@ class MemoryCloudClient:
             body["multi_level"] = True
         if cluster_expand:
             body["cluster_expand"] = True
+        if include_installed:
+            body["include_installed"] = True
 
         payload, resolved_trace_id = self._request(
             method="POST",
@@ -484,6 +488,7 @@ class MemoryCloudClient:
         agent_role: Optional[str] = None,
         multi_level: bool = False,
         cluster_expand: bool = False,
+        include_installed: bool = False,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Recall relevant context for a task.
@@ -497,6 +502,7 @@ class MemoryCloudClient:
 
         multi_level: Enable session/daily centroid retrieval for broader context.
         cluster_expand: Enable RAPTOR cluster expansion for topic exploration.
+        include_installed: Search installed market memories alongside primary memory.
         """
         source_label = self._clean_source(source or self.default_source)
         active_session = self._resolve_session(
