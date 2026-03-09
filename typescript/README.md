@@ -1,0 +1,98 @@
+# Awareness Memory Cloud TypeScript SDK
+
+TypeScript SDK for Awareness Memory Cloud APIs and MCP-style memory workflows.
+
+## Install
+
+```bash
+npm install @awareness/memory-cloud-sdk
+```
+
+Local development:
+
+```bash
+cd sdks/typescript
+npm install
+npm run build
+```
+
+## Quickstart
+
+```ts
+import { MemoryCloudClient } from "@awareness/memory-cloud-sdk";
+
+const client = new MemoryCloudClient({
+  baseUrl: process.env.AWARENESS_API_BASE_URL || "http://localhost:8000/api/v1",
+  apiKey: "YOUR_API_KEY",
+});
+
+await client.write({
+  memoryId: "memory_123",
+  content: "Customer asked for SOC2 report and DPA clause details.",
+  kwargs: { source: "typescript-sdk", session_id: "demo-session" },
+});
+
+const result = await client.retrieve({
+  memoryId: "memory_123",
+  query: "What did the customer ask for?",
+  customKwargs: { k: 3 },
+});
+
+console.log(result.results);
+```
+
+## API Coverage (SDK/API aligned)
+
+`MemoryCloudClient` includes:
+
+- Memory: `createMemory`, `listMemories`, `getMemory`, `updateMemory`, `deleteMemory`
+- Content: `write`, `listMemoryContent`, `deleteMemoryContent`
+- Retrieval/Chat: `retrieve`, `chat`, `chatStream`, `memoryTimeline`
+- MCP ingest: `ingestEvents`, `ingestContent`
+- Export: `exportMemoryPackage`
+- Async jobs & upload: `getAsyncJobStatus`, `uploadFile`, `getUploadJobStatus`
+- Insights/API keys/wizard: `insights`, `createApiKey`, `listApiKeys`, `revokeApiKey`, `memoryWizard`
+
+## MCP-style Helpers (SDK/MCP aligned)
+
+- `beginMemorySession`
+- `recallForTask`
+- `rememberStep`
+- `rememberBatch`
+- `backfillConversationHistory`
+
+```ts
+const session = client.beginMemorySession({ memoryId: "memory_123", source: "ts-sdk" });
+await client.rememberStep({
+  memoryId: "memory_123",
+  text: "Refactored auth middleware and added tests.",
+});
+const ctx = await client.recallForTask({
+  memoryId: "memory_123",
+  task: "summarize latest auth changes",
+  limit: 8,
+});
+console.log(ctx.results);
+```
+
+## Read Exported Packages
+
+SDK includes export readers:
+
+- `readExportPackage(input)`
+- `parseJsonlText(text)`
+
+```ts
+import { readExportPackage } from "@awareness/memory-cloud-sdk";
+
+const parsed = await readExportPackage(zipBytes);
+console.log(parsed.manifest);
+console.log(parsed.chunks.length);
+console.log(Boolean(parsed.safetensors));
+console.log(parsed.kvSummary);
+```
+
+## Examples
+
+- Basic flow: `examples/basic-flow.ts`
+- Export + read package: `examples/export-and-read.ts`

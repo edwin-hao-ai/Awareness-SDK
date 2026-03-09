@@ -1,0 +1,13 @@
+{
+  "name": "awareness-memory",
+  "version": "0.1.0",
+  "description": "Persistent cross-session memory for Claude Code via Awareness Memory Cloud",
+  "author": {
+    "name": "Awareness",
+    "url": "https://awareness.market"
+  },
+  "homepage": "https://awareness.market/docs/claudecode",
+  "repository": "https://github.com/edwin-hao-ai/Awareness-SDK",
+  "license": "Apache-2.0",
+  "keywords": ["memory", "context", "persistence", "awareness", "recall"]
+}

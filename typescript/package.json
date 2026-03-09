@@ -1,0 +1,52 @@
+{
+  "name": "@awareness/memory-cloud-sdk",
+  "version": "0.2.0",
+  "description": "TypeScript SDK for Awareness Memory Cloud",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edwin-hao-ai/Awareness-SDK.git"
+  },
+  "homepage": "https://awareness.market",
+  "bugs": {
+    "url": "https://github.com/edwin-hao-ai/Awareness-SDK/issues"
+  },
+  "keywords": [
+    "memory",
+    "ai",
+    "mcp",
+    "vector",
+    "sdk"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test tests/*.test.cjs",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

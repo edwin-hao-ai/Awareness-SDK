@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "awareness-memory-cloud"
+version = "0.2.0"
+description = "Python SDK for Awareness Memory Cloud"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [
+  { name = "Awareness Team" }
+]
+keywords = ["memory", "ai", "mcp", "rag", "vector"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+  "requests>=2.31.0",
+  "pydantic>=2.6.0"
+]
+
+[project.urls]
+Homepage = "https://awareness.market"
+Documentation = "https://awareness.market/sdk/docs"
+Repository = "https://github.com/edwin-hao-ai/Awareness-SDK"
+Issues = "https://github.com/edwin-hao-ai/Awareness-SDK/issues"
+
+[project.optional-dependencies]
+openai = [
+  "openai>=1.0.0"
+]
+anthropic = [
+  "anthropic>=0.18.0"
+]
+langchain = [
+  "langchain>=0.1.0"
+]
+crewai = [
+  "crewai-tools>=0.0.1"
+]
+autogen = [
+  "autogen-agentchat>=0.2.0",
+  "openai>=1.0.0"
+]
+frameworks = [
+  "langchain>=0.1.0",
+  "crewai-tools>=0.0.1",
+  "autogen-agentchat>=0.2.0"
+]
+interceptor = [
+  "openai>=1.0.0",
+  "anthropic>=0.18.0"
+]
+dev = [
+  "pytest>=8.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["memory_cloud*"]

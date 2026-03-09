@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openclaw.dev/schemas/openclaw.json",
+  "plugins": {
+    "memory-awareness": {
+      "package": "@awareness/openclaw-memory",
+      "config": {
+        "apiKey": "ak-your-awareness-api-key",
+        "memoryId": "your-memory-uuid",
+        "baseUrl": "https://awareness.market/api/v1",
+        "agentRole": "builder_agent",
+        "autoRecall": true,
+        "autoCapture": true,
+        "recallLimit": 8
+      }
+    }
+  }
+}

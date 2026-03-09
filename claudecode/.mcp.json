@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "awareness-memory": {
+      "type": "http",
+      "url": "${AWARENESS_MCP_URL}",
+      "headers": {
+        "Authorization": "Bearer ${AWARENESS_API_KEY}",
+        "X-Awareness-Memory-Id": "${AWARENESS_MEMORY_ID}",
+        "X-Awareness-Agent-Role": "${AWARENESS_AGENT_ROLE}"
+      }
+    }
+  }
+}

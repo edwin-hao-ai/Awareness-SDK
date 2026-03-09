@@ -1,0 +1,23 @@
+{
+  "id": "memory-awareness",
+  "name": "Awareness Memory",
+  "version": "0.1.0",
+  "kind": "memory",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "apiKey": { "type": "string" },
+      "baseUrl": { "type": "string", "default": "https://awareness.market/api/v1" },
+      "memoryId": { "type": "string" },
+      "agentRole": { "type": "string", "default": "builder_agent" },
+      "autoRecall": { "type": "boolean", "default": true },
+      "autoCapture": { "type": "boolean", "default": true },
+      "recallLimit": { "type": "integer", "default": 8 }
+    },
+    "required": ["apiKey", "memoryId"]
+  },
+  "uiHints": {
+    "apiKey": { "label": "Awareness API Key", "sensitive": true },
+    "memoryId": { "label": "Memory ID" }
+  }
+}

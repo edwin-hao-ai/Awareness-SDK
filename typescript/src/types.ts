@@ -1,0 +1,277 @@
+export type JsonObject = Record<string, unknown>;
+
+export interface MemoryCloudClientConfig {
+  baseUrl: string;
+  apiKey?: string;
+  timeoutMs?: number;
+  maxRetries?: number;
+  backoffMs?: number;
+  sessionPrefix?: string;
+  defaultSource?: string;
+  /** Pass an OpenAI/Anthropic client to auto-extract insights from rememberStep/rememberBatch. */
+  extractionLlm?: any;
+  /** Model for extraction (default: "gpt-4o-mini" for OpenAI, "claude-haiku-4-5-20251001" for Anthropic). */
+  extractionModel?: string;
+  /** Max tokens for extraction output. Env: AWARENESS_EXTRACTION_MAX_TOKENS. Default: 16384. */
+  extractionMaxTokens?: number;
+  /** User ID for multi-user memories. */
+  userId?: string;
+  /** Agent role identifier. */
+  agentRole?: string;
+}
+
+export interface RetrieveResponse extends JsonObject {
+  results?: JsonObject[];
+  trace_id?: string;
+}
+
+export interface WriteResponse extends JsonObject {
+  status?: string;
+  message?: string;
+  job_id?: string;
+  trace_id?: string;
+}
+
+export interface IngestEventsResponse extends JsonObject {
+  accepted?: number;
+  written?: number;
+  failed?: number;
+  duplicates?: number;
+  summaries_generated?: number;
+  queued?: number;
+  async_job_id?: string | null;
+  status?: string;
+  trace_id?: string;
+}
+
+export interface ExportPackageResponse {
+  filename: string;
+  contentType: string;
+  bytes: Uint8Array;
+  trace_id?: string;
+}
+
+export interface ParsedSafetensors {
+  path: string;
+  size: number;
+  bytes?: Uint8Array;
+}
+
+export interface ParsedExportPackage {
+  manifest: JsonObject;
+  files: string[];
+  vectorsJsonl: JsonObject[];
+  vectorIndex: JsonObject[];
+  chunks: JsonObject[];
+  kvSummary: JsonObject | null;
+  safetensors: ParsedSafetensors | null;
+  binaryFiles?: Record<string, Uint8Array>;
+}
+
+export interface DayNarrative {
+  date?: string;
+  narrative?: string;
+  count?: number;
+}
+
+export interface OpenTask {
+  id?: string;
+  title?: string;
+  priority?: string;
+  status?: string;
+  detail?: string;
+  context?: string;
+  estimated_effort?: string;
+  user_id?: string; // multi-user mode: the user this task belongs to
+}
+
+export interface UpdateTaskResult {
+  id?: string;
+  memory_id?: string;
+  title?: string;
+  priority?: string;
+  status?: string;
+  updated_at?: string;
+}
+
+export interface KnowledgeCard {
+  category?: string; // problem_solution | decision | workflow | key_point | pitfall | insight | personal_preference | important_detail | plan_intention | activity_preference | health_info | career_info | custom_misc
+  title?: string;
+  summary?: string;
+  tags?: string[];
+  confidence?: number;
+  salience_score?: number; // intrinsic importance [0.5, 2.0]; higher = resists decay more
+  status?: string; // open | in_progress | resolved | noted | superseded
+  user_id?: string; // multi-user mode: the user this card belongs to
+}
+
+export interface HandoffTask {
+  title?: string;
+  priority?: string;
+  status?: string;
+}
+
+export interface HandoffKnowledge {
+  title?: string;
+  summary?: string;
+}
+
+export interface SessionSummary {
+  session_id?: string;
+  date?: string;
+  summary?: string;
+  event_count?: number;
+}
+
+export interface SessionContextResponse extends JsonObject {
+  memory_id?: string;
+  generated_at?: string;
+  days_included?: number;
+  last_sessions?: SessionSummary[];
+  recent_days?: DayNarrative[];
+  open_tasks?: OpenTask[];
+  knowledge_cards?: KnowledgeCard[];
+  trace_id?: string;
+}
+
+export interface RiskItem {
+  title?: string;
+  level?: string; // high | medium | low
+  detail?: string;
+  mitigation?: string;
+  status?: string; // active | mitigated | resolved
+}
+
+/**
+ * Result from structured or hybrid recall mode.
+ *
+ * Cards are split into verified (high evidence coverage) and unverified tiers.
+ * In hybrid mode, vectorContext or rawChunks may also be present.
+ */
+export interface StructuredRecallResult extends JsonObject {
+  recall_mode?: "structured" | "hybrid";
+  memory_id?: string;
+  recent_days?: DayNarrative[];
+  verified_cards?: KnowledgeCard[];
+  unverified_cards?: KnowledgeCard[];
+  open_tasks?: OpenTask[];
+  risks?: RiskItem[];
+  vector_context?: JsonObject[]; // hybrid only (top-K vector results)
+  raw_chunks?: JsonObject[]; // hybrid only (when include_raw_chunks=True)
+  generated_at?: string;
+}
+
+export interface KnowledgeBaseResponse {
+  total?: number;
+  cards?: KnowledgeCard[];
+}
+
+export interface PendingTasksResponse {
+  total?: number;
+  in_progress?: number;
+  pending?: number;
+  tasks?: OpenTask[];
+  trace_id?: string;
+}
+
+export interface HandoffContextResponse {
+  memory_id?: string;
+  briefing_for?: string;
+  recent_progress?: string[];
+  open_tasks?: HandoffTask[];
+  key_knowledge?: HandoffKnowledge[];
+  token_estimate?: number;
+  trace_id?: string;
+}
+
+export interface MemoryProfileSection {
+  title?: string;
+  summary?: string;
+  confidence?: number;
+  category?: string;
+  tags?: string[];
+}
+
+export interface MemoryProfile {
+  user_preferences?: MemoryProfileSection[];
+  key_decisions?: MemoryProfileSection[];
+  core_knowledge?: MemoryProfileSection[];
+  personal_context?: MemoryProfileSection[];
+  active_risks?: Record<string, any>[];
+  key_entities?: string[];
+  card_count?: number;
+  risk_count?: number;
+  action_count?: number;
+  generated_at?: string;
+}
+
+export interface DetectRoleResult {
+  detected_role?: string;
+  confidence?: number;
+  available_roles?: string[];
+}
+
+export interface MemoryUsersResult {
+  users?: Record<string, any>[];
+  total?: number;
+}
+
+export interface ExtractionEvent {
+  content?: string;
+  event_type?: string;
+  source?: string;
+}
+
+export interface ExistingCardRef {
+  id?: string;
+  title?: string;
+  summary?: string;
+  category?: string;
+}
+
+/**
+ * Returned by rememberStep/rememberBatch when backend triggers extraction.
+ *
+ * The SDK interceptor processes this automatically using the user's LLM.
+ * MCP Agents should process _extraction_instruction in the tool response.
+ */
+export interface ExtractionRequest {
+  memory_id?: string;
+  session_id?: string;
+  events?: ExtractionEvent[];
+  existing_cards?: ExistingCardRef[];
+  system_prompt?: string;
+}
+
+export interface SubmitInsightsResult {
+  status?: string;
+  memory_id?: string;
+  cards_created?: number;
+  cards_skipped_dup?: number;
+  cards_updated?: number;
+  risks_created?: number;
+  action_items_created?: number;
+}
+
+export interface AgentProfile {
+  key?: string;
+  title?: string;
+  agent_role?: string;
+  kind?: string; // "agent" | "skill"
+  responsibility?: string;
+  when_to_use?: string;
+  ingest_pattern?: string;
+  recall_pattern?: string;
+  identity?: string;
+  critical_rules?: string[];
+  workflow?: string;
+  communication_style?: string;
+  success_metrics?: string;
+  system_prompt?: string;
+  activation_prompt?: string;
+}
+
+export interface AgentListResponse {
+  agents?: AgentProfile[];
+  total?: number;
+}
