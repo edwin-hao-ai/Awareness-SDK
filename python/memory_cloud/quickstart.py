@@ -66,7 +66,7 @@ def bootstrap_openai_injected_session(
         resolved_base_url = _env_or_default(
             "AWARENESS_API_BASE_URL",
             "AWARENESS_BASE_URL",
-            default="http://localhost:8000/api/v1",
+            default="https://awareness.market/api/v1",
         )
         resolved_api_key = _env_or_default("AWARENESS_API_KEY")
         mc = MemoryCloudClient(

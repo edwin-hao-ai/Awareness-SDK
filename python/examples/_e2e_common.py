@@ -14,7 +14,7 @@ def get_required_env(name: str, fallback: Optional[str] = None) -> str:
 
 
 def build_client() -> MemoryCloudClient:
-    api_base = os.getenv("AWARENESS_API_BASE_URL", os.getenv("AWARENESS_BASE_URL", "http://localhost:8000/api/v1"))
+    api_base = os.getenv("AWARENESS_API_BASE_URL", os.getenv("AWARENESS_BASE_URL", "https://awareness.market/api/v1"))
     return MemoryCloudClient(
         base_url=get_required_env("AWARENESS_API_BASE_URL", api_base),
         api_key=get_required_env("AWARENESS_API_KEY", ""),

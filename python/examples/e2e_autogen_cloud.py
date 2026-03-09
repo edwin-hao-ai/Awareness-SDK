@@ -6,7 +6,7 @@ Demonstrates both patterns:
 2. Tool registration — explicit search/write tools for agents
 
 Required env:
-- AWARENESS_API_BASE_URL (or legacy AWARENESS_BASE_URL, default: http://localhost:8000/api/v1)
+- AWARENESS_API_BASE_URL (or legacy AWARENESS_BASE_URL, default: https://awareness.market/api/v1)
 - AWARENESS_API_KEY
 Optional env:
 - AWARENESS_MEMORY_ID (reuse existing memory)

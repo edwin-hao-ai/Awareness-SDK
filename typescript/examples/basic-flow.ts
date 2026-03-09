@@ -2,7 +2,7 @@ import { MemoryCloudClient } from "../src";
 
 async function main() {
   // 1) Create client and point it to /api/v1.
-  const apiBaseUrl = process.env.AWARENESS_API_BASE_URL || "http://localhost:8000/api/v1";
+  const apiBaseUrl = process.env.AWARENESS_API_BASE_URL || "https://awareness.market/api/v1";
   const client = new MemoryCloudClient({
     baseUrl: apiBaseUrl,
     apiKey: "YOUR_API_KEY",

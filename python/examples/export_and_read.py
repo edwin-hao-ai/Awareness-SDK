@@ -6,7 +6,7 @@ from memory_cloud import MemoryCloudClient, read_export_package
 def main():
     # 1) Create client.
     client = MemoryCloudClient(
-        base_url=os.getenv("AWARENESS_API_BASE_URL", os.getenv("AWARENESS_BASE_URL", "http://localhost:8000/api/v1")),
+        base_url=os.getenv("AWARENESS_API_BASE_URL", os.getenv("AWARENESS_BASE_URL", "https://awareness.market/api/v1")),
         api_key="YOUR_API_KEY",
     )
 

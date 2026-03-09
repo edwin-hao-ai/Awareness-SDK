@@ -22,7 +22,7 @@ npm run build
 import { MemoryCloudClient } from "@awareness/memory-cloud-sdk";
 
 const client = new MemoryCloudClient({
-  baseUrl: process.env.AWARENESS_API_BASE_URL || "http://localhost:8000/api/v1",
+  baseUrl: process.env.AWARENESS_API_BASE_URL || "https://awareness.market/api/v1",
   apiKey: "YOUR_API_KEY",
 });
 

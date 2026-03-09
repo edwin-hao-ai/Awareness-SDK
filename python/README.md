@@ -38,7 +38,7 @@ import os
 from memory_cloud import MemoryCloudClient
 
 client = MemoryCloudClient(
-    base_url=os.getenv("AWARENESS_API_BASE_URL", os.getenv("AWARENESS_BASE_URL", "http://localhost:8000/api/v1")),
+    base_url=os.getenv("AWARENESS_API_BASE_URL", os.getenv("AWARENESS_BASE_URL", "https://awareness.market/api/v1")),
     api_key="YOUR_API_KEY",
 )
 
@@ -149,9 +149,9 @@ print(parsed.get("kv_summary"))
 Set environment variables:
 
 ```bash
-export AWARENESS_API_BASE_URL="https://your-domain.com/api/v1"
+export AWARENESS_API_BASE_URL="https://awareness.market/api/v1"
 # Legacy alias is still supported:
-# export AWARENESS_BASE_URL="https://your-domain.com/api/v1"
+# export AWARENESS_BASE_URL="https://awareness.market/api/v1"
 export AWARENESS_API_KEY="aw_xxx"
 export AWARENESS_OWNER_ID="your-owner-id"   # only used when auto-creating memory
 # export AWARENESS_MEMORY_ID="existing-memory-id"   # optional
@@ -172,7 +172,7 @@ python examples/e2e_autogen_cloud.py
 from memory_cloud import MemoryCloudClient
 from memory_cloud.integrations.langchain import MemoryCloudLangChain
 
-client = MemoryCloudClient(base_url="https://your-memory-cloud.com/api/v1", api_key="YOUR_API_KEY")
+client = MemoryCloudClient(base_url="https://awareness.market/api/v1", api_key="YOUR_API_KEY")
 mc = MemoryCloudLangChain(client=client, memory_id="memory_123")
 
 # Injection: wrap the LLM client
@@ -190,7 +190,7 @@ docs = retriever._get_relevant_documents("What did we decide yesterday?")
 from memory_cloud import MemoryCloudClient
 from memory_cloud.integrations.crewai import MemoryCloudCrewAI
 
-client = MemoryCloudClient(base_url="https://your-memory-cloud.com/api/v1", api_key="YOUR_API_KEY")
+client = MemoryCloudClient(base_url="https://awareness.market/api/v1", api_key="YOUR_API_KEY")
 mc = MemoryCloudCrewAI(client=client, memory_id="memory_123")
 
 # Injection: wrap the LLM client
@@ -207,7 +207,7 @@ result = mc.memory_search("What happened?")
 from memory_cloud import MemoryCloudClient
 from memory_cloud.integrations.praisonai import MemoryCloudPraisonAI
 
-client = MemoryCloudClient(base_url="https://your-memory-cloud.com/api/v1", api_key="YOUR_API_KEY")
+client = MemoryCloudClient(base_url="https://awareness.market/api/v1", api_key="YOUR_API_KEY")
 mc = MemoryCloudPraisonAI(client=client, memory_id="memory_123")
 
 # Injection: wrap the LLM client
@@ -224,7 +224,7 @@ tools = mc.build_tools()
 from memory_cloud import MemoryCloudClient
 from memory_cloud.integrations.autogen import MemoryCloudAutoGen
 
-client = MemoryCloudClient(base_url="https://your-memory-cloud.com/api/v1", api_key="YOUR_API_KEY")
+client = MemoryCloudClient(base_url="https://awareness.market/api/v1", api_key="YOUR_API_KEY")
 mc = MemoryCloudAutoGen(client=client, memory_id="memory_123")
 
 # Injection: hook into agent message processing

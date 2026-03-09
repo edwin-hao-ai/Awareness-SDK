@@ -61,7 +61,7 @@ def build_memory_client() -> MemoryCloudClient:
     api_base = _optional_env(
         "AWARENESS_API_BASE_URL",
         "AWARENESS_BASE_URL",
-        default="http://localhost:8000/api/v1",
+        default="https://awareness.market/api/v1",
     )
     api_key = _required_env("AWARENESS_API_KEY")
     return MemoryCloudClient(
