@@ -93,7 +93,6 @@ def create_memory_for_test_user(client: MemoryCloudClient, owner_id: str) -> str
         ),
         "custom_type": "universal",
         "owner_id": owner_id,
-        "is_public": False,
         "config": {
             "default_source": "sdk-injected-demo",
             "metadata_defaults": {"agent_role": "sdk_demo"},

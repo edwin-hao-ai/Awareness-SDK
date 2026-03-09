@@ -39,7 +39,6 @@ def ensure_memory(client: MemoryCloudClient) -> str:
                 "metadata_defaults": {"agent_role": "sdk_e2e"},
             },
             "owner_id": owner_id,
-            "is_public": False,
         }
     )
     memory_id = str(created.get("id") or "").strip()

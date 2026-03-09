@@ -89,7 +89,6 @@ def bootstrap_openai_injected_session(
                 "name": memory_name,
                 "description": memory_description,
                 "owner_id": resolved_owner_id,
-                "is_public": False,
                 "custom_type": "universal",
                 "config": memory_config or {"default_source": source, "metadata_defaults": {}},
             }
