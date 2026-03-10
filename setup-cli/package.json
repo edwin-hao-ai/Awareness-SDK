@@ -14,8 +14,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/edwin-hao-ai/Awareness.git",
-    "directory": "sdks/setup-cli"
+    "url": "https://github.com/edwin-hao-ai/Awareness-SDK.git",
+    "directory": "setup-cli"
   },
   "engines": {
     "node": ">=16"
