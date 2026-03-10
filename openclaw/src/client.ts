@@ -20,7 +20,17 @@ export interface SearchOptions {
   limit?: number;
   vectorWeight?: number;
   bm25Weight?: number;
-  recallMode?: "precise" | "session" | "auto";
+  recallMode?: "precise" | "session" | "structured" | "hybrid" | "auto";
+  /** Enable session/daily centroid retrieval for broader context. */
+  multiLevel?: boolean;
+  /** Enable RAPTOR clustering expansion for topic exploration. */
+  clusterExpand?: boolean;
+  /** Minimum confidence threshold for structured/hybrid cards. */
+  confidenceThreshold?: number;
+  /** Search installed marketplace memories. */
+  includeInstalled?: boolean;
+  /** Multi-user filtering. */
+  userId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,17 +82,20 @@ export class AwarenessClient {
       `${opts.semanticQuery}\n` +
       "Return architecture decisions, changed files, completed work, remaining todos, and blockers.";
 
-    const body: Record<string, unknown> = {
-      query,
-      custom_kwargs: {
-        limit: Math.max(1, Math.min(opts.limit ?? 6, 30)),
-        use_hybrid_search: true,
-        reconstruct_chunks: true,
-        recall_mode: opts.recallMode ?? "auto",
-        vector_weight: opts.vectorWeight ?? 0.7,
-        bm25_weight: opts.bm25Weight ?? 0.3,
-      },
+    const customKwargs: Record<string, unknown> = {
+      limit: Math.max(1, Math.min(opts.limit ?? 6, 30)),
+      use_hybrid_search: true,
+      reconstruct_chunks: true,
+      recall_mode: opts.recallMode ?? "auto",
+      vector_weight: opts.vectorWeight ?? 0.7,
+      bm25_weight: opts.bm25Weight ?? 0.3,
     };
+    if (opts.multiLevel !== undefined) customKwargs.multi_level = opts.multiLevel;
+    if (opts.clusterExpand !== undefined) customKwargs.cluster_expand = opts.clusterExpand;
+    if (opts.confidenceThreshold !== undefined) customKwargs.confidence_threshold = opts.confidenceThreshold;
+    if (opts.includeInstalled !== undefined) customKwargs.include_installed = opts.includeInstalled;
+
+    const body: Record<string, unknown> = { query, custom_kwargs: customKwargs };
     if (opts.keywordQuery) {
       body.keyword_query = opts.keywordQuery;
     }
@@ -92,13 +105,13 @@ export class AwarenessClient {
         knowledge: ["knowledge", "full_source"],
         insights: ["insight_summary"],
       };
-      (body.custom_kwargs as Record<string, unknown>).metadata_filter = {
+      customKwargs.metadata_filter = {
         aw_content_scope: scopeMap[opts.scope],
       };
     }
-    if (this.agentRole) {
-      body.agent_role = this.agentRole;
-    }
+    const agentRole = this.agentRole;
+    if (agentRole) body.agent_role = agentRole;
+    if (opts.userId) body.user_id = opts.userId;
     return this.post<RecallResult>(
       `/memories/${this.memoryId}/retrieve`,
       body,
@@ -192,9 +205,9 @@ export class AwarenessClient {
       }
 
       case "backfill":
-        return this.rememberStep(
-          String(params.text ?? ""),
-          { event_type: "backfill", ...(params.metadata as Record<string, unknown> || {}) },
+        return this.backfillConversation(
+          params.history ?? params.content ?? params.text ?? "",
+          params.metadata as Record<string, unknown> | undefined,
         );
 
       case "ingest":
@@ -209,6 +222,9 @@ export class AwarenessClient {
           String(params.task_id ?? ""),
           String(params.status ?? "completed"),
         );
+
+      case "submit_insights":
+        return this.submitInsights(params.content);
 
       default:
         return { error: `Unknown action: ${action}` };
@@ -415,6 +431,70 @@ export class AwarenessClient {
       `/memories/${this.memoryId}/insights/action-items/${taskId}`,
       { status },
     );
+  }
+
+  // -----------------------------------------------------------------------
+  // Session lifecycle
+  // -----------------------------------------------------------------------
+
+  async closeSession(): Promise<{ session_id: string; events_processed: number }> {
+    const body: Record<string, unknown> = {
+      memory_id: this.memoryId,
+      session_id: this.sessionId,
+      generate_summary: true,
+    };
+    if (this.agentRole) body.agent_role = this.agentRole;
+    try {
+      return await this.post<{ session_id: string; events_processed: number }>(
+        "/mcp/events/batch",
+        { ...body, steps: [], close_session: true },
+      );
+    } catch {
+      // Fallback: trigger summary via a lightweight sentinel event
+      await this.rememberStep("[session-end]", {
+        event_type: "session_end",
+        source: "openclaw-plugin",
+      });
+      return { session_id: this.sessionId, events_processed: 0 };
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Insight submission
+  // -----------------------------------------------------------------------
+
+  private async submitInsights(content: unknown): Promise<unknown> {
+    const body: Record<string, unknown> = {
+      memory_id: this.memoryId,
+      session_id: this.sessionId,
+      insights: content,
+    };
+    if (this.agentRole) body.agent_role = this.agentRole;
+    return this.post<unknown>(
+      `/memories/${this.memoryId}/insights/submit`,
+      body,
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Backfill conversation history
+  // -----------------------------------------------------------------------
+
+  private async backfillConversation(
+    history: unknown,
+    metadata?: Record<string, unknown>,
+  ): Promise<IngestResponse> {
+    const body: Record<string, unknown> = {
+      memory_id: this.memoryId,
+      session_id: this.sessionId,
+      history,
+      source: "openclaw-plugin",
+      generate_summary: true,
+      max_events: 800,
+    };
+    if (this.agentRole) body.agent_role = this.agentRole;
+    if (metadata) body.metadata_defaults = metadata;
+    return this.post<IngestResponse>("/mcp/events/backfill", body);
   }
 
   // -----------------------------------------------------------------------

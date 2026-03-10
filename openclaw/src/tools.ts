@@ -60,6 +60,10 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
           description: "Maximum tasks to include (default 20).",
           default: 20,
         },
+        user_id: {
+          type: "string",
+          description: "Filter context by user ID (multi-user memory).",
+        },
       },
     },
     execute: async (input) => {
@@ -114,9 +118,31 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         },
         recall_mode: {
           type: "string",
-          enum: ["precise", "session", "auto"],
-          description: "Recall strategy: precise (chunks only), session (expand to full sessions), auto (default).",
+          enum: ["precise", "session", "structured", "hybrid", "auto"],
+          description:
+            "Recall strategy: precise (chunks only), session (expand to full sessions), " +
+            "structured (zero vector, DB-only, ~1-2k tokens), hybrid (DB + top vectors, ~2-4k tokens), auto (default).",
           default: "auto",
+        },
+        multi_level: {
+          type: "boolean",
+          description: "Enable session/daily centroid retrieval for broader context.",
+        },
+        cluster_expand: {
+          type: "boolean",
+          description: "Enable RAPTOR clustering expansion for topic exploration.",
+        },
+        confidence_threshold: {
+          type: "number",
+          description: "Minimum confidence threshold for structured/hybrid cards (0-1).",
+        },
+        include_installed: {
+          type: "boolean",
+          description: "Search installed marketplace memories in addition to primary memory.",
+        },
+        user_id: {
+          type: "string",
+          description: "Filter results by user ID (multi-user memory).",
         },
       },
       required: ["semantic_query"],
@@ -129,7 +155,12 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         limit: input.limit !== undefined ? Number(input.limit) : undefined,
         vectorWeight: input.vector_weight !== undefined ? Number(input.vector_weight) : undefined,
         bm25Weight: input.bm25_weight !== undefined ? Number(input.bm25_weight) : undefined,
-        recallMode: (input.recall_mode as "precise" | "session" | "auto") ?? "auto",
+        recallMode: (input.recall_mode as "precise" | "session" | "structured" | "hybrid" | "auto") ?? "auto",
+        multiLevel: input.multi_level !== undefined ? Boolean(input.multi_level) : undefined,
+        clusterExpand: input.cluster_expand !== undefined ? Boolean(input.cluster_expand) : undefined,
+        confidenceThreshold: input.confidence_threshold !== undefined ? Number(input.confidence_threshold) : undefined,
+        includeInstalled: input.include_installed !== undefined ? Boolean(input.include_installed) : undefined,
+        userId: input.user_id !== undefined ? String(input.user_id) : undefined,
       });
     },
   });
@@ -159,6 +190,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         session_id: { type: "string", description: "Session ID for session_history type." },
         limit: { type: "integer", description: "Maximum items to return (default 50).", default: 50 },
         offset: { type: "integer", description: "Pagination offset (default 0).", default: 0 },
+        user_id: { type: "string", description: "Filter by user ID (multi-user memory)." },
       },
       required: ["type"],
     },
@@ -211,6 +243,13 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         metadata: {
           type: "object",
           description: "Additional metadata to attach to events.",
+        },
+        user_id: {
+          type: "string",
+          description: "User ID for multi-user memory attribution.",
+        },
+        history: {
+          description: "Conversation log for backfill action (array of {role, content}).",
         },
       },
       required: ["action"],

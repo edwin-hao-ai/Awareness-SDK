@@ -159,9 +159,11 @@ export function registerHooks(
           parts.push("</awareness-memory>");
 
           const memoryBlock = parts.join("\n");
-          const existingPrompt = context.systemPrompt ?? "";
+          // Prefer prependSystemContext (OpenClaw 2026.3.7+) to avoid overwriting system prompt;
+          // fall back to systemPrompt replacement for older hosts.
           return {
-            systemPrompt: memoryBlock + "\n\n" + existingPrompt,
+            prependSystemContext: memoryBlock,
+            systemPrompt: memoryBlock + "\n\n" + (context.systemPrompt ?? ""),
           };
         } catch (err) {
           api.logger.warn(

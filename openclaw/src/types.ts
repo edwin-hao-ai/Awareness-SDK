@@ -77,6 +77,12 @@ export interface HookMessage {
 export interface HookResult {
   /** Optional replacement / augmented system prompt. */
   systemPrompt?: string;
+  /** Prepend context to the user prompt (OpenClaw before_prompt_build). */
+  prependContext?: string;
+  /** Prepend to system prompt without replacing it. */
+  prependSystemContext?: string;
+  /** Append to system prompt without replacing it. */
+  appendSystemContext?: string;
 }
 
 // ---------------------------------------------------------------------------

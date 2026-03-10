@@ -12,7 +12,13 @@
   "bugs": {
     "url": "https://github.com/edwin-hao-ai/Awareness-SDK/issues"
   },
-  "keywords": ["openclaw", "plugin", "memory", "awareness", "ai"],
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "memory",
+    "awareness",
+    "ai"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -24,6 +30,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
+    "test": "vitest run --exclude src/e2e.test.ts",
+    "test:e2e": "vitest run src/e2e.test.ts",
+    "test:all": "vitest run",
     "prepublishOnly": "npm run build"
   },
   "files": [
@@ -39,6 +48,8 @@
     "access": "public"
   },
   "devDependencies": {
-    "typescript": "^5.9.2"
+    "@types/node": "^25.4.0",
+    "typescript": "^5.9.2",
+    "vitest": "^4.0.18"
   }
 }
