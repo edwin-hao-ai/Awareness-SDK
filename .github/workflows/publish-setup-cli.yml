@@ -1,0 +1,42 @@
+name: Publish Setup CLI to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (must match package.json)"
+        required: true
+        default: "0.1.0"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify version matches
+        working-directory: setup-cli
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "${{ github.event.inputs.version }}" ]; then
+            echo "Error: package.json version ($PKG_VERSION) != input version (${{ github.event.inputs.version }})"
+            exit 1
+          fi
+
+      - name: Run tests
+        working-directory: setup-cli
+        run: node --test tests/*.test.cjs
+
+      - name: Publish to npm
+        working-directory: setup-cli
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
