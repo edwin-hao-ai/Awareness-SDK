@@ -32,11 +32,11 @@ session.flush()
 ### TypeScript SDK
 
 ```bash
-npm install @awareness/memory-cloud-sdk
+npm install @awareness-sdk/memory-cloud
 ```
 
 ```typescript
-import { MemoryCloudClient } from "@awareness/memory-cloud-sdk";
+import { MemoryCloudClient } from "@awareness-sdk/memory-cloud";
 
 const client = new MemoryCloudClient({
   baseUrl: "https://awareness.market/api/v1",
@@ -52,7 +52,7 @@ session.addEvent({ role: "assistant", content: "Hi!" });
 await session.flush();
 ```
 
-[Full documentation](typescript/README.md) | [npm](https://www.npmjs.com/package/@awareness/memory-cloud-sdk)
+[Full documentation](typescript/README.md) | [npm](https://www.npmjs.com/package/@awareness-sdk/memory-cloud)
 
 ## Plugins
 

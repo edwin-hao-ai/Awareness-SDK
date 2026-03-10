@@ -5,7 +5,7 @@ TypeScript SDK for Awareness Memory Cloud APIs and MCP-style memory workflows.
 ## Install
 
 ```bash
-npm install @awareness/memory-cloud-sdk
+npm install @awareness-sdk/memory-cloud
 ```
 
 Local development:
@@ -19,7 +19,7 @@ npm run build
 ## Quickstart
 
 ```ts
-import { MemoryCloudClient } from "@awareness/memory-cloud-sdk";
+import { MemoryCloudClient } from "@awareness-sdk/memory-cloud";
 
 const client = new MemoryCloudClient({
   baseUrl: process.env.AWARENESS_API_BASE_URL || "https://awareness.market/api/v1",
@@ -83,7 +83,7 @@ SDK includes export readers:
 - `parseJsonlText(text)`
 
 ```ts
-import { readExportPackage } from "@awareness/memory-cloud-sdk";
+import { readExportPackage } from "@awareness-sdk/memory-cloud";
 
 const parsed = await readExportPackage(zipBytes);
 console.log(parsed.manifest);
