@@ -73,10 +73,10 @@ Skills: `/awareness-memory:session-start`, `/awareness-memory:recall`, `/awarene
 Memory plugin for [OpenClaw](https://openclaw.ai) agents.
 
 ```bash
-openclaw plugins install @awareness/openclaw-memory
+openclaw plugins install @awareness-sdk/openclaw-memory
 ```
 
-[Full documentation](openclaw/README.md) | [npm](https://www.npmjs.com/package/@awareness/openclaw-memory)
+[Full documentation](openclaw/README.md) | [npm](https://www.npmjs.com/package/@awareness-sdk/openclaw-memory)
 
 ## Environment Variables
 

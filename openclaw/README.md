@@ -1,11 +1,11 @@
-# @awareness/openclaw-memory
+# @awareness-sdk/openclaw-memory
 
 OpenClaw memory plugin backed by Awareness Memory Cloud. Gives your OpenClaw agent persistent, structured memory across sessions.
 
 ## Installation
 
 ```bash
-openclaw plugins install @awareness/openclaw-memory
+openclaw plugins install @awareness-sdk/openclaw-memory
 ```
 
 ## Configuration
@@ -16,7 +16,7 @@ Add the plugin to your `~/.openclaw/openclaw.json`:
 {
   "plugins": {
     "memory-awareness": {
-      "package": "@awareness/openclaw-memory",
+      "package": "@awareness-sdk/openclaw-memory",
       "config": {
         "apiKey": "ak-your-awareness-api-key",
         "memoryId": "your-memory-uuid",
@@ -73,7 +73,7 @@ When an agent session ends, the plugin automatically:
 You can also use the client directly in your own code:
 
 ```typescript
-import { AwarenessClient } from "@awareness/openclaw-memory";
+import { AwarenessClient } from "@awareness-sdk/openclaw-memory";
 
 const client = new AwarenessClient(
   "https://awareness.market/api/v1",

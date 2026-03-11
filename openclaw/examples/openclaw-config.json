@@ -2,7 +2,7 @@
   "$schema": "https://openclaw.dev/schemas/openclaw.json",
   "plugins": {
     "memory-awareness": {
-      "package": "@awareness/openclaw-memory",
+      "package": "@awareness-sdk/openclaw-memory",
       "config": {
         "apiKey": "ak-your-awareness-api-key",
         "memoryId": "your-memory-uuid",
