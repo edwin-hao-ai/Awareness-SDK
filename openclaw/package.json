@@ -19,8 +19,11 @@
     "awareness",
     "ai"
   ],
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "openclaw": {
+    "extensions": ["./dist/src/index.js"]
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
