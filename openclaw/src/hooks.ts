@@ -2,7 +2,7 @@ import type { PluginApi, PluginConfig, HookContext, HookResult } from "./types";
 import type { AwarenessClient } from "./client";
 
 // ---------------------------------------------------------------------------
-// Language-agnostic keyword extraction for BM25 (zero LLM cost)
+// Language-agnostic keyword extraction for full-text search (zero LLM cost)
 // ---------------------------------------------------------------------------
 
 function extractKeywords(text: string, maxKeywords: number = 8): string {
@@ -74,7 +74,7 @@ export function registerHooks(
             config.recallLimit,
           );
 
-          // Semantic search against the user prompt (with keyword extraction for BM25)
+          // Semantic search against the user prompt (with keyword extraction for full-text search)
           const keywords = extractKeywords(prompt);
           const recall = await client.search({
             semanticQuery: prompt,

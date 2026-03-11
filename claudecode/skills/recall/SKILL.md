@@ -15,7 +15,7 @@ Steps:
 1. REWRITE the user query before calling the tool:
    - SEMANTIC_QUERY: Expand $ARGUMENTS into a full natural-language question with context.
      Example: user says "auth bug" → "authentication bug in login flow, JWT token handling, session management, and OAuth integration"
-   - KEYWORD_QUERY: Extract 2-5 precise terms for BM25 matching. Use exact identifiers: file names, function names, error codes.
+   - KEYWORD_QUERY: Extract 2-5 precise terms for full-text matching. Use exact identifiers: file names, function names, error codes.
      Example: "auth.py JWT session_cookies OAuth2 login"
 
 2. Call MCP tool `awareness_recall` with:

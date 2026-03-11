@@ -218,7 +218,7 @@ export class MemoryCloudClient {
       }
     }
 
-    // Auto-extract keywords for BM25 if not provided (same as MCP server behavior)
+    // Auto-extract keywords for full-text search if not provided (same as MCP server behavior)
     const effectiveKeyword = input.keywordQuery || extractKeywords(input.query);
     if (effectiveKeyword) {
       merged["keyword_query"] = effectiveKeyword;
@@ -665,10 +665,10 @@ export class MemoryCloudClient {
   }
 
   /**
-   * Submit pre-extracted insights from client-side LLM processing (no backend LLM needed).
+   * Submit pre-extracted insights from client-side LLM processing (no server-side LLM needed).
    *
    * Called after processing an extraction_request returned from rememberStep/rememberBatch.
-   * The backend stores insights with BM25-based deduplication (zero LLM calls).
+   * The server stores insights with server-side deduplication (zero LLM calls).
    */
   async submitInsights(input: {
     memoryId: string;
@@ -1882,7 +1882,7 @@ function normalizeInsights(insights: JsonObject): JsonObject {
 }
 
 /**
- * Language-agnostic structural keyword extraction for BM25.
+ * Language-agnostic structural keyword extraction for full-text search.
  * Mirrors MCP server's _extract_keywords_fallback and Python SDK's extract_keywords.
  */
 function extractKeywords(text: string, maxKeywords = 8): string {

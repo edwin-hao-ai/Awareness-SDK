@@ -1,7 +1,7 @@
 /**
  * E2E Integration Tests for OpenClaw Plugin against Live Awareness API
  *
- * These tests require a running Awareness backend.
+ * These tests require a running Awareness server.
  * Skipped in CI — run locally with: npx vitest run src/e2e.test.ts
  *
  * Environment variables:

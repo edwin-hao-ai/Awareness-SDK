@@ -211,7 +211,7 @@ class ExistingCardRef(TypedDict, total=False):
 
 
 class ExtractionRequest(TypedDict, total=False):
-    """Returned by remember_step/remember_batch when backend triggers extraction.
+    """Returned by remember_step/remember_batch when server triggers extraction.
 
     The SDK interceptor processes this automatically using the user's LLM.
     MCP Agents should process _extraction_instruction in the tool response.

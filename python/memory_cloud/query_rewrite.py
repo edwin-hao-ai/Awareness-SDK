@@ -2,7 +2,7 @@
 
 Three-layer progressive strategy:
   Layer 1: Context-aware query — combine recent conversation turns for richer semantic search
-  Layer 2: Structural keyword extraction — language-agnostic token extraction for BM25
+  Layer 2: Structural keyword extraction — language-agnostic token extraction for full-text search
   Layer 3: LLM query rewrite — optional, uses the user's LLM for optimal rewriting
 """
 
@@ -96,7 +96,7 @@ def extract_keywords(
     *,
     max_keywords: int = _DEFAULT_MAX_KEYWORDS,
 ) -> str:
-    """Layer 2: Language-agnostic structural keyword extraction for BM25.
+    """Layer 2: Language-agnostic structural keyword extraction for full-text search.
 
     Extracts tokens that carry high information density regardless of language.
     No stopword lists, no language-specific NLP needed.
@@ -106,7 +106,7 @@ def extract_keywords(
         max_keywords: Max keywords to return.
 
     Returns:
-        Space-separated keyword string for BM25. Empty string if nothing extracted.
+        Space-separated keyword string for full-text search. Empty string if nothing extracted.
     """
     if not text:
         return ""
@@ -278,7 +278,7 @@ def build_retrieve_queries(
     context_query = build_context_query(messages, max_turns=max_context_turns)
     semantic = context_query if context_query else last_user
 
-    # Layer 2: Structural keyword extraction for BM25
+    # Layer 2: Structural keyword extraction for full-text search
     # Extract from full context (richer) not just last message
     source_text = context_query if context_query else last_user
     keywords = extract_keywords(source_text)

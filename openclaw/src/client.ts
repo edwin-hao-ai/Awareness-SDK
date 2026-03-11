@@ -21,9 +21,9 @@ export interface SearchOptions {
   vectorWeight?: number;
   bm25Weight?: number;
   recallMode?: "precise" | "session" | "structured" | "hybrid" | "auto";
-  /** Enable session/daily centroid retrieval for broader context. */
+  /** Enable broader context retrieval across sessions and time ranges. */
   multiLevel?: boolean;
-  /** Enable RAPTOR clustering expansion for topic exploration. */
+  /** Enable topic-based context expansion for deeper exploration. */
   clusterExpand?: boolean;
   /** Minimum confidence threshold for structured/hybrid cards. */
   confidenceThreshold?: number;

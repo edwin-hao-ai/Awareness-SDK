@@ -123,7 +123,7 @@ Once connected, Claude Code has access to these Awareness MCP tools:
 
 **Local deployment**
 - Set `AWARENESS_MCP_URL` to `http://localhost:8001/mcp`
-- Ensure the Awareness backend is running (`docker compose up`)
+- Ensure you have a valid API key from [https://awareness.market/dashboard](https://awareness.market/dashboard)
 
 ---
 

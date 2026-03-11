@@ -182,8 +182,8 @@ class MemoryCloudClient:
           - "hybrid": structured data + top-K vector results (~2-4k tokens)
           - "auto": detect from query intent
 
-        multi_level: Enable session/daily centroid retrieval for broader context.
-        cluster_expand: Enable RAPTOR cluster expansion for topic exploration.
+        multi_level: Enable broader context retrieval across sessions and time ranges.
+        cluster_expand: Enable topic-based context expansion for deeper exploration.
         include_installed: Search installed market memories alongside primary memory.
         """
         merged: Dict[str, Any] = {
@@ -211,7 +211,7 @@ class MemoryCloudClient:
             }
             if scope in scope_map:
                 resolved_filter["aw_content_scope"] = scope_map[scope]
-        # Auto-extract keywords for BM25 if not provided (same as MCP server behavior)
+        # Auto-extract keywords for full-text search if not provided (same as MCP server behavior)
         effective_keyword = keyword_query
         if not effective_keyword:
             from memory_cloud.query_rewrite import extract_keywords
@@ -500,8 +500,8 @@ class MemoryCloudClient:
           - "hybrid" (default): structured + top-K vector results (~2-4k tokens)
           - "auto": detect from query intent
 
-        multi_level: Enable session/daily centroid retrieval for broader context.
-        cluster_expand: Enable RAPTOR cluster expansion for topic exploration.
+        multi_level: Enable broader context retrieval across sessions and time ranges.
+        cluster_expand: Enable topic-based context expansion for deeper exploration.
         include_installed: Search installed market memories alongside primary memory.
         """
         source_label = self._clean_source(source or self.default_source)
@@ -799,10 +799,10 @@ class MemoryCloudClient:
         agent_role: Optional[str] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Submit pre-extracted insights from client-side LLM processing (no backend LLM needed).
+        """Submit pre-extracted insights from client-side LLM processing (no server LLM needed).
 
         Called after processing an extraction_request returned from remember_step/remember_batch.
-        The backend stores insights with BM25-based deduplication (zero LLM calls).
+        The server stores insights with server-side deduplication (zero LLM calls).
         """
         payload: Dict[str, Any] = {**insights}
         if session_id:

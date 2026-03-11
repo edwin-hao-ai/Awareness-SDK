@@ -90,48 +90,9 @@ All SDKs and plugins share the same environment variable naming:
 | `AWARENESS_MEMORY_ID` | Memory ID | — |
 | `AWARENESS_AGENT_ROLE` | Agent role filter | — |
 
-## Publishing
-
-### Python SDK → PyPI
-
-```bash
-cd python
-pip install build twine
-python -m build
-twine upload dist/*
-```
-
-Or via CI: push a `v*` tag to trigger `.github/workflows/release.yml`.
-
-### TypeScript SDK → npm
-
-```bash
-cd typescript
-npm run build
-npm publish --access public
-```
-
-Or via CI: push a `v*` tag to trigger `.github/workflows/release.yml`.
-
-### OpenClaw Plugin → npm
-
-```bash
-cd openclaw
-npm run build
-npm publish --access public
-```
-
-### Claude Code Plugin
-
-Install locally or publish to Claude Code marketplace:
-
-```bash
-claude plugin install -l ./claudecode
-```
-
 ## Contributing
 
-SDK source lives in the main [Awareness](https://github.com/edwin-hao-ai/Awareness) repository under `sdks/`. This public repo is auto-synced on every push.
+Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/edwin-hao-ai/Awareness).
 
 ## License
 

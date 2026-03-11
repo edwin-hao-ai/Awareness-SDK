@@ -93,7 +93,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         },
         keyword_query: {
           type: "string",
-          description: "2-5 precise terms for BM25 matching (file names, function names, error codes).",
+          description: "2-5 precise terms for full-text matching (file names, function names, error codes).",
         },
         scope: {
           type: "string",
@@ -113,7 +113,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         },
         bm25_weight: {
           type: "number",
-          description: "Weight for BM25 search in hybrid mode (default 0.3).",
+          description: "Weight for full-text search in hybrid mode (default 0.3).",
           default: 0.3,
         },
         recall_mode: {
@@ -126,11 +126,11 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         },
         multi_level: {
           type: "boolean",
-          description: "Enable session/daily centroid retrieval for broader context.",
+          description: "Enable broader context retrieval across sessions and time ranges.",
         },
         cluster_expand: {
           type: "boolean",
-          description: "Enable RAPTOR clustering expansion for topic exploration.",
+          description: "Enable topic-based context expansion for deeper exploration.",
         },
         confidence_threshold: {
           type: "number",

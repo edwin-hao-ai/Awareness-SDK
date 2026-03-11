@@ -73,7 +73,7 @@ def build_memory_client() -> MemoryCloudClient:
 
 
 def build_llm_client() -> OpenAI:
-    gateway_base = _optional_env("AI_GATEWAY_URL", "OPENAI_API_BASE", default="https://ai-gateway.vercel.sh/v1")
+    gateway_base = _optional_env("AI_GATEWAY_URL", "OPENAI_API_BASE", default="")
     gateway_key = _required_env("AI_GATEWAY_API_KEY", "OPENAI_API_KEY")
     timeout_seconds = float(_optional_env("SDK_DEMO_LLM_TIMEOUT_SECONDS", default="45"))
     return OpenAI(
@@ -112,12 +112,12 @@ def wait_for_backend_ready(base_url: str, timeout_seconds: int = 90) -> None:
         try:
             resp = requests.get(docs_url, timeout=5)
             if resp.status_code == 200:
-                print(f"backend_ready={docs_url}")
+                print(f"server_ready={docs_url}")
                 return
         except Exception:
             pass
         time.sleep(2)
-    raise RuntimeError(f"Backend not ready within {timeout_seconds}s: {docs_url}")
+    raise RuntimeError(f"Server not ready within {timeout_seconds}s: {docs_url}")
 
 
 def create_memory_with_retry(client: MemoryCloudClient, owner_id: str, max_attempts: int = 5) -> str:

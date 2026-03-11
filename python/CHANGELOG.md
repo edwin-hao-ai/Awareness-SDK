@@ -6,7 +6,7 @@
 - `user_id` parameter on all write and read methods for multi-user memory
 - `agent_role` parameter for role-filtered recall
 - `reconstruct_chunks` and `max_stitched_chars` on `retrieve()` and `recall_for_task()`
-- `multi_level` and `cluster_expand` parameters for centroid/RAPTOR retrieval
+- `multi_level` and `cluster_expand` parameters for broader context and topic-based retrieval
 - 13 knowledge card categories (6 engineering + 7 personal)
 
 ### Changed

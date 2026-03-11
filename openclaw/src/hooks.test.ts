@@ -210,7 +210,7 @@ describe("registerHooks", () => {
       expect(result.prependSystemContext).toContain("No score keeps");
     });
 
-    it("extracts keywords from prompt for BM25 search", async () => {
+    it("extracts keywords from prompt for full-text search", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ memory_id: "mem-001" }));
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 

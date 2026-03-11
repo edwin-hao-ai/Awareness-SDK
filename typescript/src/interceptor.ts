@@ -623,7 +623,7 @@ export class AwarenessInterceptor {
 
       const insights = normalizeInsightsPayload(parsed);
 
-      // Submit to backend (BM25 dedup safety net)
+      // Submit to server (server-side dedup)
       await this.client.submitInsights({
         memoryId: this.memoryId,
         insights,

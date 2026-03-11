@@ -381,7 +381,7 @@ class AwarenessInterceptor:
     def _store_in_background(self, user_text: str, assistant_text: str) -> None:
         """Store user + assistant messages as events in a background thread.
 
-        If the backend returns an extraction_request, process it using the
+        If the server returns an extraction_request, process it using the
         original LLM function (async, non-blocking).
         """
         if not self.auto_remember:
@@ -474,7 +474,7 @@ class AwarenessInterceptor:
             from memory_cloud.integrations._base import _normalize_insights_payload
             insights = _normalize_insights_payload(insights)
 
-            # Submit to backend (BM25 dedup safety net)
+            # Submit to server (server-side dedup)
             self.client.submit_insights(
                 memory_id=self.memory_id,
                 insights=insights,

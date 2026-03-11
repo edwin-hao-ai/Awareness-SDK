@@ -58,7 +58,7 @@ const awarenessConfigSchema = {
 };
 
 // ---------------------------------------------------------------------------
-// Language-agnostic keyword extraction for BM25 (zero LLM cost)
+// Language-agnostic keyword extraction for full-text search (zero LLM cost)
 // ---------------------------------------------------------------------------
 
 function extractKeywords(text: string, maxKeywords = 8): string {
@@ -205,7 +205,7 @@ const awarenessPlugin = {
             },
             keyword_query: {
               type: "string",
-              description: "2-5 precise terms for BM25 matching.",
+              description: "2-5 precise terms for full-text matching.",
             },
             scope: {
               type: "string",

@@ -322,7 +322,7 @@ class MemoryCloudBaseAdapter:
         thread.start()
 
     def _run_extraction(self, extraction_request: Dict[str, Any]) -> None:
-        """Call an LLM to extract insights from events, then submit to backend."""
+        """Call an LLM to extract insights from events, then submit to server."""
         try:
             system_prompt = extraction_request.get("system_prompt", "")
             events = extraction_request.get("events", [])
@@ -619,7 +619,7 @@ def _strip_existing_memory_context(content: str) -> str:
 
 
 def _normalize_insights_payload(payload: Any) -> Dict[str, Any]:
-    """Normalize LLM extraction output to backend submit_insights shape."""
+    """Normalize LLM extraction output to server submit_insights shape."""
     def _string_list(values: Any) -> List[str]:
         if not isinstance(values, list):
             return []

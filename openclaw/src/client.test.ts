@@ -126,7 +126,7 @@ describe("AwarenessClient", () => {
       expect(body.agent_role).toBe("builder_agent");
     });
 
-    it("passes keyword_query for BM25 matching", async () => {
+    it("passes keyword_query for full-text matching", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       await makeClient().search({
@@ -202,7 +202,7 @@ describe("AwarenessClient", () => {
       expect(body.custom_kwargs.recall_mode).toBe("hybrid");
     });
 
-    // TEST: multi_level centroid retrieval
+    // TEST: multi_level broader context retrieval
     it("passes multi_level param", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
@@ -215,7 +215,7 @@ describe("AwarenessClient", () => {
       expect(body.custom_kwargs.multi_level).toBe(true);
     });
 
-    // TEST: cluster_expand RAPTOR
+    // TEST: cluster_expand topic-based expansion
     it("passes cluster_expand param", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 

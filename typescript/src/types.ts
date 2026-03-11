@@ -230,7 +230,7 @@ export interface ExistingCardRef {
 }
 
 /**
- * Returned by rememberStep/rememberBatch when backend triggers extraction.
+ * Returned by rememberStep/rememberBatch when server triggers extraction.
  *
  * The SDK interceptor processes this automatically using the user's LLM.
  * MCP Agents should process _extraction_instruction in the tool response.

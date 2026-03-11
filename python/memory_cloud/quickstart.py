@@ -108,7 +108,7 @@ def bootstrap_openai_injected_session(
         resolved_llm_base_url = llm_base_url or _env_or_default(
             "AI_GATEWAY_URL",
             "OPENAI_API_BASE",
-            default="https://ai-gateway.vercel.sh/v1",
+            default="",
         )
         resolved_llm_key = llm_api_key or _env_or_default(
             "AI_GATEWAY_API_KEY",
