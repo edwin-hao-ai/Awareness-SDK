@@ -89,13 +89,11 @@ Once connected, Claude Code has access to these Awareness MCP tools:
 
 | Tool | Description |
 |------|-------------|
-| `recall_for_task` | Semantic search across all stored memories |
-| `get_session_context` | Full project state: narratives, tasks, knowledge cards |
-| `remember_step` | Save a single step (what changed and why) |
-| `remember_batch` | Batch save multiple steps at once |
-| `get_knowledge_base` | Query 13-category structured knowledge cards |
-| `get_pending_tasks` | Retrieve pending and in-progress action items |
-| `supersede_knowledge_card` | Mark an outdated knowledge card as superseded |
+| `__awareness_workflow__` | Workflow reference (DO NOT CALL — read the description for the mandatory workflow) |
+| `awareness_init` | Initialize session + load cross-session context (narratives, tasks, knowledge cards) |
+| `awareness_recall` | Semantic + keyword hybrid search across all stored memories |
+| `awareness_lookup` | Structured data retrieval: context, tasks, knowledge, risks, timeline, rules, graph, agents |
+| `awareness_record` | All writes: remember, remember\_batch, backfill, ingest, update\_task, submit\_insights |
 
 ---
 

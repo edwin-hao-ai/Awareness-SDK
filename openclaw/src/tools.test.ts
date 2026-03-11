@@ -199,7 +199,7 @@ describe("registerTools", () => {
       expect(schema.required).toEqual(["type"]);
     });
 
-    it("supports all 7 lookup types", () => {
+    it("supports all 10 lookup types", () => {
       const tools = setupTools();
       const schema = tools["awareness_lookup"].inputSchema as Record<string, unknown>;
       const props = schema.properties as Record<string, Record<string, unknown>>;
@@ -211,7 +211,21 @@ describe("registerTools", () => {
         "session_history",
         "timeline",
         "handoff",
+        "rules",
+        "graph",
+        "agents",
       ]);
+    });
+
+    it("has graph/rules-specific params in schema", () => {
+      const tools = setupTools();
+      const schema = tools["awareness_lookup"].inputSchema as Record<string, unknown>;
+      const props = schema.properties as Record<string, unknown>;
+      expect(props.format).toBeDefined();
+      expect(props.entity_id).toBeDefined();
+      expect(props.entity_type).toBeDefined();
+      expect(props.search).toBeDefined();
+      expect(props.max_hops).toBeDefined();
     });
 
     it("has user_id in schema", () => {

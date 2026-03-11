@@ -26,10 +26,17 @@ Steps:
      f. "TODOs: [what remains to be done next session]"
      g. "Next session: [recommended starting point and first action]"
 
-3. Confirm what was saved.
+3. Check if the response contains `_extraction_instruction`:
+   - If YES: read the System Prompt and Events in the instruction, process them with your LLM
+     to extract structured insights (knowledge_cards, risks, action_items), then call:
+     `awareness_record(action="submit_insights", content=<the_json_result>)`
+   - If NO: skip this step
+
+4. Confirm what was saved.
 
 Rules:
 - If $ARGUMENTS is provided, focus the summary on that specific area
 - Always include file paths for any code that was written or modified
 - Include WHAT happened, WHY it matters, OUTCOME, and FILES affected
 - Write clearly so the system can auto-extract knowledge cards, tasks, and risks
+- Never skip _extraction_instruction processing — skipping causes permanent knowledge loss

@@ -120,9 +120,9 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
           type: "string",
           enum: ["precise", "session", "structured", "hybrid", "auto"],
           description:
-            "Recall strategy: precise (chunks only), session (expand to full sessions), " +
-            "structured (zero vector, DB-only, ~1-2k tokens), hybrid (DB + top vectors, ~2-4k tokens), auto (default).",
-          default: "auto",
+            "Recall strategy: hybrid (DB + top vectors, default), auto, precise (chunks only), " +
+            "session (expand to full sessions), structured (zero vector, DB-only, ~1-2k tokens).",
+          default: "hybrid",
         },
         multi_level: {
           type: "boolean",
@@ -172,13 +172,13 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
     id: "awareness_lookup",
     description:
       "Look up structured data from persistent memory — pure DB, <50ms.\n" +
-      "TYPE: context | tasks | knowledge | risks | session_history | timeline | handoff",
+      "TYPE: context | tasks | knowledge | risks | session_history | timeline | handoff | rules | graph | agents",
     inputSchema: {
       type: "object",
       properties: {
         type: {
           type: "string",
-          enum: ["context", "tasks", "knowledge", "risks", "session_history", "timeline", "handoff"],
+          enum: ["context", "tasks", "knowledge", "risks", "session_history", "timeline", "handoff", "rules", "graph", "agents"],
           description: "Type of data to retrieve.",
         },
         query: { type: "string", description: "Keyword filter for knowledge cards (not vector search)." },
@@ -191,6 +191,11 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         limit: { type: "integer", description: "Maximum items to return (default 50).", default: 50 },
         offset: { type: "integer", description: "Pagination offset (default 0).", default: 0 },
         user_id: { type: "string", description: "Filter by user ID (multi-user memory)." },
+        format: { type: "string", description: "Output format for rules type (json, cursorrules, claude-md, markdown)." },
+        entity_id: { type: "string", description: "Entity ID for graph neighbor lookup." },
+        entity_type: { type: "string", description: "Entity type filter for graph lookup." },
+        search: { type: "string", description: "Name search for graph entities." },
+        max_hops: { type: "integer", description: "Traversal depth for graph neighbor lookup (1-4)." },
       },
       required: ["type"],
     },
@@ -235,8 +240,8 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         content_scope: {
           type: "string",
           enum: ["timeline", "knowledge"],
-          description: "Content scope for ingest (default knowledge).",
-          default: "knowledge",
+          description: "Content scope for ingest (default timeline).",
+          default: "timeline",
         },
         task_id: { type: "string", description: "Task ID for update_task action." },
         status: { type: "string", description: "New status for update_task (completed, in_progress, pending)." },

@@ -119,10 +119,10 @@ describe("AwarenessClient", () => {
       expect(result.results![0].score).toBe(0.92);
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.query).toContain("auth method");
+      expect(body.query).toBe("auth method");
       expect(body.custom_kwargs.use_hybrid_search).toBe(true);
       expect(body.custom_kwargs.reconstruct_chunks).toBe(true);
-      expect(body.custom_kwargs.recall_mode).toBe("auto");
+      expect(body.custom_kwargs.recall_mode).toBe("hybrid");
       expect(body.agent_role).toBe("builder_agent");
     });
 
@@ -466,9 +466,96 @@ describe("AwarenessClient", () => {
       expect(body.content_scope).toBe("knowledge");
     });
 
+    it("action=remember passes user_id to body", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
+
+      await makeClient().write("remember", {
+        text: "User-scoped event",
+        user_id: "alice@novapay.com",
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.user_id).toBe("alice@novapay.com");
+    });
+
+    it("action=remember_batch passes user_id to body", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 2, written: 2 }));
+
+      await makeClient().write("remember_batch", {
+        steps: [{ text: "Step 1" }],
+        user_id: "bob@novapay.com",
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.user_id).toBe("bob@novapay.com");
+    });
+
+    it("action=ingest defaults content_scope to timeline", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
+
+      await makeClient().write("ingest", {
+        content: "Some content",
+        // content_scope NOT specified — should default to "timeline"
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.content_scope).toBe("timeline");
+    });
+
     it("action=unknown returns error", async () => {
       const result = await makeClient().write("nonexistent");
       expect(result).toEqual({ error: "Unknown action: nonexistent" });
+    });
+  });
+
+  // =========================================================================
+  // getData() — new lookup types (rules, graph, agents)
+  // =========================================================================
+  describe("getData() — extended types", () => {
+    it("type=rules calls /memories/{id}/rules", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ rules: "..." }));
+      await makeClient().getData("rules", { format: "json" });
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain("/memories/mem-test-001/rules");
+      expect(url).toContain("format=json");
+    });
+
+    it("type=graph lists entities", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ entities: [] }));
+      await makeClient().getData("graph", { limit: 20 });
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain("/memories/mem-test-001/graph/entities");
+      expect(url).toContain("limit=20");
+    });
+
+    it("type=graph with entity_id fetches neighbors", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ neighbors: [] }));
+      await makeClient().getData("graph", { entity_id: "ent-1", max_hops: 2 });
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain("/graph/entities/ent-1/neighbors");
+      expect(url).toContain("max_hops=2");
+    });
+
+    it("type=agents calls /memories/{id}/agents", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ agents: [] }));
+      await makeClient().getData("agents", {});
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain("/memories/mem-test-001/agents");
+    });
+  });
+
+  // =========================================================================
+  // search() — multilang alignment
+  // =========================================================================
+  describe("search() — multilang alignment", () => {
+    it("does not append hardcoded English suffix to query", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
+
+      await makeClient().search({ semanticQuery: "认证方案决策" });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.query).toBe("认证方案决策");
+      expect(body.query).not.toContain("Return architecture");
     });
   });
 

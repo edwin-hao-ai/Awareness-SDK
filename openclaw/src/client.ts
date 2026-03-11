@@ -78,15 +78,13 @@ export class AwarenessClient {
   // -----------------------------------------------------------------------
 
   async search(opts: SearchOptions): Promise<RecallResult> {
-    const query =
-      `${opts.semanticQuery}\n` +
-      "Return architecture decisions, changed files, completed work, remaining todos, and blockers.";
+    const query = opts.semanticQuery;
 
     const customKwargs: Record<string, unknown> = {
       limit: Math.max(1, Math.min(opts.limit ?? 6, 30)),
       use_hybrid_search: true,
       reconstruct_chunks: true,
-      recall_mode: opts.recallMode ?? "auto",
+      recall_mode: opts.recallMode ?? "hybrid",
       vector_weight: opts.vectorWeight ?? 0.7,
       bm25_weight: opts.bm25Weight ?? 0.3,
     };
@@ -177,6 +175,15 @@ export class AwarenessClient {
           params.query !== undefined ? String(params.query) : undefined,
         );
 
+      case "rules":
+        return this.getRules(params);
+
+      case "graph":
+        return this.getGraph(params);
+
+      case "agents":
+        return this.getAgents();
+
       default:
         return { error: `Unknown type: ${type}` };
     }
@@ -190,18 +197,20 @@ export class AwarenessClient {
     action: string,
     params: Record<string, unknown> = {},
   ): Promise<unknown> {
+    const userId = params.user_id !== undefined ? String(params.user_id) : undefined;
     switch (action) {
       case "remember":
         return this.rememberStep(
           String(params.text ?? ""),
           params.metadata as Record<string, unknown> | undefined,
+          userId,
         );
 
       case "remember_batch": {
         const steps = Array.isArray(params.steps)
           ? (params.steps as { text?: string }[]).map((s) => String(s.text ?? s))
           : [];
-        return this.rememberBatch(steps);
+        return this.rememberBatch(steps, userId);
       }
 
       case "backfill":
@@ -213,7 +222,7 @@ export class AwarenessClient {
       case "ingest":
         return this.ingestContent(
           params.content,
-          (params.content_scope as string) ?? "knowledge",
+          (params.content_scope as string) ?? "timeline",
           params.metadata as Record<string, unknown> | undefined,
         );
 
@@ -379,6 +388,37 @@ export class AwarenessClient {
     };
   }
 
+  private async getRules(
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
+    const qs = new URLSearchParams();
+    if (params.format !== undefined) qs.set("format", String(params.format));
+    if (this.agentRole) qs.set("agent_role", this.agentRole);
+    return this.get<unknown>(`/memories/${this.memoryId}/rules`, qs);
+  }
+
+  private async getGraph(
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
+    const qs = new URLSearchParams();
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.entity_type !== undefined) qs.set("entity_type", String(params.entity_type));
+    if (params.search !== undefined) qs.set("search", String(params.search));
+    // If entity_id is given, fetch neighbors; otherwise list entities
+    if (params.entity_id) {
+      if (params.max_hops !== undefined) qs.set("max_hops", String(params.max_hops));
+      return this.get<unknown>(
+        `/memories/${this.memoryId}/graph/entities/${String(params.entity_id)}/neighbors`,
+        qs,
+      );
+    }
+    return this.get<unknown>(`/memories/${this.memoryId}/graph/entities`, qs);
+  }
+
+  private async getAgents(): Promise<unknown> {
+    return this.get<unknown>(`/memories/${this.memoryId}/agents`);
+  }
+
   // -----------------------------------------------------------------------
   // Internal — Write operations
   // -----------------------------------------------------------------------
@@ -386,6 +426,7 @@ export class AwarenessClient {
   async rememberStep(
     text: string,
     metadata?: Record<string, unknown>,
+    userId?: string,
   ): Promise<IngestResponse> {
     const body: Record<string, unknown> = {
       memory_id: this.memoryId,
@@ -393,17 +434,22 @@ export class AwarenessClient {
       session_id: this.sessionId,
     };
     if (this.agentRole) body.agent_role = this.agentRole;
+    if (userId) body.user_id = userId;
     if (metadata) Object.assign(body, metadata);
     return this.post<IngestResponse>("/mcp/events", body);
   }
 
-  private async rememberBatch(steps: string[]): Promise<IngestResponse> {
+  private async rememberBatch(
+    steps: string[],
+    userId?: string,
+  ): Promise<IngestResponse> {
     const body: Record<string, unknown> = {
       memory_id: this.memoryId,
       steps,
       session_id: this.sessionId,
     };
     if (this.agentRole) body.agent_role = this.agentRole;
+    if (userId) body.user_id = userId;
     return this.post<IngestResponse>("/mcp/events/batch", body);
   }
 
