@@ -26,6 +26,59 @@ test("syncIdeRules creates managed_block files when missing", () => {
   assert.match(content, /AWARENESS_RULES_START/);
 });
 
+test("syncIdeRules creates VS Code Copilot instructions when missing", () => {
+  const cwd = makeTempDir();
+
+  const result = rulesModule.syncIdeRules({ cwd, ideId: "copilot" });
+  const content = fs.readFileSync(path.join(cwd, ".github", "copilot-instructions.md"), "utf-8");
+
+  assert.equal(result.action, "create");
+  assert.match(content, /VS Code Copilot Notes/);
+});
+
+test("syncIdeMcpConfig creates VS Code MCP config when missing", () => {
+  const cwd = makeTempDir();
+
+  const result = rulesModule.syncIdeMcpConfig({
+    cwd,
+    ideId: "copilot",
+    mcpUrl: "https://awareness.market/mcp",
+    apiKey: "aw_test",
+    memoryId: "mem_123",
+  });
+  const content = fs.readFileSync(path.join(cwd, ".vscode", "mcp.json"), "utf-8");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action, "create");
+  assert.match(content, /awareness-memory/);
+  assert.match(content, /X-Awareness-Memory-Id/);
+});
+
+test("syncIdeMcpConfig merges into existing MCP config JSON", () => {
+  const cwd = makeTempDir();
+  const filePath = path.join(cwd, ".vscode", "mcp.json");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({ mcpServers: { other: { url: "http://localhost:9999" } } }, null, 2) + "\n",
+    "utf-8",
+  );
+
+  const result = rulesModule.syncIdeMcpConfig({
+    cwd,
+    ideId: "copilot",
+    mcpUrl: "https://awareness.market/mcp",
+    apiKey: "aw_test",
+    memoryId: "mem_123",
+  });
+  const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action, "replace");
+  assert.ok(parsed.mcpServers.other);
+  assert.ok(parsed.mcpServers["awareness-memory"]);
+});
+
 test("syncIdeRules appends managed_block when file has no markers", () => {
   const cwd = makeTempDir();
   const filePath = path.join(cwd, "CLAUDE.md");
@@ -105,16 +158,80 @@ test("syncIdeRules can force replace unmanaged cursor file", () => {
   assert.match(content, /Awareness Memory Rules/);
 });
 
-test("CLI dry-run previews changes without writing files", () => {
+test("CLI dry-run previews changes without writing files", async () => {
   const cwd = makeTempDir();
   const originalCwd = process.cwd();
   try {
     process.chdir(cwd);
-    const exitCode = cliModule.main(["--ide", "codex", "--dry-run"]);
+    const exitCode = await cliModule.main(["--ide", "codex", "--dry-run"]);
 
     assert.equal(exitCode, 0);
     assert.equal(fs.existsSync(path.join(cwd, "AGENTS.md")), false);
   } finally {
     process.chdir(originalCwd);
   }
+});
+
+test("resolveMcpConfigInputs prompts for missing MCP values in interactive mode", async () => {
+  const answers = [
+    "https://awareness.market/mcp",
+    "aw_test",
+    "mem_123",
+  ];
+  const asked = [];
+
+  const result = await cliModule.resolveMcpConfigInputs({
+    argv: ["--configure-mcp"],
+    ideId: "copilot",
+    isInteractive: true,
+    prompt: async (question) => {
+      asked.push(question);
+      return answers.shift() ?? "";
+    },
+  });
+
+  assert.equal(result.shouldSync, true);
+  assert.equal(result.mcpUrl, "https://awareness.market/mcp");
+  assert.equal(result.apiKey, "aw_test");
+  assert.equal(result.memoryId, "mem_123");
+  assert.deepEqual(asked, [
+    "Awareness MCP URL: ",
+    "Awareness API key: ",
+    "Awareness Memory ID: ",
+  ]);
+});
+
+test("CLI can dry-run rule sync plus MCP config sync", async () => {
+  const cwd = makeTempDir();
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(cwd);
+    const exitCode = await cliModule.main([
+      "--ide",
+      "copilot",
+      "--dry-run",
+      "--mcp-url",
+      "https://awareness.market/mcp",
+      "--api-key",
+      "aw_test",
+      "--memory-id",
+      "mem_123",
+    ]);
+
+    assert.equal(exitCode, 0);
+    assert.equal(fs.existsSync(path.join(cwd, ".github", "copilot-instructions.md")), false);
+    assert.equal(fs.existsSync(path.join(cwd, ".vscode", "mcp.json")), false);
+  } finally {
+    process.chdir(originalCwd);
+  }
+});
+
+test("normalizeIdeId accepts GitHub Copilot aliases", () => {
+  assert.equal(rulesModule.normalizeIdeId("copilot"), "copilot");
+  assert.equal(rulesModule.normalizeIdeId("github-copilot"), "copilot");
+  assert.equal(rulesModule.normalizeIdeId("vscode-copilot"), "copilot");
+});
+
+test("getIdeMcpPath returns file-based config path for copilot", () => {
+  assert.equal(rulesModule.getIdeMcpPath("copilot"), ".vscode/mcp.json");
 });

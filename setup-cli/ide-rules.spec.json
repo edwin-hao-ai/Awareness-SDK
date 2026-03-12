@@ -24,6 +24,14 @@
     "",
     "STEP 4 - INSIGHT EXTRACTION:",
     "  If awareness_record returns _extraction_instruction: process -> submit_insights.",
+    "  Quick category guide:",
+    "  - decision = choice made between alternatives.",
+    "  - problem_solution = bug/problem plus the fix that resolved it.",
+    "  - workflow = process, setup, or configuration steps only.",
+    "  - pitfall = blocker, warning, or limitation without a fix yet.",
+    "  - insight = reusable pattern or general learning.",
+    "  - key_point = important technical fact when nothing else fits.",
+    "  Never default everything to workflow.",
     "",
     "STEP 5 - SESSION END:",
     "  awareness_record(action=\"remember_batch\", steps=[...]) with final summary.",
@@ -38,6 +46,7 @@
     "claude-code",
     "windsurf",
     "cline",
+    "copilot",
     "codex"
   ],
   "ides": {
@@ -104,6 +113,22 @@
         "## Cline-Specific Notes",
         "- Call awareness_init when Cline starts a new task.",
         "- After each tool use (file edit, terminal command), call awareness_record."
+      ]
+    },
+    "copilot": {
+      "label": "VS Code Copilot",
+      "rules_file": ".github/copilot-instructions.md",
+      "strategy": "managed_block",
+      "conflict_policy": "error_on_invalid_markers",
+      "header": "# Awareness Memory Rules",
+      "preamble_lines": [
+        "MANDATORY repository instructions for VS Code GitHub Copilot."
+      ],
+      "notes_lines": [
+        "## VS Code Copilot Notes",
+        "- Call awareness_init at the start of each new Copilot Chat or agent task.",
+        "- After each file edit, terminal command, decision, or fix, call awareness_record.",
+        "- The MCP server config should live in .vscode/mcp.json."
       ]
     },
     "codex": {

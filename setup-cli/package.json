@@ -7,7 +7,7 @@
   },
   "type": "module",
   "files": ["src/", "ide-rules.spec.json"],
-  "keywords": ["awareness", "memory", "mcp", "ide", "setup", "claude", "cursor", "windsurf", "cline", "codex"],
+  "keywords": ["awareness", "memory", "mcp", "ide", "setup", "claude", "cursor", "windsurf", "cline", "copilot", "github-copilot", "codex"],
   "license": "MIT",
   "publishConfig": {
     "access": "public"

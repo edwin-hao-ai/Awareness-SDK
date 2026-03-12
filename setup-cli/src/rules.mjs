@@ -15,11 +15,23 @@ const IDE_ALIASES = {
   cursor: "cursor",
   windsurf: "windsurf",
   cline: "cline",
+  copilot: "copilot",
+  githubcopilot: "copilot",
+  "github-copilot": "copilot",
+  vscodecopilot: "copilot",
+  "vscode-copilot": "copilot",
   codex: "codex",
   opencode: "codex",
 };
 
 let specCache = null;
+
+const MCP_PATHS = {
+  cursor: ".cursor/mcp.json",
+  "claude-code": ".claude/settings.json",
+  windsurf: ".windsurf/mcp.json",
+  copilot: ".vscode/mcp.json",
+};
 
 export function loadRulesSpec() {
   if (!specCache) {
@@ -57,6 +69,14 @@ export function getIdeConfig(ideId) {
   return config && typeof config === "object" ? { id: normalizedIde, ...config } : null;
 }
 
+export function getIdeMcpPath(ideId) {
+  const normalizedIde = normalizeIdeId(ideId);
+  if (!normalizedIde) {
+    return null;
+  }
+  return MCP_PATHS[normalizedIde] ?? null;
+}
+
 export function renderUniversalRule(source = "<tool_name>") {
   const spec = loadRulesSpec();
   return renderCore(spec, source || "<tool_name>");
@@ -90,6 +110,7 @@ export function autoDetectIde(cwd = process.cwd(), env = process.env) {
     "claude-code": () => existsSync(join(cwd, "CLAUDE.md")) || Boolean(env.CLAUDE_CODE),
     windsurf: () => existsSync(join(cwd, ".windsurfrules")),
     cline: () => existsSync(join(cwd, ".clinerules")),
+    copilot: () => existsSync(join(cwd, ".github", "copilot-instructions.md")) || existsSync(join(cwd, ".vscode", "mcp.json")),
     codex: () => existsSync(join(cwd, "AGENTS.md")),
   };
 
@@ -220,6 +241,119 @@ export function syncIdeRules(options = {}) {
     fullPath,
     strategy: config.strategy,
     conflictPolicy: config.conflict_policy,
+    dryRun,
+  };
+}
+
+export function buildMcpServerConfig(options = {}) {
+  const serverName = String(options.serverName || "awareness-memory").trim() || "awareness-memory";
+  const mcpUrl = String(options.mcpUrl || "").trim();
+  const apiKey = String(options.apiKey || "").trim();
+  const memoryId = String(options.memoryId || "").trim();
+  const agentRole = String(options.agentRole || "builder_agent").trim() || "builder_agent";
+
+  if (!mcpUrl || !apiKey || !memoryId) {
+    throw new Error("mcpUrl, apiKey, and memoryId are required to build MCP config");
+  }
+
+  return {
+    mcpServers: {
+      [serverName]: {
+        url: mcpUrl,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "X-Awareness-Memory-Id": memoryId,
+          "X-Awareness-Agent-Role": agentRole,
+        },
+      },
+    },
+  };
+}
+
+export function mergeMcpConfigText(existingText, nextServerConfig) {
+  let base = {};
+  if (existingText != null) {
+    try {
+      base = JSON.parse(existingText);
+    } catch {
+      return {
+        action: "conflict",
+        reason: "existing MCP config is not valid JSON",
+        content: existingText,
+      };
+    }
+  }
+
+  const currentServers =
+    base && typeof base === "object" && base.mcpServers && typeof base.mcpServers === "object"
+      ? base.mcpServers
+      : {};
+  const nextServers = nextServerConfig.mcpServers ?? {};
+  const merged = {
+    ...(base && typeof base === "object" ? base : {}),
+    mcpServers: {
+      ...currentServers,
+      ...nextServers,
+    },
+  };
+  const rendered = `${JSON.stringify(merged, null, 2)}\n`;
+  return {
+    action: existingText == null ? "create" : rendered === existingText ? "noop" : "replace",
+    content: rendered,
+  };
+}
+
+export function syncIdeMcpConfig(options = {}) {
+  const cwd = options.cwd ?? process.cwd();
+  const ideId = normalizeIdeId(options.ideId);
+  const dryRun = Boolean(options.dryRun);
+  const filePath = getIdeMcpPath(ideId);
+
+  if (!ideId) {
+    throw new Error(`Unknown IDE: ${options.ideId}`);
+  }
+  if (!filePath) {
+    return {
+      ok: false,
+      action: "unsupported",
+      reason: `IDE ${ideId} does not have a file-based MCP config path`,
+      ideId,
+      filePath: null,
+      fullPath: null,
+      dryRun,
+    };
+  }
+
+  const fullPath = join(cwd, filePath);
+  const existingText = existsSync(fullPath) ? readFileSync(fullPath, "utf-8") : null;
+  const nextConfig = buildMcpServerConfig(options);
+  const result = mergeMcpConfigText(existingText, nextConfig);
+
+  if (result.action === "conflict") {
+    return {
+      ok: false,
+      ...result,
+      ideId,
+      filePath,
+      fullPath,
+      dryRun,
+    };
+  }
+
+  if (!dryRun && result.action !== "noop") {
+    const dir = dirname(fullPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(fullPath, result.content, "utf-8");
+  }
+
+  return {
+    ok: true,
+    ...result,
+    ideId,
+    filePath,
+    fullPath,
     dryRun,
   };
 }
