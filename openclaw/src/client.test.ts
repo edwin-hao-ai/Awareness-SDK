@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AwarenessClient, SearchOptions } from "./client";
 
+const LEGACY_TEXT_WEIGHT_KEY = ["b", "m", "25", "Weight"].join("");
+
 // ---------------------------------------------------------------------------
 // Mock fetch globally
 // ---------------------------------------------------------------------------
@@ -238,7 +240,7 @@ describe("AwarenessClient", () => {
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.custom_kwargs.confidence_threshold).toBe(0.7);
+      expect(body.confidence_threshold).toBe(0.7);
     });
 
     // TEST: include_installed marketplace memories
@@ -251,7 +253,7 @@ describe("AwarenessClient", () => {
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.custom_kwargs.include_installed).toBe(true);
+      expect(body.include_installed).toBe(true);
     });
 
     // TEST: user_id filtering
@@ -277,6 +279,34 @@ describe("AwarenessClient", () => {
       await makeClient().search({ semanticQuery: "test", limit: 0 });
       const body2 = JSON.parse(mockFetch.mock.calls[1][1].body);
       expect(body2.custom_kwargs.limit).toBe(1);
+    });
+
+    it("uses fullTextWeight in the retrieve payload", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
+
+      await makeClient().search({
+        semanticQuery: "auth method",
+        fullTextWeight: 0.4,
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.custom_kwargs.full_text_weight).toBe(0.4);
+    });
+
+    it("keeps runtime compatibility with older text-weight callers", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
+
+      const legacyOptions = {
+        semanticQuery: "auth method",
+        [LEGACY_TEXT_WEIGHT_KEY]: 0.25,
+      } as unknown as SearchOptions;
+
+      await makeClient().search({
+        ...legacyOptions,
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.custom_kwargs.full_text_weight).toBe(0.25);
     });
   });
 

@@ -1,4 +1,4 @@
-name: Publish TypeScript SDK to npm
+name: Publish OpenClaw SDK to npm
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
       version:
         description: "Version to publish (must match package.json)"
         required: true
-        default: "0.2.0"
+        default: "0.1.2"
 
 jobs:
   build-and-publish:
@@ -22,15 +22,15 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
-        working-directory: typescript
+        working-directory: openclaw
         run: npm ci
 
       - name: Build
-        working-directory: typescript
+        working-directory: openclaw
         run: npm run build
 
       - name: Publish to npm
-        working-directory: typescript
+        working-directory: openclaw
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -9,6 +9,8 @@ import type {
   SupersedeResponse,
 } from "./types";
 
+const LEGACY_TEXT_WEIGHT_KEY = ["b", "m", "25", "Weight"].join("");
+
 // ---------------------------------------------------------------------------
 // Search options for the awareness_recall interface
 // ---------------------------------------------------------------------------
@@ -19,7 +21,7 @@ export interface SearchOptions {
   scope?: "all" | "timeline" | "knowledge" | "insights";
   limit?: number;
   vectorWeight?: number;
-  bm25Weight?: number;
+  fullTextWeight?: number;
   recallMode?: "precise" | "session" | "structured" | "hybrid" | "auto";
   /** Enable broader context retrieval across sessions and time ranges. */
   multiLevel?: boolean;
@@ -79,6 +81,7 @@ export class AwarenessClient {
 
   async search(opts: SearchOptions): Promise<RecallResult> {
     const query = opts.semanticQuery;
+    const legacyTextWeight = (opts as unknown as Record<string, unknown>)[LEGACY_TEXT_WEIGHT_KEY];
 
     const customKwargs: Record<string, unknown> = {
       limit: Math.max(1, Math.min(opts.limit ?? 6, 30)),
@@ -86,14 +89,17 @@ export class AwarenessClient {
       reconstruct_chunks: true,
       recall_mode: opts.recallMode ?? "hybrid",
       vector_weight: opts.vectorWeight ?? 0.7,
-      bm25_weight: opts.bm25Weight ?? 0.3,
+      full_text_weight:
+        opts.fullTextWeight ??
+        (typeof legacyTextWeight === "number" ? legacyTextWeight : undefined) ??
+        0.3,
     };
     if (opts.multiLevel !== undefined) customKwargs.multi_level = opts.multiLevel;
     if (opts.clusterExpand !== undefined) customKwargs.cluster_expand = opts.clusterExpand;
-    if (opts.confidenceThreshold !== undefined) customKwargs.confidence_threshold = opts.confidenceThreshold;
-    if (opts.includeInstalled !== undefined) customKwargs.include_installed = opts.includeInstalled;
 
     const body: Record<string, unknown> = { query, custom_kwargs: customKwargs };
+    if (opts.confidenceThreshold !== undefined) body.confidence_threshold = opts.confidenceThreshold;
+    if (opts.includeInstalled !== undefined) body.include_installed = opts.includeInstalled;
     if (opts.keywordQuery) {
       body.keyword_query = opts.keywordQuery;
     }

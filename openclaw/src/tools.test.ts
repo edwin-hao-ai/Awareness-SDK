@@ -152,6 +152,7 @@ describe("registerTools", () => {
       const tools = setupTools();
       const schema = tools["awareness_recall"].inputSchema as Record<string, unknown>;
       const props = schema.properties as Record<string, unknown>;
+      expect(props.full_text_weight).toBeDefined();
       expect(props.multi_level).toBeDefined();
       expect(props.cluster_expand).toBeDefined();
       expect(props.confidence_threshold).toBeDefined();
@@ -169,7 +170,7 @@ describe("registerTools", () => {
         scope: "knowledge",
         limit: 10,
         vector_weight: 0.8,
-        bm25_weight: 0.2,
+        full_text_weight: 0.2,
         recall_mode: "hybrid",
         multi_level: true,
         cluster_expand: false,
@@ -182,8 +183,9 @@ describe("registerTools", () => {
       expect(body.custom_kwargs.recall_mode).toBe("hybrid");
       expect(body.custom_kwargs.multi_level).toBe(true);
       expect(body.custom_kwargs.cluster_expand).toBe(false);
-      expect(body.custom_kwargs.confidence_threshold).toBe(0.6);
-      expect(body.custom_kwargs.include_installed).toBe(true);
+      expect(body.custom_kwargs.full_text_weight).toBe(0.2);
+      expect(body.confidence_threshold).toBe(0.6);
+      expect(body.include_installed).toBe(true);
       expect(body.user_id).toBe("alice");
       expect(body.keyword_query).toBe("JWT token");
     });
