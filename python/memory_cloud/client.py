@@ -1389,7 +1389,7 @@ class MemoryCloudClient:
         owner_id: str,
         messages: List[Dict[str, Any]],
         draft: Optional[Dict[str, Any]] = None,
-        locale: str = "zh-CN",
+        locale: str = "en",
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         data, resolved_trace = self._request(

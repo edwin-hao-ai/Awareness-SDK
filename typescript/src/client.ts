@@ -1297,7 +1297,7 @@ export class MemoryCloudClient {
         owner_id: input.ownerId,
         messages: input.messages,
         draft: input.draft ?? {},
-        locale: input.locale ?? "zh-CN",
+        locale: input.locale ?? "en",
       },
       traceId: input.traceId,
     });
