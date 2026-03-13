@@ -32,7 +32,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://awareness.market"
-Documentation = "https://awareness.market/sdk/docs"
+Documentation = "https://awareness.market/docs?doc=python"
 Repository = "https://github.com/edwin-hao-ai/Awareness-SDK"
 Issues = "https://github.com/edwin-hao-ai/Awareness-SDK/issues"
 

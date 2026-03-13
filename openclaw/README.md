@@ -1,6 +1,8 @@
 # @awareness-sdk/openclaw-memory
 
-OpenClaw memory plugin backed by Awareness Memory Cloud. Gives your OpenClaw agent persistent, structured memory across sessions.
+OpenClaw memory plugin backed by Awareness Memory Cloud.
+
+Online docs: <https://awareness.market/docs?doc=openclaw>
 
 ## Installation
 
@@ -8,96 +10,79 @@ OpenClaw memory plugin backed by Awareness Memory Cloud. Gives your OpenClaw age
 openclaw plugins install @awareness-sdk/openclaw-memory
 ```
 
+For local development:
+
+```bash
+openclaw plugins install -l ./sdks/openclaw
+```
+
 ## Configuration
 
-Add the plugin to your `~/.openclaw/openclaw.json`:
+Edit `~/.openclaw/openclaw.json`:
 
 ```json
 {
   "plugins": {
-    "memory-awareness": {
-      "package": "@awareness-sdk/openclaw-memory",
-      "config": {
-        "apiKey": "ak-your-awareness-api-key",
-        "memoryId": "your-memory-uuid",
-        "agentRole": "builder_agent"
+    "slots": {
+      "memory": "memory-awareness"
+    },
+    "entries": {
+      "memory-awareness": {
+        "enabled": true,
+        "config": {
+          "apiKey": "aw_your-api-key",
+          "baseUrl": "https://awareness.market/api/v1",
+          "memoryId": "your-memory-id",
+          "agentRole": "builder_agent",
+          "autoRecall": true,
+          "autoCapture": true,
+          "recallLimit": 8
+        }
       }
     }
   }
 }
 ```
 
-### Config Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `apiKey` | string | **required** | Awareness API key |
-| `memoryId` | string | **required** | Target memory UUID |
-| `baseUrl` | string | `https://awareness.market/api/v1` | Awareness API base URL |
-| `agentRole` | string | `builder_agent` | Agent role for scoped recall |
-| `autoRecall` | boolean | `true` | Auto-load memory context before each run |
-| `autoCapture` | boolean | `true` | Auto-store conversation summary after each run |
-| `recallLimit` | integer | `8` | Max results for auto-recall |
-
 ## Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `memory_recall` | Semantic search over stored memories |
-| `memory_store` | Persist a single piece of information |
-| `memory_forget` | Supersede (soft-delete) a knowledge card |
-| `memory_context` | Load full session context (narratives + tasks + cards) |
-| `memory_knowledge` | Query structured knowledge cards by category |
-| `memory_tasks` | Retrieve pending and in-progress action items |
-| `memory_batch` | Store multiple memory steps in one call |
+| `__awareness_workflow__` | Workflow reference that stays visible in the tool list |
+| `awareness_init` | Load cross-session context and return `session_id` |
+| `awareness_recall` | Hybrid semantic + keyword recall |
+| `awareness_lookup` | Structured lookup for context, tasks, risks, knowledge, and handoff |
+| `awareness_record` | Unified write API for remember, remember_batch, update_task, and submit_insights |
 
 ## Auto Features
 
-### Auto Recall (`autoRecall: true`)
+### Auto Recall
 
-When a new agent session starts, the plugin automatically:
+When `autoRecall` is enabled, the plugin loads context and relevant recall results before the agent starts.
 
-1. Fetches structured session context (recent daily narratives, open tasks, knowledge cards)
-2. Runs semantic recall against the user prompt
-3. Prepends an `<awareness-memory>` XML block to the system prompt
+### Auto Capture
 
-### Auto Capture (`autoCapture: true`)
+When `autoCapture` is enabled, the plugin stores a concise run summary after the agent finishes.
 
-When an agent session ends, the plugin automatically:
+## Config Options
 
-1. Collects meaningful messages from the conversation (filtering out short messages and memory XML tags)
-2. Stores a conversation summary in Awareness memory
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `apiKey` | string | required | Awareness API key |
+| `memoryId` | string | required | Target memory UUID |
+| `baseUrl` | string | `https://awareness.market/api/v1` | Awareness API base URL |
+| `agentRole` | string | `builder_agent` | Agent role for scoped recall |
+| `autoRecall` | boolean | `true` | Auto-load memory context before each run |
+| `autoCapture` | boolean | `true` | Auto-store a conversation summary after each run |
+| `recallLimit` | integer | `8` | Max results for auto-recall |
 
-## Programmatic Usage
+## Verification
 
-You can also use the client directly in your own code:
-
-```typescript
-import { AwarenessClient } from "@awareness-sdk/openclaw-memory";
-
-const client = new AwarenessClient(
-  "https://awareness.market/api/v1",
-  "ak-your-key",
-  "memory-uuid",
-  "builder_agent",
-);
-
-// Recall relevant memories
-const results = await client.recallForTask("implement auth system", 5);
-
-// Store a step
-await client.rememberStep("Decided to use JWT for authentication");
-
-// Get session context
-const context = await client.getSessionContext(10);
-
-// Query knowledge cards
-const knowledge = await client.getKnowledgeBase("auth", "decision", 10);
+```bash
+openclaw plugins list
 ```
 
-## Full Documentation
-
-See the [Awareness SDK Documentation](https://awareness.market/docs/sdk) for complete API reference and advanced usage patterns.
+You should see `memory-awareness` loaded.
 
 ## License
 

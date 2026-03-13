@@ -4,6 +4,8 @@ Claude Code plugin for persistent cross-session memory via [Awareness Memory Clo
 
 Gives Claude Code a long-term memory that survives across sessions — no more forgetting what was built, repeating architectural decisions, or losing track of open TODOs.
 
+Online docs: <https://awareness.market/docs?doc=ide-plugins>
+
 ## Quick Start
 
 ### 1. Install the plugin
@@ -46,7 +48,7 @@ claude /mcp
 /awareness-memory:session-start
 
 # Check open tasks
-/awareness-memory:tasks
+ /awareness-memory:done
 ```
 
 ---
@@ -58,7 +60,7 @@ claude /mcp
 | `session-start` | `/awareness-memory:session-start` | Start of every session — loads recent progress, open tasks, relevant context |
 | `recall` | `/awareness-memory:recall <query>` | Before implementing anything — check if it already exists |
 | `save` | `/awareness-memory:save` | After completing a step or before ending a session |
-| `tasks` | `/awareness-memory:tasks` | Resume work — see what was left incomplete |
+| `done` | `/awareness-memory:done` | Close the session with a final summary and handoff |
 
 ---
 

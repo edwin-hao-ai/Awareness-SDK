@@ -2,6 +2,8 @@
 
 TypeScript SDK for Awareness Memory Cloud APIs and MCP-style memory workflows.
 
+Online docs: <https://awareness.market/docs?doc=typescript>
+
 ## Install
 
 ```bash

@@ -2,6 +2,8 @@
 
 Official SDKs and plugins for [Awareness Memory Cloud](https://awareness.market) — persistent, cross-session memory for AI agents.
 
+Public docs hub: [https://awareness.market/docs](https://awareness.market/docs)
+
 ## SDKs
 
 ### Python SDK
@@ -27,7 +29,7 @@ session.add_event(role="assistant", content="Hi there!")
 session.flush()
 ```
 
-[Full documentation](python/README.md) | [PyPI](https://pypi.org/project/awareness-memory-cloud/)
+[Full documentation](python/README.md) | [Online docs](https://awareness.market/docs?doc=python) | [PyPI](https://pypi.org/project/awareness-memory-cloud/)
 
 ### TypeScript SDK
 
@@ -52,7 +54,7 @@ session.addEvent({ role: "assistant", content: "Hi!" });
 await session.flush();
 ```
 
-[Full documentation](typescript/README.md) | [npm](https://www.npmjs.com/package/@awareness-sdk/memory-cloud)
+[Full documentation](typescript/README.md) | [Online docs](https://awareness.market/docs?doc=typescript) | [npm](https://www.npmjs.com/package/@awareness-sdk/memory-cloud)
 
 ## Plugins
 
@@ -66,7 +68,7 @@ claude plugin install -l ./claudecode
 
 Skills: `/awareness-memory:session-start`, `/awareness-memory:recall`, `/awareness-memory:save`, `/awareness-memory:done`
 
-[Full documentation](claudecode/README.md)
+[Full documentation](claudecode/README.md) | [Online docs](https://awareness.market/docs?doc=ide-plugins)
 
 ### OpenClaw Plugin
 
@@ -76,7 +78,7 @@ Memory plugin for [OpenClaw](https://openclaw.ai) agents.
 openclaw plugins install @awareness-sdk/openclaw-memory
 ```
 
-[Full documentation](openclaw/README.md) | [npm](https://www.npmjs.com/package/@awareness-sdk/openclaw-memory)
+[Full documentation](openclaw/README.md) | [Online docs](https://awareness.market/docs?doc=openclaw) | [npm](https://www.npmjs.com/package/@awareness-sdk/openclaw-memory)
 
 ## Environment Variables
 
