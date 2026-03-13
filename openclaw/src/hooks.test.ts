@@ -107,6 +107,25 @@ describe("registerHooks", () => {
   // Auto-Recall Hook (before_agent_start)
   // =========================================================================
   describe("before_agent_start (auto-recall)", () => {
+    it("returns void when context is undefined (e.g. plugins list)", async () => {
+      const hooks = setupHooks();
+      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+
+      // OpenClaw may call hooks with undefined context during non-agent calls
+      const result = await hook.handler(undefined as unknown as HookContext);
+      expect(result).toBeUndefined();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("returns void when context is null", async () => {
+      const hooks = setupHooks();
+      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+
+      const result = await hook.handler(null as unknown as HookContext);
+      expect(result).toBeUndefined();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it("returns void for empty prompt", async () => {
       const hooks = setupHooks();
       const hook = hooks.find((h) => h.name === "before_agent_start")!;
@@ -271,6 +290,23 @@ describe("registerHooks", () => {
   // Auto-Capture Hook (agent_end)
   // =========================================================================
   describe("agent_end (auto-capture)", () => {
+    it("returns void when context is undefined (e.g. plugins list)", async () => {
+      const hooks = setupHooks();
+      const hook = hooks.find((h) => h.name === "agent_end")!;
+
+      // Should not throw on undefined context
+      await hook.handler(undefined as unknown as HookContext);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("returns void when context is null", async () => {
+      const hooks = setupHooks();
+      const hook = hooks.find((h) => h.name === "agent_end")!;
+
+      await hook.handler(null as unknown as HookContext);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it("returns void for empty messages", async () => {
       const hooks = setupHooks();
       const hook = hooks.find((h) => h.name === "agent_end")!;

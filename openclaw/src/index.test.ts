@@ -159,6 +159,96 @@ describe("register (plugin entry point)", () => {
   });
 
   // =========================================================================
+  // Config Resolution: pluginConfig vs config fallback
+  // =========================================================================
+  describe("config resolution (pluginConfig vs config)", () => {
+    it("prefers pluginConfig over config when both are present", () => {
+      const tools: Record<string, ToolDefinition> = {};
+      const hooks: { name: string; handler: HookHandler; options?: HookOptions }[] = [];
+
+      const api: PluginApi = {
+        registerTool: (tool) => { tools[tool.id] = tool; },
+        registerHook: (name, handler, options) => { hooks.push({ name, handler, options }); },
+        // config = entire openclaw.json (no apiKey at top level)
+        config: { plugins: { "memory-awareness": { config: { apiKey: "wrong" } } } },
+        // pluginConfig = correct plugin-specific config
+        pluginConfig: {
+          apiKey: "correct-key",
+          memoryId: "mem-from-pluginConfig",
+          agentRole: "reviewer_agent",
+        },
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      };
+
+      register(api);
+
+      // Should use pluginConfig values — verify via log output
+      const infoFn = api.logger.info as ReturnType<typeof vi.fn>;
+      const logMsg = infoFn.mock.calls[0]?.[0] ?? "";
+      expect(logMsg).toContain("mem-from-pluginConfig");
+      expect(logMsg).toContain("reviewer_agent");
+    });
+
+    it("falls back to config when pluginConfig is undefined", () => {
+      const api: PluginApi = {
+        registerTool: vi.fn(),
+        registerHook: vi.fn(),
+        config: {
+          apiKey: "key-from-config",
+          memoryId: "mem-from-config",
+        },
+        // pluginConfig intentionally omitted
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      };
+
+      register(api);
+      const infoFn = api.logger.info as ReturnType<typeof vi.fn>;
+      expect(infoFn.mock.calls[0]?.[0]).toContain("mem-from-config");
+    });
+
+    it("throws when entire openclaw.json is passed as config (no apiKey at root)", () => {
+      const api: PluginApi = {
+        registerTool: vi.fn(),
+        registerHook: vi.fn(),
+        // Simulates the bug: config = whole openclaw.json, apiKey is nested inside plugins
+        config: {
+          "$schema": "https://openclaw.dev/schemas/openclaw.json",
+          plugins: {
+            "memory-awareness": {
+              package: "@awareness-sdk/openclaw-memory",
+              config: { apiKey: "nested-key", memoryId: "nested-mem" },
+            },
+          },
+        },
+        // pluginConfig not provided by old host version
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      };
+
+      // apiKey is undefined at root level → should throw
+      expect(() => register(api)).toThrow("apiKey is required");
+    });
+
+    it("handles config with string coercion for non-string values", () => {
+      const api: PluginApi = {
+        registerTool: vi.fn(),
+        registerHook: vi.fn(),
+        pluginConfig: {
+          apiKey: "test-key",
+          memoryId: "mem-1",
+          recallLimit: "12", // string instead of number
+          autoRecall: 0,     // falsy number instead of boolean
+        },
+        config: {},
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      };
+
+      // Should not throw — String/Boolean/Number coercion handles it
+      register(api);
+      expect(api.registerTool).toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
   // Re-exports
   // =========================================================================
   describe("module exports", () => {

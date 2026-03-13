@@ -8,17 +8,19 @@ import { registerHooks } from "./hooks";
 // ---------------------------------------------------------------------------
 
 export default function register(api: PluginApi): void {
-  const raw = api.config;
+  // OpenClaw host may expose plugin-specific config as `pluginConfig`
+  // while `config` can be the entire openclaw.json. Try pluginConfig first.
+  const raw: Record<string, unknown> = api.pluginConfig ?? api.config ?? {};
 
   // Resolve config with defaults matching openclaw.plugin.json configSchema
   const config: PluginConfig = {
-    apiKey: raw.apiKey,
-    baseUrl: raw.baseUrl ?? "https://awareness.market/api/v1",
-    memoryId: raw.memoryId,
-    agentRole: raw.agentRole ?? "builder_agent",
-    autoRecall: raw.autoRecall !== undefined ? raw.autoRecall : true,
-    autoCapture: raw.autoCapture !== undefined ? raw.autoCapture : true,
-    recallLimit: raw.recallLimit !== undefined ? raw.recallLimit : 8,
+    apiKey: String(raw.apiKey ?? ""),
+    baseUrl: String(raw.baseUrl ?? "https://awareness.market/api/v1"),
+    memoryId: String(raw.memoryId ?? ""),
+    agentRole: String(raw.agentRole ?? "builder_agent"),
+    autoRecall: raw.autoRecall !== undefined ? Boolean(raw.autoRecall) : true,
+    autoCapture: raw.autoCapture !== undefined ? Boolean(raw.autoCapture) : true,
+    recallLimit: raw.recallLimit !== undefined ? Number(raw.recallLimit) : 8,
   };
 
   // Validate required fields

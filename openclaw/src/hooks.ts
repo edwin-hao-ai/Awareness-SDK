@@ -61,6 +61,8 @@ export function registerHooks(
     api.registerHook(
       "before_agent_start",
       async (context: HookContext): Promise<HookResult | void> => {
+        // Guard: context may be undefined in non-agent calls (e.g. plugins list)
+        if (!context) return;
         const prompt = (context.prompt ?? "").trim();
         if (!prompt) {
           return;
@@ -184,6 +186,8 @@ export function registerHooks(
     api.registerHook(
       "agent_end",
       async (context: HookContext): Promise<void> => {
+        // Guard: context may be undefined in non-agent calls
+        if (!context) return;
         const messages = context.messages ?? [];
         if (messages.length === 0) {
           return;

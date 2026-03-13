@@ -29,8 +29,18 @@ export interface PluginApi {
   /** Register a lifecycle hook. */
   registerHook(name: string, handler: HookHandler, options?: HookOptions): void;
 
-  /** Resolved plugin configuration. */
-  config: PluginConfig;
+  /**
+   * Raw config object provided by the host.
+   * WARNING: In some OpenClaw versions this is the ENTIRE openclaw.json,
+   * not the plugin-specific config. Always prefer `pluginConfig` when available.
+   */
+  config: Record<string, unknown>;
+
+  /**
+   * Plugin-specific configuration (the `config` block from openclaw.json
+   * `plugins.<plugin-id>.config`). Prefer this over `config`.
+   */
+  pluginConfig?: Record<string, unknown>;
 
   /** Structured logger provided by the host. */
   logger: PluginLogger;

@@ -177,7 +177,8 @@ const awarenessPlugin = {
   configSchema: awarenessConfigSchema,
 
   register(api: any) {
-    const cfg = awarenessConfigSchema.parse(api.pluginConfig);
+    // pluginConfig = plugin-specific config; config may be entire openclaw.json
+    const cfg = awarenessConfigSchema.parse(api.pluginConfig ?? api.config);
     const client = new AwarenessClient(cfg.baseUrl, cfg.apiKey, cfg.memoryId, cfg.agentRole);
 
     api.logger.info(
@@ -341,6 +342,8 @@ const awarenessPlugin = {
     // =====================================================================
     if (cfg.autoRecall) {
       api.on("before_agent_start", async (event: any) => {
+        // Guard: event may be undefined in non-agent calls (e.g. plugins list)
+        if (!event) return;
         const prompt = (event.prompt ?? "").trim();
         if (!prompt || prompt.length < 5) return;
 
@@ -376,6 +379,8 @@ const awarenessPlugin = {
     // =====================================================================
     if (cfg.autoCapture) {
       api.on("agent_end", async (event: any) => {
+        // Guard: event may be undefined in non-agent calls
+        if (!event) return;
         const messages = event.messages ?? [];
         if (!event.success || messages.length === 0) return;
 
