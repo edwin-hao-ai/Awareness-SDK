@@ -4,7 +4,7 @@
     "memory-awareness": {
       "package": "@awareness-sdk/openclaw-memory",
       "config": {
-        "apiKey": "ak-your-awareness-api-key",
+        "apiKey": "aw_your-awareness-api-key",
         "memoryId": "your-memory-uuid",
         "baseUrl": "https://awareness.market/api/v1",
         "agentRole": "builder_agent",

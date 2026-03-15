@@ -138,9 +138,7 @@ print(parsed.get("kv_summary"))
 - Basic flow: `examples/basic_flow.py`
 - Export + read package: `examples/export_and_read.py`
 - Prompt-only injected quickstart: `examples/quickstart_injected_minimal.py`
-- LangChain retriever: `examples/langchain_retriever.py`
-- CrewAI tools: `examples/crewai_tools.py`
-- PraisonAI toolkit: `examples/praisonai_toolkit.py`
+- Injected conversation demo: `examples/injected_conversation_demo.py`
 - LangChain e2e (real cloud API): `examples/e2e_langchain_cloud.py`
 - CrewAI e2e (real cloud API): `examples/e2e_crewai_cloud.py`
 - PraisonAI e2e (real cloud API): `examples/e2e_praisonai_cloud.py`
