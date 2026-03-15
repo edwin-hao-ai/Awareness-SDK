@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2026-03-14
+
+### Fixed
+- Corrected local development path in README (`cd sdks/typescript` → `cd typescript`)
+
 ## [0.2.0] - 2026-03-09
 
 ### Added

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2026-03-14
+
+### Fixed
+- Corrected example file references in README (removed non-existent files, added `injected_conversation_demo.py`)
+
 ## [0.2.0] - 2026-03-09
 
 ### Added

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.3] - 2026-03-14
+
+### Fixed
+- Corrected API key prefix in example config (`ak-` → `aw_`)
+- Corrected local development install path in README (`./sdks/openclaw` → `./openclaw`)
+
 ## [0.1.2] - 2026-03-12
 
 ### Changed
