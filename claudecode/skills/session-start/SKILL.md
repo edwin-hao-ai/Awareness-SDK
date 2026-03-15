@@ -26,6 +26,10 @@ Steps:
    - Current open tasks ordered by priority
    - Any relevant knowledge cards
    - Relevant search results if a query was provided
+   - If `active_skills` is present in the response, list the activated skills by name (one line each) and briefly note their applicable scenarios
+
+5. If `active_skills` is present, apply each skill's `summary` as behavioral guidance for the session.
+   Skills are pre-loaded at session start — do not re-derive their patterns.
 
 Rules:
 - Do not dump raw JSON — summarize in plain language

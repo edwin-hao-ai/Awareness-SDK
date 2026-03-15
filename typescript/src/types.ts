@@ -123,6 +123,20 @@ export interface SessionSummary {
   event_count?: number;
 }
 
+/**
+ * A reusable skill extracted from memory.
+ * Skills are injected at session start for token-efficient reuse.
+ * When a task matches a skill's domain, apply its summary as behavioral guidance.
+ */
+export interface ActiveSkill {
+  /** Short skill name (e.g. "Deploy with Docker Compose") */
+  title?: string;
+  /** Injectable skill prompt — 2-5 sentences of behavioral guidance in imperative mood */
+  summary?: string;
+  /** Step-by-step execution instructions */
+  methods?: string[];
+}
+
 export interface SessionContextResponse extends JsonObject {
   memory_id?: string;
   generated_at?: string;

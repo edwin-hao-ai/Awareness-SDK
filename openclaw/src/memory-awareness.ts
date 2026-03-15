@@ -10,6 +10,7 @@
 import { AwarenessClient } from "./client";
 import type {
   SessionContext,
+  ActiveSkill,
   KnowledgeCard,
   ActionItem,
   VectorResult,
@@ -93,11 +94,34 @@ function extractKeywords(text: string, maxKeywords = 8): string {
 // Build XML memory block for context injection
 // ---------------------------------------------------------------------------
 
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function buildMemoryBlock(
   sessionCtx: SessionContext,
   recallResults: VectorResult[],
 ): string {
   const parts: string[] = ["<awareness-memory>"];
+
+  // Skills are placed first (high-priority context, pre-loaded at session start)
+  const activeSkills: ActiveSkill[] = (sessionCtx as any).active_skills ?? [];
+  if (activeSkills.length > 0) {
+    parts.push("  <skills>");
+    for (const skill of activeSkills) {
+      const title = escapeXml(skill.title ?? "");
+      parts.push(`    <skill title="${title}">`);
+      if (skill.summary) {
+        parts.push(`      ${skill.summary}`);
+      }
+      parts.push("    </skill>");
+    }
+    parts.push("  </skills>");
+  }
 
   const lastSessions = sessionCtx.last_sessions ?? [];
   if (lastSessions.length > 0) {

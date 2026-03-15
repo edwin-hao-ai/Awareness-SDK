@@ -118,6 +118,15 @@ export interface SessionSummary {
   event_count?: number;
 }
 
+export interface ActiveSkill {
+  /** Short skill name */
+  title?: string;
+  /** Injectable skill prompt — behavioral guidance in imperative mood */
+  summary?: string;
+  /** Step-by-step execution instructions */
+  methods?: string[];
+}
+
 export interface SessionContext {
   memory_id?: string;
   generated_at?: string;
@@ -126,6 +135,8 @@ export interface SessionContext {
   recent_days?: DayNarrative[];
   open_tasks?: ActionItem[];
   knowledge_cards?: KnowledgeCard[];
+  /** Reusable skill prompts pre-loaded at session start for token efficiency */
+  active_skills?: ActiveSkill[];
   trace_id?: string;
 }
 
