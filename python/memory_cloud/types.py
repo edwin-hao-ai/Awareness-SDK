@@ -85,6 +85,12 @@ class SessionSummary(TypedDict, total=False):
     event_count: int
 
 
+class ActiveSkill(TypedDict, total=False):
+    title: str
+    summary: str    # injectable skill prompt (2-5 sentences, imperative mood)
+    methods: List[str]  # numbered execution steps
+
+
 class SessionContextResult(TypedDict, total=False):
     memory_id: str
     generated_at: str
@@ -93,6 +99,7 @@ class SessionContextResult(TypedDict, total=False):
     recent_days: List[DayNarrative]
     open_tasks: List[OpenTask]
     knowledge_cards: List[KnowledgeCard]
+    active_skills: List[ActiveSkill]  # reusable skill prompts, pre-loaded at session start
     trace_id: str
 
 
