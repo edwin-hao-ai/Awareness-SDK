@@ -13,7 +13,7 @@ pip install awareness-memory-cloud
 Local development:
 
 ```bash
-cd sdks/python
+cd python
 pip install -e .
 ```
 

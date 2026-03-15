@@ -13,7 +13,7 @@ openclaw plugins install @awareness-sdk/openclaw-memory
 For local development:
 
 ```bash
-openclaw plugins install -l ./sdks/openclaw
+openclaw plugins install -l ./openclaw
 ```
 
 ## Configuration

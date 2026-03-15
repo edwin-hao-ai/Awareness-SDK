@@ -13,7 +13,7 @@ npm install @awareness-sdk/memory-cloud
 Local development:
 
 ```bash
-cd sdks/typescript
+cd typescript
 npm install
 npm run build
 ```

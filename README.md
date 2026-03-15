@@ -94,7 +94,7 @@ All SDKs and plugins share the same environment variable naming:
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/edwin-hao-ai/Awareness).
+Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/edwin-hao-ai/Awareness-SDK).
 
 ## License
 

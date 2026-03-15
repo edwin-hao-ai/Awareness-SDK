@@ -12,7 +12,7 @@ Online docs: <https://awareness.market/docs?doc=ide-plugins>
 
 ```bash
 # From the Awareness repo root
-claude plugin install -l ./sdks/claudecode
+claude plugin install -l ./claudecode
 
 # Once published to marketplace
 claude plugin install awareness-memory
@@ -20,7 +20,7 @@ claude plugin install awareness-memory
 
 ### 2. Configure
 
-Edit `sdks/claudecode/settings.json` (or `~/.claude/plugins/awareness-memory/settings.json` after install):
+Edit `claudecode/settings.json` (or `~/.claude/plugins/awareness-memory/settings.json` after install):
 
 ```json
 {
