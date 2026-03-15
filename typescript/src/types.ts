@@ -145,6 +145,7 @@ export interface SessionContextResponse extends JsonObject {
   recent_days?: DayNarrative[];
   open_tasks?: OpenTask[];
   knowledge_cards?: KnowledgeCard[];
+  active_skills?: ActiveSkill[];
   trace_id?: string;
 }
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2] - 2026-03-16
+
+### Added
+- `ActiveSkill` type (`title`, `summary`, `methods`) for reusable procedure prompts
+- `active_skills` field on `SessionContextResult` — pre-loaded at session start for token efficiency
+- `skill` as a new knowledge card category (reusable procedure done 2+ times)
+
 ## [0.2.1] - 2026-03-14
 
 ### Fixed
