@@ -119,6 +119,7 @@ class StructuredRecallResult(TypedDict, total=False):
     """
     recall_mode: str           # "structured" | "hybrid"
     memory_id: str
+    query_intent: str          # "debug" | "architecture" | "definition" | "planning" | "personal" | "general"
     recent_days: List[DayNarrative]
     verified_cards: List[KnowledgeCard]
     unverified_cards: List[KnowledgeCard]

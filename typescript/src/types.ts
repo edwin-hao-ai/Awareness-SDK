@@ -166,6 +166,7 @@ export interface RiskItem {
 export interface StructuredRecallResult extends JsonObject {
   recall_mode?: "structured" | "hybrid";
   memory_id?: string;
+  query_intent?: string; // "debug" | "architecture" | "definition" | "planning" | "personal" | "general"
   recent_days?: DayNarrative[];
   verified_cards?: KnowledgeCard[];
   unverified_cards?: KnowledgeCard[];
