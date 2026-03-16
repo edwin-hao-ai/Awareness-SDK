@@ -117,6 +117,11 @@ export function renderIdeRule(ideId, source = "") {
 }
 
 export function autoDetectIde(cwd = process.cwd(), env = process.env) {
+  const all = autoDetectAllIdes(cwd, env);
+  return all.length > 0 ? all[0] : null;
+}
+
+export function autoDetectAllIdes(cwd = process.cwd(), env = process.env) {
   const checks = {
     cursor: () => existsSync(join(cwd, ".cursor")) || existsSync(join(cwd, ".cursor", "rules")),
     "claude-code": () => existsSync(join(cwd, "CLAUDE.md")) || Boolean(env.CLAUDE_CODE),
@@ -132,12 +137,13 @@ export function autoDetectIde(cwd = process.cwd(), env = process.env) {
     antigravity: () => existsSync(join(cwd, ".antigravity")),
   };
 
+  const matched = [];
   for (const ideId of getSupportedIdeIds()) {
     if (checks[ideId]?.()) {
-      return ideId;
+      matched.push(ideId);
     }
   }
-  return null;
+  return matched;
 }
 
 export function inspectMarkers(text, startMarker, endMarker) {

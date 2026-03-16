@@ -47,7 +47,13 @@
     "windsurf",
     "cline",
     "copilot",
-    "codex"
+    "codex",
+    "kiro",
+    "trae",
+    "jetbrains",
+    "zed",
+    "augment",
+    "antigravity"
   ],
   "ides": {
     "claude-code": {
@@ -144,6 +150,99 @@
         "## Codex-Specific Notes",
         "- Call awareness_init at task start before reading any files.",
         "- After each code patch, call awareness_record with the change description."
+      ]
+    },
+    "kiro": {
+      "label": "Kiro",
+      "rules_file": ".kiro/steering/awareness.md",
+      "strategy": "managed_file",
+      "conflict_policy": "error_on_unmanaged_file_unless_force",
+      "header": "# Awareness Memory Rules",
+      "preamble_lines": [
+        "Steering document — MANDATORY for every Kiro session."
+      ],
+      "notes_lines": [
+        "## Kiro-Specific Notes",
+        "- Call awareness_init at the start of every new Kiro task or spec.",
+        "- After each code edit or spec change, call awareness_record.",
+        "- The MCP server is configured in .kiro/settings/mcp.json."
+      ]
+    },
+    "trae": {
+      "label": "Trae",
+      "rules_file": ".trae/rules/awareness.md",
+      "strategy": "managed_file",
+      "conflict_policy": "error_on_unmanaged_file_unless_force",
+      "header": "# Awareness Memory Rules",
+      "preamble_lines": [
+        "MANDATORY rules for every Trae session in this project."
+      ],
+      "notes_lines": [
+        "## Trae-Specific Notes",
+        "- Call awareness_init at the start of every new chat or Builder session.",
+        "- After each file edit or terminal command, call awareness_record.",
+        "- The MCP server is configured in .mcp.json at the project root."
+      ]
+    },
+    "jetbrains": {
+      "label": "JetBrains (Junie)",
+      "rules_file": ".junie/guidelines.md",
+      "strategy": "managed_block",
+      "conflict_policy": "error_on_invalid_markers",
+      "header": "# Awareness Memory Rules",
+      "preamble_lines": [
+        "MANDATORY guidelines — follow for every Junie task."
+      ],
+      "notes_lines": [
+        "## JetBrains / Junie Notes",
+        "- Call awareness_init at the start of every new Junie task.",
+        "- After each code change, call awareness_record with the change description.",
+        "- The MCP server is configured in .junie/mcp/mcp.json."
+      ]
+    },
+    "zed": {
+      "label": "Zed",
+      "rules_file": ".rules",
+      "strategy": "managed_block",
+      "conflict_policy": "error_on_invalid_markers",
+      "header": "# Awareness Memory Rules",
+      "preamble_lines": [
+        "MANDATORY rules for every Zed Assistant session."
+      ],
+      "notes_lines": [
+        "## Zed-Specific Notes",
+        "- Call awareness_init at the start of every new Assistant thread.",
+        "- After each inline edit or slash command, call awareness_record."
+      ]
+    },
+    "augment": {
+      "label": "Augment",
+      "rules_file": ".augment/guidelines.md",
+      "strategy": "managed_block",
+      "conflict_policy": "error_on_invalid_markers",
+      "header": "# Awareness Memory Rules",
+      "preamble_lines": [
+        "MANDATORY guidelines for every Augment session."
+      ],
+      "notes_lines": [
+        "## Augment-Specific Notes",
+        "- Call awareness_init at the start of every new Augment task.",
+        "- After each code edit or suggestion, call awareness_record."
+      ]
+    },
+    "antigravity": {
+      "label": "Google AntiGravity (Jules)",
+      "rules_file": ".antigravity/GUIDELINES.md",
+      "strategy": "managed_block",
+      "conflict_policy": "error_on_invalid_markers",
+      "header": "# Awareness Memory Rules",
+      "preamble_lines": [
+        "MANDATORY guidelines for every Jules task."
+      ],
+      "notes_lines": [
+        "## AntiGravity / Jules Notes",
+        "- Call awareness_init at the start of every new task or plan.",
+        "- After each code change or plan step, call awareness_record."
       ]
     }
   }
