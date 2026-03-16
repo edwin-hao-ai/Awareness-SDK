@@ -22,6 +22,15 @@ const IDE_ALIASES = {
   "vscode-copilot": "copilot",
   codex: "codex",
   opencode: "codex",
+  kiro: "kiro",
+  trae: "trae",
+  zed: "zed",
+  jetbrains: "jetbrains",
+  junie: "jetbrains",
+  intellij: "jetbrains",
+  augment: "augment",
+  antigravity: "antigravity",
+  "google-antigravity": "antigravity",
 };
 
 let specCache = null;
@@ -31,6 +40,9 @@ const MCP_PATHS = {
   "claude-code": ".claude/settings.json",
   windsurf: ".windsurf/mcp.json",
   copilot: ".vscode/mcp.json",
+  kiro: ".kiro/settings/mcp.json",
+  trae: ".mcp.json",
+  jetbrains: ".junie/mcp/mcp.json",
 };
 
 export function loadRulesSpec() {
@@ -112,6 +124,12 @@ export function autoDetectIde(cwd = process.cwd(), env = process.env) {
     cline: () => existsSync(join(cwd, ".clinerules")),
     copilot: () => existsSync(join(cwd, ".github", "copilot-instructions.md")) || existsSync(join(cwd, ".vscode", "mcp.json")),
     codex: () => existsSync(join(cwd, "AGENTS.md")),
+    kiro: () => existsSync(join(cwd, ".kiro")),
+    trae: () => existsSync(join(cwd, ".trae")),
+    zed: () => existsSync(join(cwd, ".rules")),
+    jetbrains: () => existsSync(join(cwd, ".junie")),
+    augment: () => existsSync(join(cwd, ".augment")),
+    antigravity: () => existsSync(join(cwd, ".antigravity")),
   };
 
   for (const ideId of getSupportedIdeIds()) {
