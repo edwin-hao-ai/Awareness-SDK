@@ -1,0 +1,18 @@
+{
+  "name": "awareness",
+  "owner": {
+    "name": "Awareness"
+  },
+  "metadata": {
+    "description": "Persistent cross-session memory plugins for Claude Code by Awareness",
+    "homepage": "https://awareness.market"
+  },
+  "plugins": [
+    {
+      "name": "awareness-memory",
+      "version": "0.1.0",
+      "source": "./claudecode",
+      "description": "Persistent cross-session memory for Claude Code via Awareness Memory Cloud"
+    }
+  ]
+}

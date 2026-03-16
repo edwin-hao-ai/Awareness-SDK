@@ -1,0 +1,12 @@
+{
+  "name": "awareness-marketplace",
+  "version": "0.1.0",
+  "description": "Awareness Memory plugins marketplace for Claude Code",
+  "author": {
+    "name": "Awareness",
+    "url": "https://awareness.market"
+  },
+  "repository": "https://github.com/edwin-hao-ai/Awareness-SDK",
+  "license": "Apache-2.0",
+  "keywords": ["memory", "context", "persistence", "awareness"]
+}
