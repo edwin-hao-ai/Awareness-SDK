@@ -20,7 +20,7 @@ test("runExtraction compacts events before LLM call and submits insights", async
     userId: "u-1",
     agentRole: "sdk_demo",
     enableExtraction: true,
-    extractionModel: "meta/llama-3.1-8b",
+    extractionModel: "alibaba/qwen-3-14b",
   });
 
   let llmPayload = null;

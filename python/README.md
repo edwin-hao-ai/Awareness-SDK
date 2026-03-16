@@ -74,7 +74,7 @@ session = bootstrap_openai_injected_session(
 )
 
 resp = session.openai_client.chat.completions.create(
-    model=os.getenv("AI_GATEWAY_MODEL", "meta/llama-3.1-8b"),
+    model=os.getenv("AI_GATEWAY_MODEL", "alibaba/qwen-3-14b"),
     messages=[{"role": "user", "content": "Summarize decisions, todos, and risks."}],
 )
 print(session.memory_id)

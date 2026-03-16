@@ -501,7 +501,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="SDK injected conversation demo (prompt-only).")
     parser.add_argument("--owner-id", default=_optional_env("AWARENESS_OWNER_ID", default="test-user"))
     parser.add_argument("--user-id", default=_optional_env("SDK_DEMO_USER_ID", default="test-user"))
-    parser.add_argument("--model", default=_optional_env("AI_GATEWAY_MODEL", "LLM_MODEL", default="meta/llama-3.1-8b"))
+    parser.add_argument("--model", default=_optional_env("AI_GATEWAY_MODEL", "LLM_MODEL", default="alibaba/qwen-3-14b"))
     parser.add_argument(
         "--extraction-model",
         default=_optional_env("AI_GATEWAY_EXTRACTION_MODEL", "AWARENESS_EXTRACTION_MODEL", default="openai/gpt-4o-mini"),

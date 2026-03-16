@@ -15,7 +15,7 @@ def main() -> None:
     )
 
     response = session.openai_client.chat.completions.create(
-        model=os.getenv("AI_GATEWAY_MODEL", "meta/llama-3.1-8b"),
+        model=os.getenv("AI_GATEWAY_MODEL", "alibaba/qwen-3-14b"),
         messages=[
             {"role": "user", "content": "We switched to Redis Streams for async events."},
             {"role": "user", "content": "List the key decision, TODO, and risk."},
