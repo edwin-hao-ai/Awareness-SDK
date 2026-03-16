@@ -1,0 +1,15 @@
+{
+  "plugins": [
+    {
+      "name": "awareness-memory",
+      "description": "Persistent cross-session memory for Claude Code via Awareness Memory Cloud",
+      "version": "0.1.0",
+      "source": {
+        "source": "github",
+        "owner": "edwin-hao-ai",
+        "repo": "Awareness-SDK",
+        "path": "claudecode"
+      }
+    }
+  ]
+}
