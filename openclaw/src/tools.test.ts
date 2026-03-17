@@ -74,21 +74,20 @@ describe("registerTools", () => {
   // __awareness_workflow__ — meta tool
   // =========================================================================
   describe("__awareness_workflow__", () => {
-    it("is a reference-only tool that does not make API calls", async () => {
+    it("returns a structured workflow checklist without API calls", async () => {
       const tools = setupTools();
-      const result = await tools["__awareness_workflow__"].execute({});
-      expect(result).toEqual({ message: "Reference-only tool. See the description for workflow." });
+      const result = await tools["__awareness_workflow__"].execute({}) as Record<string, unknown>;
+      expect(result).toHaveProperty("workflow");
+      expect(result).toHaveProperty("tips");
+      expect(Array.isArray(result.workflow)).toBe(true);
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("description contains the 5-step workflow", () => {
+    it("description invites calling the tool", () => {
       const tools = setupTools();
       const desc = tools["__awareness_workflow__"].description;
-      expect(desc).toContain("SESSION START");
-      expect(desc).toContain("BEFORE WORK");
-      expect(desc).toContain("AFTER EVERY CHANGE");
-      expect(desc).toContain("_extraction_instruction");
-      expect(desc).toContain("SESSION END");
+      expect(desc).toContain("unsure what to do next");
+      expect(desc).toContain("checklist");
     });
   });
 

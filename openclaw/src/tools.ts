@@ -9,29 +9,27 @@ const LEGACY_TEXT_WEIGHT_KEY = ["b", "m", "25", "_weight"].join("");
 
 export function registerTools(api: PluginApi, client: AwarenessClient): void {
   // -----------------------------------------------------------------------
-  // 0. __awareness_workflow__ — persistent workflow reference (meta-tool)
+  // 0. __awareness_workflow__ — workflow checklist (callable)
   // -----------------------------------------------------------------------
   api.registerTool({
     id: "__awareness_workflow__",
     description:
-      "DO NOT CALL — read this workflow reference.\n\n" +
-      "MANDATORY STEPS (follow in order):\n\n" +
-      "1. SESSION START → awareness_init()\n" +
-      "   Get session_id. Review returned context before working.\n\n" +
-      "2. BEFORE WORK → awareness_recall(semantic_query=..., keyword_query=...)\n" +
-      "   Search persistent memory for relevant past decisions/context.\n\n" +
-      "3. AFTER EVERY CHANGE → awareness_record(action=\"remember\", text=...)\n" +
-      "   Record EVERY code edit, decision, bug fix. Include WHAT/WHY/OUTCOME/FILES.\n" +
-      "   Skipping this = permanent data loss.\n\n" +
-      "4. IF _extraction_instruction RETURNED → Process with LLM, then:\n" +
-      "   awareness_record(action=\"submit_insights\", content=<result>)\n\n" +
-      "5. SESSION END → awareness_record(action=\"remember_batch\", steps=[...])\n" +
-      "   Final summary: decisions, changed files, blockers, TODOs.\n\n" +
-      "awareness_* = cross-session persistent memory (past decisions, knowledge)\n" +
-      "Other tools = current codebase navigation (file search, code index)\n" +
-      "Use BOTH — they serve different purposes.",
+      "Call this when you're unsure what to do next with Awareness memory tools.\n" +
+      "Returns a step-by-step checklist so you always know the right next action.\n" +
+      "Low-cost call — use it anytime you need a reminder of the workflow.",
     inputSchema: { type: "object", properties: {} },
-    execute: async () => ({ message: "Reference-only tool. See the description for workflow." }),
+    execute: async () => ({
+      workflow: [
+        { step: 1, action: "awareness_init", when: "FIRST thing every session", what: "Get session_id + past context" },
+        { step: 2, action: "awareness_recall", when: "BEFORE starting work", what: "Search memory for relevant past context" },
+        { step: 3, action: "awareness_record", when: "AFTER every change", what: 'awareness_record(action="remember", text="WHAT/WHY/OUTCOME/FILES")' },
+        { step: 4, action: "handle _extraction_instruction", when: "response contains _extraction_instruction", what: 'Extract insights, then call awareness_record(action="submit_insights", content=<json>)', warning: "Skipping = NO searchable knowledge cards" },
+      ],
+      tips: {
+        recall_vs_lookup: "awareness_recall = search by meaning. awareness_lookup = get by type (<50ms).",
+        session_end: 'Call awareness_record(action="remember_batch", steps=[...]) with a final summary.',
+      },
+    }),
   });
 
   // -----------------------------------------------------------------------
@@ -40,10 +38,11 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
   api.registerTool({
     id: "awareness_init",
     description:
-      "Load cross-session project memory — NOT local code search. " +
-      "MUST call ONCE at session start. Returns session_id (pass to all " +
-      "subsequent awareness_record calls), recent narratives, open tasks, " +
-      "and knowledge cards. Use alongside code search tools — they complement each other.",
+      "Start here — call ONCE at session start to load persistent memory.\n\n" +
+      "WHY: Without this, you have no memory of past sessions.\n" +
+      "RETURNS: session_id, recent summaries, open tasks, knowledge cards.\n" +
+      "If response contains _setup_action, you MUST follow it to write rules.\n" +
+      "AFTER THIS: call awareness_recall to check for relevant past context.",
     inputSchema: {
       type: "object",
       properties: {
@@ -82,10 +81,10 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
   api.registerTool({
     id: "awareness_recall",
     description:
-      "Search cross-session persistent memory — past decisions, knowledge, history.\n\n" +
-      "Rewrite query before calling: semantic_query=full question, keyword_query=2-5 precise terms.\n" +
-      "See __awareness_workflow__ STEP 2 for when to call.\n\n" +
-      "Recall modes: auto (default) | precise | session | structured | hybrid.",
+      "Search persistent memory for past decisions, solutions, and knowledge.\n\n" +
+      "Call BEFORE starting work to avoid re-solving solved problems.\n" +
+      "Usage: awareness_recall(semantic_query=\"How was auth implemented?\", keyword_query=\"auth JWT\")\n" +
+      "Just provide semantic_query for most tasks — defaults handle the rest.",
     inputSchema: {
       type: "object",
       properties: {
@@ -179,8 +178,9 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
   api.registerTool({
     id: "awareness_lookup",
     description:
-      "Look up structured data from persistent memory — pure DB, <50ms.\n" +
-      "TYPE: context | tasks | knowledge | risks | session_history | timeline | handoff | rules | graph | agents",
+      "Fast DB lookup — use instead of awareness_recall when you know WHAT you want.\n" +
+      "awareness_recall = search by meaning (semantic). awareness_lookup = get by type (<50ms).\n" +
+      "Examples: type=\"tasks\" for open tasks, type=\"knowledge\" for cards, type=\"risks\" for risks.",
     inputSchema: {
       type: "object",
       properties: {
@@ -221,10 +221,13 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
   api.registerTool({
     id: "awareness_record",
     description:
-      "Record events to cross-session persistent memory. See __awareness_workflow__ STEP 3.\n\n" +
-      "ACTIONS: remember (single event) | remember_batch (session-end summary) | " +
-      "backfill | ingest | update_task | submit_insights\n\n" +
-      "Include WHAT/WHY/OUTCOME/FILES in text. If response has _extraction_instruction: process → submit_insights.",
+      "Save what you did/decided/learned to persistent memory.\n\n" +
+      "Call AFTER every meaningful action. If you don't record it, it's lost.\n" +
+      "PRIMARY: awareness_record(action=\"remember\", text=\"WHAT/WHY/OUTCOME/FILES\")\n" +
+      "OTHER: remember_batch | update_task | backfill | ingest | submit_insights\n\n" +
+      "CRITICAL: When response contains _extraction_instruction, you MUST follow it\n" +
+      "to extract insights, then call awareness_record(action=\"submit_insights\", content=<json>).\n" +
+      "Skipping = raw events stored but NO searchable knowledge cards created.",
     inputSchema: {
       type: "object",
       properties: {
