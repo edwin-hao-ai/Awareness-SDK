@@ -13,7 +13,7 @@ Online docs: <https://awareness.market/docs?doc=ide-plugins>
 ```bash
 # From GitHub marketplace (recommended)
 /plugin marketplace add edwin-hao-ai/Awareness-SDK
-/plugin install awareness-memory@edwin-hao-ai
+/plugin install awareness-memory@awareness
 
 # Or from local directory (dev)
 claude plugin install -l ./claudecode
