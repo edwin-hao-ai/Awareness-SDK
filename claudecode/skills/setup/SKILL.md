@@ -263,9 +263,16 @@ Parse output:
 
 ### 5a. Find the settings.json file
 
-Try paths in order:
+The skill variable `${CLAUDE_SKILL_DIR}` points to this skill's directory (`skills/setup/`).
+The plugin's `settings.json` is two levels up:
+
+```
+SETTINGS_PATH="${CLAUDE_SKILL_DIR}/../../settings.json"
+```
+
+Verify it exists:
 ```bash
-SETTINGS=""; for p in "$HOME/.claude/plugins/awareness-memory/settings.json"; do [ -f "$p" ] && SETTINGS="$p" && break; done; [ -z "$SETTINGS" ] && SETTINGS=$(find "$HOME/.claude" -path "*/awareness-memory/settings.json" -maxdepth 4 2>/dev/null | head -1); echo "SETTINGS_PATH:${SETTINGS:-NOT_FOUND}"
+[ -f "${CLAUDE_SKILL_DIR}/../../settings.json" ] && echo "SETTINGS_PATH:${CLAUDE_SKILL_DIR}/../../settings.json" || echo "SETTINGS_PATH:NOT_FOUND"
 ```
 
 - If `SETTINGS_PATH:NOT_FOUND` → tell user: "Could not find plugin settings. Make sure the plugin is installed: `/plugin marketplace add edwin-hao-ai/Awareness-SDK` then `/plugin install awareness-memory@awareness`". Stop here.
