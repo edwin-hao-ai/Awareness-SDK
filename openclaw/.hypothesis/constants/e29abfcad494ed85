@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/mcp_tools/ide_rules.py
+# hypothesis_version: 6.151.9
+
+['-', '---', '1', '<tool_name>', 'absent', 'action', 'alwaysApply', 'append', 'claude', 'claude-code', 'claude_code', 'claudecode', 'cline', 'codex', 'conflict', 'conflict_policy', 'content', 'core_lines', 'create', 'cursor', 'description', 'end', 'end_marker', 'false', 'frontmatter', 'globs', 'header', 'ide', 'ide-rules.spec.json', 'ides', 'instruction', 'label', 'managed_block', 'markers', 'noop', 'notes_lines', 'opencode', 'preamble_lines', 'r', 'reason', 'replace', 'replace_end', 'rules_content', 'rules_file', 'rules_version', 'start', 'start_index', 'start_marker', 'status', 'strategy', 'true', 'utf-8', 'valid', 'version', 'windsurf', '{source}']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/memory/factory.py
+# hypothesis_version: 6.151.9
+
+['1', '128', 'ABC', 'BaseMemoryStore', 'CustomMemory', 'abc', 'chat_memory', 'config', 'custom_type', 'id', 'impl_code', 'on', 'true', 'universal', 'yes']

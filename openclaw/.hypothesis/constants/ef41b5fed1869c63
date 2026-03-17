@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/card_similarity.py
+# hypothesis_version: 6.151.9
+
+[0.6, ',', '[', ']', 'card_id_a', 'card_id_b', 'id', 'related', 'similarity']

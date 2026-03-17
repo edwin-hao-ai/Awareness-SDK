@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/device_auth.py
+# hypothesis_version: 6.151.9
+
+[600, '0', '1', 'I', 'L', 'O', 'api_key', 'approved', 'device_code', 'expired', 'expires_in', 'interval', 'pending', 'status', 'user_code', 'user_id', 'verification_uri']

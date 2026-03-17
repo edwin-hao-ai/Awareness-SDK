@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/mcp_tools/helper_ingest.py
+# hypothesis_version: 6.151.9
+
+[200, 201, 404, '/mcp/events', 'default_source', 'events', 'generate_summary', 'mcp', 'memory_id', 'metadata_defaults', 'skip_duplicates', 'summary_instruction', 'user_id']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/scope_filters.py
+# hypothesis_version: 6.151.9
+
+['AND', 'OR', 'agent_role', 'user_id']

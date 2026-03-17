@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_summary.py
+# hypothesis_version: 6.151.9
+
+[3000, '...', 'actor', 'ai:', 'assistant', 'assistant:', 'body', 'command:', 'content', 'event_type', 'human:', 'message', 'model:', 'terminal:', 'tool', 'tool:', 'tool_call', 'tool_result', 'user', 'user:']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/memory/validation.py
+# hypothesis_version: 6.151.9
+
+['ABC', 'Any', 'BaseMemoryStore', 'Dict', 'List', 'Optional', '_init_memory', 'delete', 'os', 'read', 'subprocess', 'sys', 'update', 'write']

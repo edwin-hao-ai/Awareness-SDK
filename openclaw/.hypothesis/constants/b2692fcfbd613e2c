@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/security/jwt_verify.py
+# hypothesis_version: 6.151.9
+
+[b'\x00', b'NextAuth.js Generated Encryption Key', 'AUTH_SECRET', 'utf-8']

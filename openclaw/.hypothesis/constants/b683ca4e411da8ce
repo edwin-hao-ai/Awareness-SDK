@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_proactive.py
+# hypothesis_version: 6.151.9
+
+[100, 200, ' AND ', 'cards_superseded', 'category', 'detail', 'high_risk', 'high_risk_count', 'hint', 'id', 'level', 'mitigation', 'overdue_task', 'overdue_task_count', 'priority', 'proactive_hints', 'recent_contradiction', 'related_decision', 'stale_days', 'status', 'summary', 'tags', 'title', 'updated_at']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_chat_format.py
+# hypothesis_version: 6.151.9
+
+[500, 1200, '\n\n---\n\n', '...', '_vector_score', 'category', 'confidence', 'content', 'event_timestamp', 'event_type', 'id', 'ingested_at', 'medium', 'memory', 'narrative', 'open_tasks', 'pending', 'priority', 'raw_chunks', 'recall_mode', 'recent_days', 'related_cards', 'risks', 'score', 'source', 'status', 'summary', 'title', 'unverified', 'unverified_cards', 'vector_context', 'verified', 'verified_cards']

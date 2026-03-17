@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/tasks_write.py
+# hypothesis_version: 6.151.9
+
+['completed', 'content', 'embedding', 'embedding_job_ids', 'file_upload', 'filename', 'idempotent', 'ingest_type', 'memory_write', 'mode', 'parsed_files', 'parsing', 'processing', 'skipped', 'source', 'source_path', 'success', 'vector_adapter', 'vector_upsert', 'write returned False', 'write_memory_content', 'written']

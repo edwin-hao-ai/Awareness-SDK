@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/mcp_tools/get_handlers.py
+# hypothesis_version: 6.151.9
+
+[10.0, 15.0, 30.0, 100, 200, 404, 500, '...', 'action_items', 'agent_role', 'agents', 'aw_time_iso', 'briefing_for', 'cards', 'category', 'completed', 'context', 'created_at', 'days', 'detail', 'entity_type', 'entries', 'error', 'estimated_effort', 'event_count', 'event_timestamp', 'events', 'format', 'generated_at', 'graph', 'handoff', 'id', 'in_progress', 'include_summaries', 'items', 'json', 'key_knowledge', 'knowledge', 'knowledge_cards', 'level', 'limit', 'max_cards', 'max_hops', 'max_tasks', 'medium', 'memory_id', 'narrative', 'offset', 'open_tasks', 'pending', 'priority', 'recent_days', 'recent_progress', 'refresh', 'results', 'risks', 'rules', 'search', 'session_history', 'session_id', 'status', 'summary', 'tasks', 'timeline', 'title', 'token_estimate', 'total', 'true', 'user_id']

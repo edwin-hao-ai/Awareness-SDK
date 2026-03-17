@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_chat_persistence.py
+# hypothesis_version: 6.151.9
+
+['agent_role', 'chat', 'content', 'event_timestamp', 'event_type', 'session_id', 'source', 'user_id']

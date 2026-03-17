@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/core/file_ingest.py
+# hypothesis_version: 6.151.9
+
+['..', '.csv', '.doc', '.docx', '.md', '.pdf', '.pptx', '.txt', '.xls', '.xlsx', '.zip', '300000', '<[^>]+>', '[ \\t]+', '\\1', '\\n{3,}', '\\s*\\|\\s*', '\\|\\s*$', '^\\s*\\|', '^\\s{0,3}#{1,6}\\s+', '^\\s{0,3}>\\s?', '^\\s{0,3}[-*+]\\s+', '__MACOSX', '`([^`]+)`', 'antiword', 'aw_upload_', 'content', 'filename', 'latin-1', 'r', 'rb', 'source_path', 'utf-16', 'utf-8', 'wb']

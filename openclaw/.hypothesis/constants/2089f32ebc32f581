@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/mcp_tools/helper_cleaning.py
+# hypothesis_version: 6.151.9
+
+['actor', 'agent_role', 'content', 'created_at', 'event_type', 'id', 'role', 'score', 'session_id', 'source', 'source_system', 'timestamp', 'user_id']

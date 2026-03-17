@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/memory/universal_write.py
+# hypothesis_version: 6.151.9
+
+[120, 450, 1200, 1800, '\\n', '\\r', '\\r\\n', 'aw_chunk_group_id', 'aw_chunk_index', 'aw_chunk_total', 'aw_content_scope', 'aw_source_item_index', 'content', 'content_type', 'full_source', 'markdown', 'metadata', 'percentile', 'plain']

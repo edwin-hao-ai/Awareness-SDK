@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/tasks_ingest.py
+# hypothesis_version: 6.151.9
+
+['REDIS_URL', 'agent_role', 'content', 'default', 'event_hash', 'event_type', 'failed', 'id', 'ingest_mcp_event', 'is_new', 'metadata', 'session_id', 'skipped_idempotent', 'snippets', 'summaries_generated', 'turn_brief', 'user_id', 'written']

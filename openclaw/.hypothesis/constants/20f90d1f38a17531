@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/handlers/memory_context_handlers.py
+# hypothesis_version: 6.151.9
+
+[100, 200, 800, '%Y-%m-%d', 'DAILY_NARRATIVE', 'OR', 'access_count', 'active_skills', 'agent_profiles', 'agent_role', 'category', 'confidence', 'context', 'count', 'created_at', 'date', 'days_included', 'desc', 'description', 'detail', 'entries', 'error', 'estimated_effort', 'event_count', 'events', 'generated_at', 'gte', 'high', 'id', 'in', 'in_progress', 'include_summaries', 'knowledge_cards', 'last_accessed_at', 'last_sessions', 'limit', 'low', 'medium', 'memory_id', 'memory_profile', 'narrative', 'none', 'offset', 'open_tasks', 'pending', 'priority', 'proactive_context', 'reason', 'recent_days', 'role', 'rules', 'session_id', 'sessions', 'status', 'summary', 'synthesized_rules', 'tags', 'title', 'track_card_access', 'type', 'unknown', 'user_id']

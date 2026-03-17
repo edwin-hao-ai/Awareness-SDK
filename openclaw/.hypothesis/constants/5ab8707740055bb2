@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/vector/adapters.py
+# hypothesis_version: 6.151.9
+
+['BaseVectorAdapter', 'PgVectorAdapter', 'QdrantVectorAdapter', '_OR_NULL_FILTER_KEYS', '_safe_sql_name', '_sanitize_id', 'build_vector_adapter']

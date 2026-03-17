@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_wizard_runtime.py
+# hypothesis_version: 6.151.9
+
+[0.2, 'AI_GATEWAY_API_KEY', 'AI_GATEWAY_BASE_URL', 'AI_GATEWAY_MODEL', 'INFERENCE_MODEL', 'WIZARD_API_BASE', 'alibaba/qwen-3-14b', 'api_base', 'gateway_api_key', 'gateway_base', 'gateway_model', 'mcp_url']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_recall_intent.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1e-08, 0.03, 0.06, 0.08, 0.12, 0.2, 0.22, 0.28, 0.34, 0.38, 0.45, 0.55, 1.0, '?', 'assistant', 'avg_recall', 'chat', 'content', 'conversation', 'conversation_ratio', 'definition', 'dialog', 'event_type', 'focused', 'history', 'mean_score', 'message', 'query_specificity', 'query_term_count', 'score', 'score_gap', 'session', 'source', 'summary', 'thread', 'top_lexical', 'top_overlap', 'top_score', 'user', '？']

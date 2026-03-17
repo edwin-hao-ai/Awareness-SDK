@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/dependencies/admin_auth.py
+# hypothesis_version: 6.151.9
+
+[403, 'ADMIN_TOKEN', 'Admin token required', 'Invalid admin token', 'X-Admin-Token', 'awareness-admin-2026']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/vector/pgvector_ops_schema.py
+# hypothesis_version: 6.151.9
+
+['%s', '(id)', ',', '100', 'HNSW_EF_SEARCH', '[', ']', 'closed', 'content', 'id', 'memory_id', 'score']

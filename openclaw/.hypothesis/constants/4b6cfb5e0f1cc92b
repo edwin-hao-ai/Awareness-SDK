@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/mcp_tools/http_client.py
+# hypothesis_version: 6.151.9
+
+[0.5, 1.0, 2.0, 5.0, 30.0, 60.0, 200, 502, 503, 504, 'GET', 'PATCH', 'POST', 'headers', 'json', 'params', 'timeout']

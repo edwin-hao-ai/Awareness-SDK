@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_insights_storage.py
+# hypothesis_version: 6.151.9
+
+['_audit_create', '_audit_supersede', '_bm25_score_check', 'clear_insights_cache']

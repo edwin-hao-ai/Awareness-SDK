@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/memories_insight_routes.py
+# hypothesis_version: 6.151.9
+
+['ActionItemUpdate', 'KnowledgeCardUpdate', 'RiskUpdate', 'delete_action_item', 'delete_risk', 'extract_insights', 'get_action_items', 'get_audit_log', 'get_entity_neighbors', 'get_graph_entities', 'get_knowledge_cards', 'get_risks', 'router', 'submit_insights', 'update_action_item', 'update_risk']

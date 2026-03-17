@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/users.py
+# hypothesis_version: 6.151.9
+
+[400, 401, 403, 404, 503, '/ensure-key', '/me', '/users', 'AUTH_SECRET', 'Auto-generated Key', 'User not found', 'X-Internal-Token', 'api_key', 'created_at', 'desc', 'email', 'exists', 'id', 'image', 'name', 'nickname', 'owner_id', 'prefix', 'revoked', 'userId', 'user_id', 'user_id is required', 'users']

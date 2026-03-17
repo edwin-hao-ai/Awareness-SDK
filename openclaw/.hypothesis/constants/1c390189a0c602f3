@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/security/api_keys.py
+# hypothesis_version: 6.151.9
+
+['Default Key', 'api_key', 'created_at', 'desc', 'id', 'key_hash', 'last_used_at', 'name', 'owner_id', 'prefix', 'revoked', 'userId', 'utf-8']

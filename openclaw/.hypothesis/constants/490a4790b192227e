@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/structured_recall.py
+# hypothesis_version: 6.151.9
+
+[0.6, '%Y-%m-%d', 'DAILY_NARRATIVE', '_linked', 'access_count', 'active', 'asc', 'category', 'confidence', 'context', 'count', 'created_at', 'date', 'desc', 'detail', 'estimated_effort', 'general', 'generated_at', 'gte', 'high', 'hybrid', 'id', 'in', 'in_progress', 'last_accessed_at', 'level', 'low', 'medium', 'memory_id', 'mitigation', 'narrative', 'not', 'open', 'open_tasks', 'pending', 'precise', 'priority', 'query_intent', 'raw_chunks', 'recall_mode', 'recent_days', 'reconstruct_chunks', 'related_cards', 'risks', 'status', 'structured', 'summary', 'superseded', 'tags', 'title', 'track_card_access', 'type', 'unverified_cards', 'vector_context', 'verified_cards']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/integrations.py
+# hypothesis_version: 6.151.9
+
+['/insights/memory', '/jobs/{job_id}', '/mcp/events', 'AUTH_SECRET', 'delay', 'written']

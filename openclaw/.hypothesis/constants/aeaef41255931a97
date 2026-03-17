@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_ingest.py
+# hypothesis_version: 6.151.9
+
+['chunk', 'content', 'id', 'metadata', 'row_index', 'score', 'vector']

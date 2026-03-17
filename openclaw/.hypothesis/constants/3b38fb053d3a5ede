@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_recall_config.py
+# hypothesis_version: 6.151.9
+
+['1', 'day_offsets', 'extra', 'groups', 'keyphrase_stopwords', 'last', 'next', 'on', 'query_stopwords', 'question_terms', 'temporal_keywords', 'this', 'true', 'week_scope_tokens', 'weekday_aliases', 'when_all', 'when_any', 'yes']

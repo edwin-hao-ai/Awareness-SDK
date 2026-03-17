@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/vector/pgvector_adapter.py
+# hypothesis_version: 6.151.9
+
+['DATABASE_URL', 'PGVECTOR_TABLE', 'database_url', 'memory_vectors', 'pgvector_table']

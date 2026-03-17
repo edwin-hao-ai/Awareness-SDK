@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_event_enrichment.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.55, 1.0, '-', '[^a-z0-9_]+', '_', '_agent', 'agent_name', 'agent_role', 'artifact_type', 'artifact_type_rules', 'aw_time_date', 'aw_time_hour', 'aw_time_iso', 'aw_time_unix', 'aw_time_weekday', 'content', 'content_tokens', 'development', 'event_timestamp', 'event_type', 'event_type_defaults', 'explicit', 'ingested_at', 'mcp', 'message', 'origin', 'producer', 'source', 'sourceSystem', 'source_channel', 'source_confidence', 'source_field', 'source_system', 'stage', 'stage_rules', 'timestamp', 'tool_call', 'tool_name', 'unknown', 'uploaded_at']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/inference_service.py
+# hypothesis_version: 6.151.9
+
+['"', "'", '.', '0.1', '127.0.0.1', 'AI_GATEWAY_API_KEY', 'AI_GATEWAY_URL', 'INFERENCE_API_BASE', 'INFERENCE_API_KEY', 'OPENAI_API_BASE', 'OPENAI_API_KEY', '[', '\\', '^(#{2,})\\s+(.+)$', '_', '```', '```json', 'action items', 'action_items', 'actionitems', 'entities', 'existing knowledge', 'knowledge cards', 'knowledge_cards', 'knowledgecards', 'localhost', 'max_retries', 'model_name', 'not-needed', 'openai_api_base', 'openai_api_key', 'relations', 'risks', 'structured insights', 'temperature', 'timeout', 'turn brief', 'turn_brief', 'turnbrief', '{', '|', '}']

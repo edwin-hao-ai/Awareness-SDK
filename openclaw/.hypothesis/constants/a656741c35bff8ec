@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_chat.py
+# hypothesis_version: 6.151.9
+
+[500, '0.2', 'AI_GATEWAY_MODEL', 'CHAT_LLM_MODEL', 'CHAT_MODEL', 'CHAT_TEMPERATURE', 'LLM_MODEL', 'agent_role', 'answer', 'application/x-ndjson', 'assistant', 'chat_temperature', 'chatmessage', 'chatsession', 'chunk', 'content', 'context_fallback', 'data', 'hybrid', 'id', 'keyword_query', 'limit', 'llm_fallback_model', 'llm_model', 'low', 'memory-only', 'memory_only', 'meta', 'model_name', 'openai_api_base', 'openai_api_key', 'recall_mode', 'reconstruct_chunks', 'results', 'role', 'session_id', 'sources', 'strict_recall', 'temperature', 'type', 'updated_at', 'use_hybrid_search', 'user', 'user_id']

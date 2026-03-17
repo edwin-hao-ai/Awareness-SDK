@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/memory/universal_init.py
+# hypothesis_version: 6.151.9
+
+['1536', 'EMBEDDING_DIM', 'EMBEDDING_MODEL', 'OPENAI_API_BASE', 'OPENAI_API_KEY', 'dummy-key', 'embedding_dim', 'embedding_model', 'model', 'nomic-embed', 'openai_api_base', 'openai_api_key', 'search_document: ', 'search_query: ', 'vector_backend']

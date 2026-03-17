@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/mcp_tools/write_handlers.py
+# hypothesis_version: 6.151.9
+
+[200, 201, 404, 800, 5000, '/mcp/events', 'Error', '_retry_hint', 'accepted_steps', 'actor', 'agent_role', 'aw_content_scope', 'backfill', 'cards_created', 'cards_superseded', 'completed', 'content', 'default_source', 'error', 'event', 'event_type', 'extraction_request', 'in_progress', 'ingest', 'ingested_events', 'knowledge', 'knowledge_cards', 'memory_id', 'metadata', 'metadata_defaults', 'ok', 'parsed_events', 'pending', 'proactive_hints', 'remember', 'remember_batch', 'result', 'session_id', 'source', 'status', 'submit_insights', 'text is required.', 'timeline', 'timestamp', 'truncated', 'update_task', 'user_id']

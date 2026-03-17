@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/memory_crud.py
+# hypothesis_version: 6.151.9
+
+[100, 400, 401, 404, 500, '/apikeys', '/apikeys/{key_id}', '/memories', 'API key not found', 'Default Key', 'Memory not found', 'OR', 'agent_role', 'aw_content_scope', 'config', 'created_at', 'custom_type', 'desc', 'description', 'has_more', 'id', 'impl_code', 'insight_summary', 'insights', 'items', 'knowledge', 'name', 'next_cursor', 'owner_id', 'owner_id is required', 'session_id', 'timeline', 'total_estimate', 'user_id']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/mcp_tools/helper_events.py
+# hypothesis_version: 6.151.9
+
+['%Y%m%d%H%M%S', '%Y-%m-%d %H:%M', '%Y-%m-%d %H:%M:%S', '+00:00', '-', '/', 'Z', '[', '[^a-zA-Z0-9_-]+', '\\b(system)\\b', 'actor', 'actor_prefixes', 'all', 'assistant', 'aw_content_scope', 'body', 'content', 'event_type', 'event_type_tokens', 'events', 'file_diff', 'full_source', 'input', 'insight_summary', 'insights', 'issue', 'knowledge', 'lines', 'memory', 'message', 'messages', 'metadata', 'output', 'planning', 'session_id', 'set', 'source', 'speaker', 'summary', 'system', 'text', 'timeline', 'timestamp', 'tool', 'tool_call', 'ts', 'user', '{']

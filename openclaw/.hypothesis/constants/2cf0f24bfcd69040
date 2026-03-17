@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/mcp_ingest.py
+# hypothesis_version: 6.151.9
+
+[400, 'accepted', 'actor', 'agent_id', 'agent_role', 'aw_content_scope', 'completed', 'content', 'default', 'duplicates', 'event_hash', 'event_seen_count', 'event_timestamp', 'event_type', 'event_version', 'failed', 'importance', 'ingested_at', 'is_new', 'mcp', 'metadata', 'model_extra', 'run_id', 'session_id', 'source', 'source_system', 'status', 'summaries_generated', 'thread_id', 'timeline', 'timestamp', 'turn_brief', 'user_id', 'written']

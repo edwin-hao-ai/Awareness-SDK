@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/admin_stats.py
+# hypothesis_version: 6.151.9
+
+['%Y-%m-%d', '%Y-%m-01', 'active', 'api_calls', 'api_read', 'api_retrieve', 'api_write', 'count', 'create', 'created_at', 'custom_type', 'date', 'desc', 'email', 'free', 'id', 'image', 'limit', 'memories', 'memory_count', 'month', 'name', 'new_users', 'owner_id', 'page', 'pages', 'plan', 'plan_distribution', 'started_at', 'status', 'sub_status', 'subscription', 'today', 'total', 'total_bytes', 'total_memories', 'total_storage_bytes', 'total_users', 'update', 'updated_at', 'usage', 'userId', 'user_id', 'users', 'week']

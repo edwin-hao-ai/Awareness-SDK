@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/dependencies/auth.py
+# hypothesis_version: 6.151.9
+
+[401, 403, '-', 'Bearer ', 'Invalid API key', 'Invalid token', 'Test User', '_', 'api_key', 'auth_method', 'aw_', 'email', 'id', 'jwt', 'name', 'owner_id', 'sub', 'test user', 'test-user', 'test_user', 'userId', 'user_id']

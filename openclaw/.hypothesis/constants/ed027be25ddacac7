@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_chat_session.py
+# hypothesis_version: 6.151.9
+
+[404, 'content', 'created_at', 'desc', 'id', 'memory_id', 'role', 'session_id', 'updated_at', 'user', 'user_id']

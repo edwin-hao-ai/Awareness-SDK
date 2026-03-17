@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/queue.py
+# hypothesis_version: 6.151.9
+
+[300, 360, 86400, '*/6', 'REDIS_URL', 'UTC', 'awareness', 'batch', 'json', 'maintenance', 'queue', 'raptor-clustering', 'realtime', 'schedule', 'task']

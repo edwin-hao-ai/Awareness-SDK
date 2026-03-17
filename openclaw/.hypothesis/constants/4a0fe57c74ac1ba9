@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/token_savings.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.15, 1.0, 3.0, 15.0, 3600, '%Y-%m-%d', 'advanced', 'awareness:mem_tokens', 'compact', 'compression_rate', 'daily', 'date', 'desc', 'memory_id', 'memory_name', 'owner_id', 'period_days', 'pricing_models', 'recall_count', 'standard', 'tokens_recall_count', 'tokens_retrieved', 'tokens_saved', 'top_memories', 'total_recalls', 'total_tokens_saved', 'updated_at', 'user_id']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/vector/adapter_factory.py
+# hypothesis_version: 6.151.9
+
+['VECTOR_BACKEND', 'hybrid', 'pgvector', 'qdrant', 'qdrant+pgvector', 'qdrant_pgvector']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/task_idempotency.py
+# hypothesis_version: 6.151.9
+
+['1', 'REDIS_URL', 'replace', 'utf-8']

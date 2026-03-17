@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_activity.py
+# hypothesis_version: 6.151.9
+
+[200, 300, 400, 404, 500, 5000, 'Memory not found', 'Webhook error: %s', 'agent_role', 'aw_content_scope', 'aw_time_iso', 'body', 'content', 'created_at', 'default', 'empty_content', 'entries', 'event_timestamp', 'event_type', 'full_source', 'id', 'ignored', 'ingested_at', 'knowledge', 'limit', 'memory_planner', 'message', 'offset', 'reason', 'role', 'session', 'session_id', 'session_summary', 'source', 'source_system', 'status', 'success', 'timestamp', 'top memory cues', 'total', 'unknown', 'uploaded_at', 'user_id', 'utf-8', 'webhook']

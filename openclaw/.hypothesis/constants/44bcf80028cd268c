@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/vector/adapter_common.py
+# hypothesis_version: 6.151.9
+
+['-', '_', 'agent_role', 'aw_content_scope', 'event_type', 'source', 'user_id']

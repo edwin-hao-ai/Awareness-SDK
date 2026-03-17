@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_recall_runtime.py
+# hypothesis_version: 6.151.9
+
+[0.1, 0.48, 0.72, 200, 8000, '_expand_to_sessions', '_vector_score', 'auto', 'filter', 'hybrid', 'limit', 'max_session_chars', 'max_sessions', 'metadata_filter', 'recall_mode', 'scan_items', 'scan_page_size', 'score', 'session', 'session_id']

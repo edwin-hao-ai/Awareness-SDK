@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_insights_storage_submitted.py
+# hypothesis_version: 6.151.9
+
+[0.8, 255, '%Y-%m-%d', ':', 'action', 'action_items', 'action_items_created', 'agent_role', 'bm25_update', 'cards_created', 'cards_merged', 'cards_skipped_dup', 'cards_superseded', 'cards_updated', 'category', 'confidence', 'context', 'contradiction', 'detail', 'duplicate', 'entities', 'estimated_effort', 'evidence', 'evolution_type', 'id', 'knowledge_cards', 'level', 'memory_id', 'methods', 'mitigation', 'parent_card_id', 'pass', 'priority', 'related', 'relations', 'risks', 'risks_created', 'salience_score', 'session_id', 'similarity', 'source', 'source_date', 'source_texts', 'status', 'summary', 'superseded', 'tags', 'title', 'update', 'user_id', 'vector_update', '|']

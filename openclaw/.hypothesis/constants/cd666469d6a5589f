@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/evidence_verification.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.4, 0.6, 1.0, '[^\\W\\d_]{3,}', '[a-z][a-z0-9_-]{2,}', 'unverified', 'verified']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/task_alerts.py
+# hypothesis_version: 6.151.9
+
+[200, 500, '...', '5', 'Content-Type', 'TASK_ALERT_ENABLED', 'TASK_ALERT_TIMEOUT', 'Unknown error', 'application/json', 'args_summary', 'awareness-worker', 'event', 'exception', 'false', 'name', 'service', 'task_failure', 'task_id', 'task_name', 'timestamp', 'traceback', 'true']

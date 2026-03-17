@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/core/metadata_defaults.py
+# hypothesis_version: 6.151.9
+
+['agent_id', 'agent_name', 'agent_role', 'get', 'project_id', 'run_id', 'source_channel', 'source_system', 'stage', 'tenant_id', 'thread_id', 'visibility', 'workspace_id', 'x-awareness-agent-id', 'x-awareness-metadata', 'x-awareness-run-id', 'x-awareness-stage']

@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/handlers/memory_insight_write_handlers.py
+# hypothesis_version: 6.151.9
+
+[400, 404, 422, 'No fields to update', 'Risk not found', 'active', 'activity_preference', 'cards_created', 'cards_updated', 'career_info', 'category', 'completed', 'confidence', 'context', 'custom_misc', 'decision', 'default', 'deleted_id', 'deprecated', 'detail', 'estimated_effort', 'extracted', 'health_info', 'high', 'id', 'important_detail', 'in_progress', 'insight', 'key_point', 'large', 'level', 'low', 'medium', 'memory_id', 'message', 'mitigated', 'mitigation', 'mode', 'noted', 'ok', 'open', 'pending', 'personal_preference', 'pitfall', 'plan_intention', 'priority', 'problem_solution', 'resolved', 'session_id', 'skill', 'small', 'status', 'summary', 'superseded', 'tags', 'title', 'warnings', 'workflow']

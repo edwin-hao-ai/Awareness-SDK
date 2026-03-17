@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_transfer_exports.py
+# hypothesis_version: 6.151.9
+
+['.safetensors', '1.0', 'bytes', 'chunk', 'content', 'custom_type', 'dim', 'embeddings', 'export', 'export_items', 'files', 'full_snapshot', 'generated_at', 'id', 'include_content', 'include_metadata', 'include_upload_files', 'items_exported', 'manifest.json', 'max_items', 'memory', 'memory_id', 'metadata', 'name', 'offset', 'package_type', 'path', 'raw_chunks', 'rb', 'records', 'row_index', 'rows', 'safetensors', 'stats', 'universal', 'utf-8', 'vector', 'vector_binary_format', 'vector_dimension', 'vector_only', 'vector_regenerated', 'vectors/index.json', 'version', 'w', 'warnings']

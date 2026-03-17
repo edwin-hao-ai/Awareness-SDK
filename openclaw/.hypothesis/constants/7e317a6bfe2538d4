@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_decay.py
+# hypothesis_version: 6.151.9
+
+[0.5, 0.8, 0.85, 1.0, 500, 86400, '+00:00', 'Z', '_intent_boost', 'access_count', 'category', 'confidence', 'created_at', 'decay_score', 'general', 'key_point', 'last_accessed_at', 'salience_score']

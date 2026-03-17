@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/vector/pgvector_ops_search.py
+# hypothesis_version: 6.151.9
+
+[0.3, 0.7, ' AND ', ' AND id = ANY(%s)', '_vector_score', 'content', 'id', 'score', 'vector']

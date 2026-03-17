@@ -1,0 +1,4 @@
+# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_wizard_utils.py
+# hypothesis_version: 6.151.9
+
+[0.55, '[^a-z0-9_]+', '_', 'agent', 'agent_role', 'agents', 'builder_agent', 'communication_style', 'content', 'critical_rules', 'identity', 'ingest_pattern', 'integration', 'key', 'kind', 'name', 'purpose', 'ready', 'recall_pattern', 'responsibility', 'role', 'skill', 'success_metrics', 'system_prompt', 'text', 'title', 'type', 'value', 'when_to_use', 'workflow', '{']
