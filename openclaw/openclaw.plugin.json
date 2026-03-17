@@ -1,7 +1,7 @@
 {
   "id": "memory-awareness",
   "name": "Awareness Memory",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "kind": "memory",
   "configSchema": {
     "type": "object",
