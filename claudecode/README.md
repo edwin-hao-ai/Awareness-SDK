@@ -11,10 +11,11 @@ Online docs: <https://awareness.market/docs?doc=ide-plugins>
 ### 1. Install the plugin
 
 ```bash
-# Once published to marketplace
-claude plugin install awareness-memory
+# From GitHub marketplace (recommended)
+/plugin marketplace add edwin-hao-ai/Awareness-SDK
+/plugin install awareness-memory@edwin-hao-ai
 
-# Or from the Awareness repo root (local dev)
+# Or from local directory (dev)
 claude plugin install -l ./claudecode
 ```
 

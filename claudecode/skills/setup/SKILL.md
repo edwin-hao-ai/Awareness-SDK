@@ -1,7 +1,7 @@
 ---
 name: setup
 description: One-command setup — authenticate via browser and configure Awareness Memory credentials.
-user-invokable: true
+user-invocable: true
 disable-model-invocation: false
 ---
 
@@ -268,7 +268,7 @@ Try paths in order:
 SETTINGS=""; for p in "$HOME/.claude/plugins/awareness-memory/settings.json"; do [ -f "$p" ] && SETTINGS="$p" && break; done; [ -z "$SETTINGS" ] && SETTINGS=$(find "$HOME/.claude" -path "*/awareness-memory/settings.json" -maxdepth 4 2>/dev/null | head -1); echo "SETTINGS_PATH:${SETTINGS:-NOT_FOUND}"
 ```
 
-- If `SETTINGS_PATH:NOT_FOUND` → tell user: "Could not find plugin settings. Make sure the plugin is installed: `claude plugin install awareness-memory`". Stop here.
+- If `SETTINGS_PATH:NOT_FOUND` → tell user: "Could not find plugin settings. Make sure the plugin is installed: `/plugin marketplace add edwin-hao-ai/Awareness-SDK` then `/plugin install awareness-memory@edwin-hao-ai`". Stop here.
 - Otherwise → use the returned path.
 
 ### 5b. Write credentials

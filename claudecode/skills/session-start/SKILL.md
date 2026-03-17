@@ -1,7 +1,7 @@
 ---
 name: session-start
 description: Initialize memory session, load project context, and create a session_id for tracking.
-user-invokable: true
+user-invocable: true
 disable-model-invocation: false
 ---
 

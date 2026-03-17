@@ -1,7 +1,7 @@
 ---
 name: recall
 description: Search Awareness memory for past implementations, decisions, or relevant context.
-user-invokable: true
+user-invocable: true
 disable-model-invocation: false
 ---
 

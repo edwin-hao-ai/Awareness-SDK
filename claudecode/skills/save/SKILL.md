@@ -1,7 +1,7 @@
 ---
 name: save
 description: Save current session progress to Awareness memory as a batch of structured steps.
-user-invokable: true
+user-invocable: true
 ---
 
 Save current session progress to Awareness Memory.

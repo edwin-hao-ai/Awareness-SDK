@@ -1,7 +1,7 @@
 ---
 name: done
 description: End the current Awareness memory session and save final progress.
-user-invokable: true
+user-invocable: true
 disable-model-invocation: false
 ---
 
