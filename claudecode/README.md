@@ -11,16 +11,31 @@ Online docs: <https://awareness.market/docs?doc=ide-plugins>
 ### 1. Install the plugin
 
 ```bash
-# From the Awareness repo root
-claude plugin install -l ./claudecode
-
 # Once published to marketplace
 claude plugin install awareness-memory
+
+# Or from the Awareness repo root (local dev)
+claude plugin install -l ./claudecode
 ```
 
-### 2. Configure
+### 2. One-command setup (recommended)
 
-Edit `claudecode/settings.json` (or `~/.claude/plugins/awareness-memory/settings.json` after install):
+After installing, just run:
+
+```
+/awareness-memory:setup
+```
+
+This will:
+- Open your browser to sign in (or create an account)
+- Let you select (or create) a memory
+- Automatically write your credentials to settings.json
+
+After setup completes, restart Claude Code and you're ready to go.
+
+### 3. Manual configuration (alternative)
+
+If you prefer to configure manually, edit `~/.claude/plugins/awareness-memory/settings.json`:
 
 ```json
 {
@@ -37,7 +52,7 @@ Get your `AWARENESS_API_KEY` and `AWARENESS_MEMORY_ID` from the [Awareness Dashb
 
 For local self-hosted deployments, set `AWARENESS_MCP_URL` to `http://localhost:8001/mcp`.
 
-### 3. Verify
+### 4. Verify
 
 ```bash
 # Check MCP server is connected
@@ -46,9 +61,6 @@ claude /mcp
 
 # Load memory context
 /awareness-memory:session-start
-
-# Check open tasks
- /awareness-memory:done
 ```
 
 ---
@@ -57,6 +69,7 @@ claude /mcp
 
 | Skill | Command | When to Use |
 |-------|---------|-------------|
+| `setup` | `/awareness-memory:setup` | First time — authenticate via browser and configure credentials |
 | `session-start` | `/awareness-memory:session-start` | Start of every session — loads recent progress, open tasks, relevant context |
 | `recall` | `/awareness-memory:recall <query>` | Before implementing anything — check if it already exists |
 | `save` | `/awareness-memory:save` | After completing a step or before ending a session |
@@ -112,10 +125,19 @@ Once connected, Claude Code has access to these Awareness MCP tools:
 
 ## Troubleshooting
 
+**"Not configured yet" message on session start**
+- Run `/awareness-memory:setup` to authenticate and configure in one step
+- Or manually edit `settings.json` with your API key and memory ID
+
 **MCP server not appearing in `/mcp`**
+- Make sure you restarted Claude Code after running `/awareness-memory:setup`
 - Check that `AWARENESS_MCP_URL` is reachable
 - Verify `AWARENESS_API_KEY` is valid (starts with `aw_`)
 - Run `claude plugin list` to confirm the plugin is installed
+
+**Setup browser not opening**
+- The `/awareness-memory:setup` skill will show you a URL to open manually
+- Make sure you complete authorization within 10 minutes
 
 **Skills returning empty results**
 - Ensure `AWARENESS_MEMORY_ID` points to a memory with data

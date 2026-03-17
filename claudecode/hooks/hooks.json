@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Awareness Memory] Session started. Run /awareness-memory:session-start to load your project context.'"
+            "command": "if [ -z \"$AWARENESS_API_KEY\" ] || [ \"$AWARENESS_API_KEY\" = \"aw_your-api-key-here\" ] || [ -z \"$AWARENESS_MEMORY_ID\" ] || [ \"$AWARENESS_MEMORY_ID\" = \"your-memory-id-here\" ]; then echo '[Awareness Memory] Not configured yet. Run /awareness-memory:setup to connect your memory in one step.'; else echo '[Awareness Memory] Session started. Run /awareness-memory:session-start to load your project context.'; fi"
           }
         ]
       }
