@@ -13,6 +13,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
   // -----------------------------------------------------------------------
   api.registerTool({
     id: "__awareness_workflow__",
+    name: "__awareness_workflow__",
     description:
       "Call this when you're unsure what to do next with Awareness memory tools.\n" +
       "Returns a step-by-step checklist so you always know the right next action.\n" +
@@ -37,6 +38,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
   // -----------------------------------------------------------------------
   api.registerTool({
     id: "awareness_init",
+    name: "awareness_init",
     description:
       "Start here — call ONCE at session start to load persistent memory.\n\n" +
       "WHY: Without this, you have no memory of past sessions.\n" +
@@ -80,6 +82,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
   // -----------------------------------------------------------------------
   api.registerTool({
     id: "awareness_recall",
+    name: "awareness_recall",
     description:
       "Search persistent memory for past decisions, solutions, and knowledge.\n\n" +
       "Call BEFORE starting work to avoid re-solving solved problems.\n" +
@@ -177,6 +180,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
   // -----------------------------------------------------------------------
   api.registerTool({
     id: "awareness_lookup",
+    name: "awareness_lookup",
     description:
       "Fast DB lookup — use instead of awareness_recall when you know WHAT you want.\n" +
       "awareness_recall = search by meaning (semantic). awareness_lookup = get by type (<50ms).\n" +
@@ -220,6 +224,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
   // -----------------------------------------------------------------------
   api.registerTool({
     id: "awareness_record",
+    name: "awareness_record",
     description:
       "Save what you did/decided/learned to persistent memory.\n\n" +
       "Call AFTER every meaningful action. If you don't record it, it's lost.\n" +

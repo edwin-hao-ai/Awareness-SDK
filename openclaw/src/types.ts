@@ -52,6 +52,8 @@ export interface PluginApi {
 
 export interface ToolDefinition {
   id: string;
+  /** Tool name used by the OpenClaw host for registration. Should match id. */
+  name: string;
   description: string;
   inputSchema: Record<string, unknown>;
   execute: (input: Record<string, unknown>) => Promise<unknown>;

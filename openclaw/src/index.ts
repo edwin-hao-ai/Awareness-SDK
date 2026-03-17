@@ -11,6 +11,7 @@ function registerSetupMode(api: PluginApi): void {
   // Provide a tool that returns setup instructions
   api.registerTool({
     id: "awareness_setup",
+    name: "awareness_setup",
     description:
       "Awareness Memory is not configured yet. Call this tool to get setup instructions.\n" +
       "The quickest way: run `npx @awareness-sdk/setup --ide openclaw` in a terminal.",
