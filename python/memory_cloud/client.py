@@ -167,7 +167,7 @@ class MemoryCloudClient:
         agent_role: Optional[str] = None,
         multi_level: bool = False,
         cluster_expand: bool = False,
-        include_installed: bool = False,
+        include_installed: bool = True,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Retrieve from memory using the specified recall mode.
@@ -488,7 +488,7 @@ class MemoryCloudClient:
         agent_role: Optional[str] = None,
         multi_level: bool = False,
         cluster_expand: bool = False,
-        include_installed: bool = False,
+        include_installed: bool = True,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Recall relevant context for a task.
