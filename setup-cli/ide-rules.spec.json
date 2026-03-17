@@ -48,6 +48,7 @@
     "cline",
     "copilot",
     "codex",
+    "openclaw",
     "kiro",
     "trae",
     "jetbrains",
@@ -150,6 +151,19 @@
         "## Codex-Specific Notes",
         "- Call awareness_init at task start before reading any files.",
         "- After each code patch, call awareness_record with the change description."
+      ]
+    },
+    "openclaw": {
+      "label": "OpenClaw",
+      "rules_file": null,
+      "strategy": "plugin_config",
+      "conflict_policy": "none",
+      "header": "",
+      "preamble_lines": [],
+      "notes_lines": [
+        "OpenClaw uses a native plugin system — workflow rules are injected automatically",
+        "by the Awareness plugin's before_agent_start hook. No separate rules file needed.",
+        "Config is written to ~/.openclaw/openclaw.json under plugins.entries.memory-awareness."
       ]
     },
     "kiro": {

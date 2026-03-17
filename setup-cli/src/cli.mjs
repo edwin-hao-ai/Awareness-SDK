@@ -16,6 +16,7 @@ import {
   normalizeIdeId,
   syncIdeMcpConfig,
   syncIdeRules,
+  syncOpenClawConfig,
 } from "./rules.mjs";
 
 import {
@@ -188,6 +189,11 @@ async function syncOneIde({ ideId, argv, dryRun, force }) {
   const config = getIdeConfig(ideId);
   console.log(`\nConfiguring ${config?.label ?? ideId}...`);
 
+  // --- OpenClaw special path: plugin config instead of rules + MCP ---
+  if (ideId === "openclaw") {
+    return syncOneIdeOpenClaw({ argv, dryRun });
+  }
+
   const result = syncIdeRules({ ideId, dryRun, force });
 
   if (!result.ok) {
@@ -255,6 +261,70 @@ async function syncOneIde({ ideId, argv, dryRun, force }) {
         console.log(mcpResult.content);
       }
     }
+  }
+
+  return 0;
+}
+
+/**
+ * OpenClaw-specific sync: write plugin config to ~/.openclaw/openclaw.json.
+ * OpenClaw uses a native plugin system, so no separate rules file or MCP JSON is needed.
+ */
+async function syncOneIdeOpenClaw({ argv, dryRun }) {
+  const readArg = (name, envKey = "") => {
+    const index = argv.indexOf(name);
+    if (index !== -1 && argv[index + 1]) {
+      return argv[index + 1];
+    }
+    return envKey ? (process.env[envKey] ?? "") : "";
+  };
+
+  const apiKey = readArg("--api-key", "AWARENESS_API_KEY");
+  const memoryId = readArg("--memory-id", "AWARENESS_MEMORY_ID");
+  const agentRole = readArg("--agent-role", "AWARENESS_AGENT_ROLE") || "builder_agent";
+  // Derive baseUrl from MCP URL or api-base
+  let baseUrl = readArg("--api-base") || "https://awareness.market/api/v1";
+  const mcpUrl = readArg("--mcp-url", "AWARENESS_MCP_URL");
+  if (mcpUrl && mcpUrl.endsWith("/mcp")) {
+    baseUrl = mcpUrl.replace(/\/mcp$/, "/api/v1");
+  }
+
+  if (!apiKey || !memoryId) {
+    console.error("To configure OpenClaw, provide apiKey and memoryId (via auth or --api-key / --memory-id).");
+    return 1;
+  }
+
+  const result = syncOpenClawConfig({
+    apiKey,
+    memoryId,
+    agentRole,
+    baseUrl,
+    dryRun,
+  });
+
+  if (!result.ok) {
+    console.error(`Conflict while syncing ${result.filePath}: ${result.reason}`);
+    return 1;
+  }
+
+  const actionLabel = {
+    create: dryRun ? "Would create" : "Created",
+    replace: dryRun ? "Would update" : "Updated",
+    noop: "Already up to date",
+  }[result.action] ?? result.action;
+
+  if (result.action === "noop") {
+    console.log(`✓ ${result.filePath} already up to date.`);
+  } else {
+    console.log(`✓ ${actionLabel} ${result.filePath}`);
+    if (dryRun) {
+      console.log(result.content);
+    }
+  }
+
+  console.log("ℹ OpenClaw uses a native plugin system — workflow rules are injected automatically by the Awareness plugin.");
+  if (!dryRun && result.action !== "noop") {
+    console.log("ℹ Restart OpenClaw to apply the new configuration.");
   }
 
   return 0;

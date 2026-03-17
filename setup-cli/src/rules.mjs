@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 // Resolve spec.json: bundled copy (npm publish) or repo root (dev)
@@ -28,6 +29,8 @@ const IDE_ALIASES = {
   jetbrains: "jetbrains",
   junie: "jetbrains",
   intellij: "jetbrains",
+  openclaw: "openclaw",
+  "open-claw": "openclaw",
   augment: "augment",
   antigravity: "antigravity",
   "google-antigravity": "antigravity",
@@ -129,6 +132,10 @@ export function autoDetectAllIdes(cwd = process.cwd(), env = process.env) {
     cline: () => existsSync(join(cwd, ".clinerules")),
     copilot: () => existsSync(join(cwd, ".github", "copilot-instructions.md")) || existsSync(join(cwd, ".vscode", "mcp.json")),
     codex: () => existsSync(join(cwd, "AGENTS.md")),
+    openclaw: () => {
+      const home = env.HOME || env.USERPROFILE || homedir();
+      return existsSync(join(home, ".openclaw", "openclaw.json"));
+    },
     kiro: () => existsSync(join(cwd, ".kiro")),
     trae: () => existsSync(join(cwd, ".trae")),
     zed: () => existsSync(join(cwd, ".rules")),
@@ -438,4 +445,118 @@ function countOccurrences(text, marker) {
     count += 1;
     startIndex = index + marker.length;
   }
+}
+
+// ---------------------------------------------------------------------------
+// OpenClaw plugin config helpers
+// ---------------------------------------------------------------------------
+
+export function getOpenClawConfigPath() {
+  return join(homedir(), ".openclaw", "openclaw.json");
+}
+
+export function buildOpenClawPluginConfig(options = {}) {
+  const apiKey = String(options.apiKey || "").trim();
+  const memoryId = String(options.memoryId || "").trim();
+  const agentRole = String(options.agentRole || "builder_agent").trim() || "builder_agent";
+  // For OpenClaw, baseUrl is the REST API base (not MCP URL)
+  let baseUrl = String(options.baseUrl || "https://awareness.market/api/v1").trim();
+  // If user passed MCP URL, derive the REST API base from it
+  if (baseUrl.endsWith("/mcp")) {
+    baseUrl = baseUrl.replace(/\/mcp$/, "/api/v1");
+  }
+
+  if (!apiKey || !memoryId) {
+    throw new Error("apiKey and memoryId are required to build OpenClaw plugin config");
+  }
+
+  return {
+    apiKey,
+    baseUrl,
+    memoryId,
+    agentRole,
+    autoRecall: true,
+    autoCapture: true,
+    recallLimit: 8,
+  };
+}
+
+export function mergeOpenClawConfigText(existingText, pluginConfig) {
+  let base = {};
+  if (existingText != null) {
+    try {
+      base = JSON.parse(existingText);
+    } catch {
+      return {
+        action: "conflict",
+        reason: "existing OpenClaw config is not valid JSON",
+        content: existingText,
+      };
+    }
+  }
+
+  // Ensure plugins structure exists
+  if (!base.plugins || typeof base.plugins !== "object") {
+    base.plugins = {};
+  }
+  if (!base.plugins.entries || typeof base.plugins.entries !== "object") {
+    base.plugins.entries = {};
+  }
+  if (!base.plugins.slots || typeof base.plugins.slots !== "object") {
+    base.plugins.slots = {};
+  }
+
+  // Set memory slot to awareness
+  base.plugins.slots.memory = "memory-awareness";
+
+  // Merge plugin entry (preserve other fields like "enabled", add/update "config")
+  const existing = base.plugins.entries["memory-awareness"];
+  base.plugins.entries["memory-awareness"] = {
+    ...(existing && typeof existing === "object" ? existing : {}),
+    enabled: true,
+    config: pluginConfig,
+  };
+
+  const rendered = `${JSON.stringify(base, null, 2)}\n`;
+  return {
+    action: existingText == null ? "create" : rendered === existingText ? "noop" : "replace",
+    content: rendered,
+  };
+}
+
+export function syncOpenClawConfig(options = {}) {
+  const dryRun = Boolean(options.dryRun);
+  const fullPath = getOpenClawConfigPath();
+  const existingText = existsSync(fullPath) ? readFileSync(fullPath, "utf-8") : null;
+
+  const pluginConfig = buildOpenClawPluginConfig(options);
+  const result = mergeOpenClawConfigText(existingText, pluginConfig);
+
+  if (result.action === "conflict") {
+    return {
+      ok: false,
+      ...result,
+      ideId: "openclaw",
+      filePath: "~/.openclaw/openclaw.json",
+      fullPath,
+      dryRun,
+    };
+  }
+
+  if (!dryRun && result.action !== "noop") {
+    const dir = dirname(fullPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(fullPath, result.content, "utf-8");
+  }
+
+  return {
+    ok: true,
+    ...result,
+    ideId: "openclaw",
+    filePath: "~/.openclaw/openclaw.json",
+    fullPath,
+    dryRun,
+  };
 }

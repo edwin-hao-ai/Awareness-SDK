@@ -74,14 +74,51 @@ describe("register (plugin entry point)", () => {
     expect(logCalls.some((l) => l.includes("mem-integration-001"))).toBe(true);
   });
 
-  it("throws on missing apiKey", () => {
-    const { api } = makeApi({ apiKey: "" });
-    expect(() => register(api)).toThrow("apiKey is required");
+  it("enters setup mode on missing apiKey (no crash)", () => {
+    const { api, tools, hooks, logCalls } = makeApi({ apiKey: "" });
+    register(api);
+
+    // Should register setup tool instead of full tools
+    expect(tools["awareness_setup"]).toBeDefined();
+    expect(tools["awareness_init"]).toBeUndefined();
+    expect(tools["awareness_recall"]).toBeUndefined();
+
+    // Should register a setup hint hook
+    expect(hooks).toHaveLength(1);
+    expect(hooks[0].name).toBe("before_agent_start");
+
+    // Should log warning
+    expect(logCalls.some((l) => l.includes("setup mode"))).toBe(true);
   });
 
-  it("throws on missing memoryId", () => {
-    const { api } = makeApi({ memoryId: "" });
-    expect(() => register(api)).toThrow("memoryId is required");
+  it("enters setup mode on missing memoryId (no crash)", () => {
+    const { api, tools, hooks, logCalls } = makeApi({ memoryId: "" });
+    register(api);
+
+    expect(tools["awareness_setup"]).toBeDefined();
+    expect(tools["awareness_init"]).toBeUndefined();
+    expect(hooks).toHaveLength(1);
+    expect(logCalls.some((l) => l.includes("setup mode"))).toBe(true);
+  });
+
+  it("setup mode awareness_setup tool returns instructions", async () => {
+    const { api, tools } = makeApi({ apiKey: "", memoryId: "" });
+    register(api);
+
+    const result = (await tools["awareness_setup"].execute({})) as Record<string, unknown>;
+    expect(result.status).toBe("not_configured");
+    expect(result.setup_options).toBeDefined();
+    expect(Array.isArray(result.setup_options)).toBe(true);
+  });
+
+  it("setup mode hook injects setup hint into system prompt", async () => {
+    const { api, hooks } = makeApi({ apiKey: "", memoryId: "" });
+    register(api);
+
+    const hookResult = await hooks[0].handler({ prompt: "hello" });
+    expect(hookResult).toBeDefined();
+    expect(hookResult?.prependSystemContext).toContain("Not configured yet");
+    expect(hookResult?.prependSystemContext).toContain("npx @awareness-sdk/setup");
   });
 
   it("applies default config values", () => {
@@ -133,11 +170,10 @@ describe("register (plugin entry point)", () => {
       expect(manifest.kind).toBe("memory");
     });
 
-    it("plugin.json has required configSchema fields", async () => {
+    it("plugin.json configSchema has no required fields (graceful degradation)", async () => {
       const { default: manifest } = await import("../openclaw.plugin.json");
-      const required = manifest.configSchema.required;
-      expect(required).toContain("apiKey");
-      expect(required).toContain("memoryId");
+      // required removed — plugin handles missing credentials in setup mode
+      expect(manifest.configSchema.required).toBeUndefined();
     });
 
     it("plugin.json marks apiKey as sensitive", async () => {
@@ -206,7 +242,7 @@ describe("register (plugin entry point)", () => {
       expect(infoFn.mock.calls[0]?.[0]).toContain("mem-from-config");
     });
 
-    it("throws when entire openclaw.json is passed as config (no apiKey at root)", () => {
+    it("enters setup mode when entire openclaw.json is passed as config (no apiKey at root)", () => {
       const api: PluginApi = {
         registerTool: vi.fn(),
         registerHook: vi.fn(),
@@ -224,8 +260,14 @@ describe("register (plugin entry point)", () => {
         logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       };
 
-      // apiKey is undefined at root level → should throw
-      expect(() => register(api)).toThrow("apiKey is required");
+      // apiKey is undefined at root level → should enter setup mode, not crash
+      register(api);
+      // Setup tool registered (1 tool), plus 1 hook
+      expect(api.registerTool).toHaveBeenCalledTimes(1);
+      expect(api.registerHook).toHaveBeenCalledTimes(1);
+      // Warn about setup mode
+      const warnFn = api.logger.warn as ReturnType<typeof vi.fn>;
+      expect(warnFn.mock.calls[0]?.[0]).toContain("setup mode");
     });
 
     it("handles config with string coercion for non-string values", () => {

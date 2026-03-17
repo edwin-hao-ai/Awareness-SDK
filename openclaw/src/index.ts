@@ -1,7 +1,61 @@
-import type { PluginApi, PluginConfig } from "./types";
+import type { PluginApi, PluginConfig, HookContext, HookResult } from "./types";
 import { AwarenessClient } from "./client";
 import { registerTools } from "./tools";
 import { registerHooks } from "./hooks";
+
+// ---------------------------------------------------------------------------
+// Setup-only mode — registered when credentials are missing
+// ---------------------------------------------------------------------------
+
+function registerSetupMode(api: PluginApi): void {
+  // Provide a tool that returns setup instructions
+  api.registerTool({
+    id: "awareness_setup",
+    description:
+      "Awareness Memory is not configured yet. Call this tool to get setup instructions.\n" +
+      "The quickest way: run `npx @awareness-sdk/setup --ide openclaw` in a terminal.",
+    inputSchema: { type: "object", properties: {} },
+    execute: async () => ({
+      status: "not_configured",
+      message: "Awareness Memory plugin needs an API key and Memory ID to work.",
+      setup_options: [
+        {
+          method: "One-command setup (recommended)",
+          command: "npx @awareness-sdk/setup --ide openclaw",
+          description:
+            "Opens browser for login, lets you pick a memory, and writes config automatically.",
+        },
+        {
+          method: "Manual configuration",
+          steps: [
+            "1. Sign up or log in at https://awareness.market",
+            "2. Copy your API key (starts with aw_) from Settings",
+            "3. Copy your Memory ID from the memory detail page",
+            '4. Edit ~/.openclaw/openclaw.json → plugins.entries["memory-awareness"].config',
+            "5. Set apiKey and memoryId, then restart OpenClaw",
+          ],
+        },
+      ],
+    }),
+  });
+
+  // Inject a hint into every session so the agent knows memory is unavailable
+  api.registerHook(
+    "before_agent_start",
+    async (_context: HookContext): Promise<HookResult | void> => ({
+      prependSystemContext:
+        "[Awareness Memory] Not configured yet. " +
+        "Run `npx @awareness-sdk/setup --ide openclaw` in a terminal to connect your memory in one step, " +
+        "or call the awareness_setup tool for detailed instructions.",
+    }),
+    { priority: 10 },
+  );
+
+  api.logger.warn(
+    "Awareness memory plugin loaded in setup mode — apiKey or memoryId not configured. " +
+      "Run `npx @awareness-sdk/setup --ide openclaw` to complete setup.",
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Plugin entry point — called by the OpenClaw host to initialize the plugin
@@ -23,18 +77,10 @@ export default function register(api: PluginApi): void {
     recallLimit: raw.recallLimit !== undefined ? Number(raw.recallLimit) : 8,
   };
 
-  // Validate required fields
-  if (!config.apiKey) {
-    throw new Error(
-      "Awareness plugin: apiKey is required. " +
-        "Set it in your openclaw.json plugins config.",
-    );
-  }
-  if (!config.memoryId) {
-    throw new Error(
-      "Awareness plugin: memoryId is required. " +
-        "Set it in your openclaw.json plugins config.",
-    );
+  // Graceful degradation: missing credentials → setup mode instead of crash
+  if (!config.apiKey || !config.memoryId) {
+    registerSetupMode(api);
+    return;
   }
 
   // Create the HTTP client

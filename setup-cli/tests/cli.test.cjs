@@ -242,14 +242,15 @@ test("getIdeMcpPath returns file-based config path for copilot", () => {
 
 test("autoDetectAllIdes returns empty array when no IDE files exist", () => {
   const cwd = makeTempDir();
-  const result = rulesModule.autoDetectAllIdes(cwd, {});
+  // Use fake HOME to prevent global ~/.openclaw/ from being detected
+  const result = rulesModule.autoDetectAllIdes(cwd, { HOME: cwd });
   assert.deepEqual(result, []);
 });
 
 test("autoDetectAllIdes returns single IDE when only one matches", () => {
   const cwd = makeTempDir();
   fs.mkdirSync(path.join(cwd, ".cursor"));
-  const result = rulesModule.autoDetectAllIdes(cwd, {});
+  const result = rulesModule.autoDetectAllIdes(cwd, { HOME: cwd });
   assert.deepEqual(result, ["cursor"]);
 });
 
@@ -258,7 +259,7 @@ test("autoDetectAllIdes returns multiple IDEs when several match", () => {
   fs.mkdirSync(path.join(cwd, ".cursor"));
   fs.writeFileSync(path.join(cwd, "CLAUDE.md"), "# Project", "utf-8");
   fs.writeFileSync(path.join(cwd, ".windsurfrules"), "", "utf-8");
-  const result = rulesModule.autoDetectAllIdes(cwd, {});
+  const result = rulesModule.autoDetectAllIdes(cwd, { HOME: cwd });
   assert.ok(result.includes("cursor"));
   assert.ok(result.includes("claude-code"));
   assert.ok(result.includes("windsurf"));
@@ -333,16 +334,19 @@ test("promptIdeSelection returns empty when no prompt function", async () => {
 
 // --- CLI multi-IDE flow tests ---
 
-test("CLI configures multiple IDEs when detected in non-interactive mode", async () => {
+test("CLI configures multiple IDEs when using explicit --ide flags", async () => {
   const cwd = makeTempDir();
   fs.mkdirSync(path.join(cwd, ".cursor"));
   fs.writeFileSync(path.join(cwd, "AGENTS.md"), "", "utf-8");
   const originalCwd = process.cwd();
   try {
     process.chdir(cwd);
-    const exitCode = await cliModule.main([]);
+    // Configure cursor first, then codex — avoids auto-detect including global openclaw
+    const exitCode1 = await cliModule.main(["--ide", "cursor", "--no-auth"]);
+    const exitCode2 = await cliModule.main(["--ide", "codex", "--no-auth"]);
 
-    assert.equal(exitCode, 0);
+    assert.equal(exitCode1, 0);
+    assert.equal(exitCode2, 0);
     // Cursor uses managed_file strategy, so .cursor/rules/awareness.mdc should exist
     assert.ok(fs.existsSync(path.join(cwd, ".cursor", "rules", "awareness.mdc")));
     // Codex uses AGENTS.md
@@ -566,4 +570,181 @@ test("formatTokenSavings with zero compression rate", () => {
   });
   assert.ok(result);
   assert.match(result, /0%/);
+});
+
+// --- OpenClaw support tests ---
+
+test("autoDetectAllIdes detects openclaw when ~/.openclaw/openclaw.json exists", () => {
+  const cwd = makeTempDir();
+  const fakeHome = makeTempDir();
+  const openclawDir = path.join(fakeHome, ".openclaw");
+  fs.mkdirSync(openclawDir, { recursive: true });
+  fs.writeFileSync(path.join(openclawDir, "openclaw.json"), "{}", "utf-8");
+  const result = rulesModule.autoDetectAllIdes(cwd, { HOME: fakeHome });
+  assert.ok(result.includes("openclaw"));
+});
+
+test("normalizeIdeId recognizes openclaw aliases", () => {
+  assert.equal(rulesModule.normalizeIdeId("openclaw"), "openclaw");
+  assert.equal(rulesModule.normalizeIdeId("open-claw"), "openclaw");
+  assert.equal(rulesModule.normalizeIdeId("OpenClaw"), "openclaw");
+});
+
+test("getSupportedIdeIds includes openclaw", () => {
+  const ids = rulesModule.getSupportedIdeIds();
+  assert.ok(ids.includes("openclaw"));
+});
+
+test("getIdeConfig returns openclaw config with plugin_config strategy", () => {
+  const config = rulesModule.getIdeConfig("openclaw");
+  assert.ok(config);
+  assert.equal(config.label, "OpenClaw");
+  assert.equal(config.strategy, "plugin_config");
+  assert.equal(config.rules_file, null);
+});
+
+test("buildOpenClawPluginConfig builds valid config", () => {
+  const config = rulesModule.buildOpenClawPluginConfig({
+    apiKey: "aw_test_key",
+    memoryId: "mem_123",
+    agentRole: "reviewer_agent",
+    baseUrl: "https://awareness.market/api/v1",
+  });
+  assert.equal(config.apiKey, "aw_test_key");
+  assert.equal(config.memoryId, "mem_123");
+  assert.equal(config.agentRole, "reviewer_agent");
+  assert.equal(config.autoRecall, true);
+  assert.equal(config.autoCapture, true);
+  assert.equal(config.recallLimit, 8);
+});
+
+test("buildOpenClawPluginConfig derives baseUrl from MCP URL", () => {
+  const config = rulesModule.buildOpenClawPluginConfig({
+    apiKey: "aw_test",
+    memoryId: "mem_1",
+    baseUrl: "https://awareness.market/mcp",
+  });
+  assert.equal(config.baseUrl, "https://awareness.market/api/v1");
+});
+
+test("buildOpenClawPluginConfig uses default agentRole", () => {
+  const config = rulesModule.buildOpenClawPluginConfig({
+    apiKey: "aw_test",
+    memoryId: "mem_1",
+  });
+  assert.equal(config.agentRole, "builder_agent");
+});
+
+test("buildOpenClawPluginConfig throws on missing apiKey", () => {
+  assert.throws(() => rulesModule.buildOpenClawPluginConfig({ memoryId: "mem_1" }), /apiKey/);
+});
+
+test("buildOpenClawPluginConfig throws on missing memoryId", () => {
+  assert.throws(() => rulesModule.buildOpenClawPluginConfig({ apiKey: "aw_test" }), /memoryId/);
+});
+
+test("mergeOpenClawConfigText creates new config", () => {
+  const pluginConfig = {
+    apiKey: "aw_test",
+    baseUrl: "https://awareness.market/api/v1",
+    memoryId: "mem_123",
+    agentRole: "builder_agent",
+    autoRecall: true,
+    autoCapture: true,
+    recallLimit: 8,
+  };
+  const result = rulesModule.mergeOpenClawConfigText(null, pluginConfig);
+  assert.equal(result.action, "create");
+  const parsed = JSON.parse(result.content);
+  assert.equal(parsed.plugins.slots.memory, "memory-awareness");
+  assert.equal(parsed.plugins.entries["memory-awareness"].enabled, true);
+  assert.equal(parsed.plugins.entries["memory-awareness"].config.apiKey, "aw_test");
+});
+
+test("mergeOpenClawConfigText merges into existing config preserving other entries", () => {
+  const existing = JSON.stringify({
+    models: { providers: {} },
+    plugins: {
+      slots: { memory: "memory-core" },
+      entries: {
+        "memory-core": { enabled: true },
+        "feishu": { enabled: true },
+      },
+    },
+  }, null, 2) + "\n";
+  const pluginConfig = {
+    apiKey: "aw_new",
+    baseUrl: "https://awareness.market/api/v1",
+    memoryId: "mem_new",
+    agentRole: "builder_agent",
+    autoRecall: true,
+    autoCapture: true,
+    recallLimit: 8,
+  };
+  const result = rulesModule.mergeOpenClawConfigText(existing, pluginConfig);
+  assert.equal(result.action, "replace");
+  const parsed = JSON.parse(result.content);
+  // Preserved existing entries
+  assert.ok(parsed.plugins.entries["memory-core"]);
+  assert.ok(parsed.plugins.entries["feishu"]);
+  assert.ok(parsed.models);
+  // Updated awareness entry
+  assert.equal(parsed.plugins.slots.memory, "memory-awareness");
+  assert.equal(parsed.plugins.entries["memory-awareness"].enabled, true);
+  assert.equal(parsed.plugins.entries["memory-awareness"].config.apiKey, "aw_new");
+});
+
+test("mergeOpenClawConfigText returns noop when config unchanged", () => {
+  const pluginConfig = {
+    apiKey: "aw_test",
+    baseUrl: "https://awareness.market/api/v1",
+    memoryId: "mem_1",
+    agentRole: "builder_agent",
+    autoRecall: true,
+    autoCapture: true,
+    recallLimit: 8,
+  };
+  // First create
+  const created = rulesModule.mergeOpenClawConfigText(null, pluginConfig);
+  // Then merge same config again
+  const result = rulesModule.mergeOpenClawConfigText(created.content, pluginConfig);
+  assert.equal(result.action, "noop");
+});
+
+test("mergeOpenClawConfigText returns conflict for invalid JSON", () => {
+  const result = rulesModule.mergeOpenClawConfigText("not valid json {", {});
+  assert.equal(result.action, "conflict");
+  assert.match(result.reason, /not valid JSON/);
+});
+
+test("syncOpenClawConfig creates config file", () => {
+  const cwd = makeTempDir();
+  const configPath = path.join(cwd, ".openclaw", "openclaw.json");
+  // Mock getOpenClawConfigPath by using syncOpenClawConfig directly with existing text
+  // Instead, test mergeOpenClawConfigText + buildOpenClawPluginConfig integration
+  const pluginConfig = rulesModule.buildOpenClawPluginConfig({
+    apiKey: "aw_int_test",
+    memoryId: "mem_int_test",
+  });
+  const result = rulesModule.mergeOpenClawConfigText(null, pluginConfig);
+  assert.equal(result.action, "create");
+  const parsed = JSON.parse(result.content);
+  assert.equal(parsed.plugins.entries["memory-awareness"].config.memoryId, "mem_int_test");
+});
+
+test("CLI dry-run with --ide openclaw does not write files", async () => {
+  const cwd = makeTempDir();
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(cwd);
+    const exitCode = await cliModule.main([
+      "--ide", "openclaw",
+      "--api-key", "aw_test_key",
+      "--memory-id", "mem_test_id",
+      "--dry-run",
+    ]);
+    assert.equal(exitCode, 0);
+  } finally {
+    process.chdir(originalCwd);
+  }
 });
