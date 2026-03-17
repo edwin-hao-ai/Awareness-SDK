@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/core/mcp_events.py
-# hypothesis_version: 6.151.9
-
-['actor', 'actor_prefixes', 'agentId', 'agentName', 'agentRole', 'agent_id', 'agent_name', 'agent_role', 'ai', 'artifactId', 'artifactType', 'artifact_id', 'artifact_type', 'assistant', 'author', 'body', 'content', 'conversationId', 'conversation_id', 'default', 'description', 'event_type', 'event_type_tokens', 'human', 'importance', 'input', 'kind', 'mcp', 'message', 'metadata', 'model', 'note', 'origin', 'output', 'planning', 'producer', 'projectId', 'project_id', 'role', 'runId', 'run_id', 'session', 'session_id', 'source', 'sourceChannel', 'sourceSystem', 'source_channel', 'source_system', 'speaker', 'stage', 'summary', 'system', 'tags', 'text', 'threadId', 'thread_id', 'timestamp', 'tool', 'toolArgs', 'toolName', 'toolResult', 'tool_args', 'tool_name', 'tool_result', 'type', 'user', 'visibility', 'workspaceId', 'workspace_id']

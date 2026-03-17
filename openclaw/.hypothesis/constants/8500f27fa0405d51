@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/models.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.3, 0.5, 0.7, 0.8, 1.0, 100, 120, 500, 1000, 2000, 4000, 8000, 20000, 40000, 50000, 'Default Key', 'Event timestamp', 'actor', 'allow', 'author', 'auto', 'body', 'chat_session_started', 'completed', 'content', 'conversation_id', 'en', 'event_type', 'full_snapshot', 'hybrid', 'input', 'jsonl', 'key_point', 'kind', 'low', 'mcp', 'medium', 'memory_created', 'memory_updated', 'message', 'noted', 'origin', 'output', 'precise', 'private', 'producer', 'raw_chunks', 'role', 'safetensors', 'session', 'session_id', 'small', 'source', 'speaker', 'structured', 'text', 'thread_id', 'type', 'vector_only']

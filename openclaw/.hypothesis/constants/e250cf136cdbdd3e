@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/billing.py
-# hypothesis_version: 6.151.9
-
-[400, 404, 503, '/billing', '/checkout', '/plans', '/portal', '/webhook', 'Invalid payload', 'Invalid signature', 'billing', 'email', 'event', 'handler_error', 'monthly_configured', 'name', 'ok', 'plan', 'plans', 'pro', 'starter', 'status', 'stripe-signature', 'team', 'type', 'url', 'user_id', 'yearly_configured']

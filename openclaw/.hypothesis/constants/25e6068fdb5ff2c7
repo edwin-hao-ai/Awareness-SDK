@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/handlers/memory_retrieval_handlers.py
-# hypothesis_version: 6.151.9
-
-[0.3, 0.4, 0.55, 0.7, 30.0, 200, 400, 404, 500, 4000, 8000, 16000, '_confidence_hint', '_vector_score', 'agent_role', 'asc', 'auto', 'bm25_weight', 'cluster_expand', 'content', 'created_at', 'desc', 'embeddings', 'hybrid', 'id', 'include_installed', 'include_raw_chunks', 'keyword_query', 'layer_counts', 'limit', 'low', 'max_session_chars', 'max_sessions', 'max_stitched_chars', 'memory_id', 'messages', 'metadata', 'mmr_lambda', 'moderate', 'multi_level', 'precise', 'read', 'recall_mode', 'reconstruct_chunks', 'results', 'role', 'score', 'session', 'session_id', 'sessions', 'sources', 'structured', 'timing', 'token_budget', 'token_count', 'total', 'updated_at', 'use_hybrid_search', 'use_mmr', 'user_id', 'vector_weight']

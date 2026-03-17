@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_transfer_imports.py
-# hypothesis_version: 6.151.9
-
-['.jsonl', 'chunk', 'content', 'embeddings', 'event_type', 'export', 'export_zip', 'failed', 'failures', 'id', 'import', 'import_container', 'import_filename', 'import_original_id', 'import_package_type', 'import_row_number', 'imported', 'imported_at', 'manifest.json', 'message', 'metadata', 'package_type', 'r', 'raw_chunks', 'reason', 'row_id', 'row_number', 'shape', 'source', 'timestamp', 'tool_name', 'unknown', 'utf-8', 'vector', 'vector_adapter', 'vector_only', 'vectors/index.json', 'zip_jsonl_fallback']

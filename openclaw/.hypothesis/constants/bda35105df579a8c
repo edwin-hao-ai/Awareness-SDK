@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_insights_browse.py
-# hypothesis_version: 6.151.9
-
-[100, 200, '%Y-%m-%d', 'DAILY_NARRATIVE', 'action_items', 'activities', 'analysis_date', 'brainmap', 'by_day', 'count', 'date', 'desc', 'edge_count', 'edges', 'generated_at', 'gte', 'highlight', 'insights_summary', 'key_entities', 'key_events', 'key_metrics', 'keywords', 'knowledge_cards', 'memory_id', 'memory_profile', 'memory_summary', 'node_count', 'nodes', 'risks', 'sessions', 'summary', 'type', 'unknown']

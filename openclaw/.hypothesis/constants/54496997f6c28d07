@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_upload_jobs.py
-# hypothesis_version: 6.151.9
-
-[0.3, 0.7, 100, 404, 'FAILURE', 'Memory not found', 'REVOKED', 'STARTED', 'SUCCESS', 'Upload job not found', 'completed', 'created_at', 'done', 'embed_done', 'embed_failed', 'embed_total', 'embedding', 'embedding_job_ids', 'error', 'failed', 'filename', 'id', 'memory_id', 'overall_percent', 'parse', 'parse_done', 'parse_total', 'parsing', 'partial_failed', 'pending', 'percent', 'process_job_id', 'processing', 'queued', 'stage', 'status', 'success', 'total', 'updated_at', 'upload_job_id']

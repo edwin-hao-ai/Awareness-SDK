@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/quota_service.py
-# hypothesis_version: 6.151.9
-
-[300, 1000, 10000, 100000, 500000, 50000000, 500000000, 5000000000, 20000000000, 50000000000, 200000000000, '%Y-%m', '%Y-%m-%d', 'PLAN_QUOTAS_JSON', 'active', 'allowed', 'api_calls_monthly', 'api_read', 'api_retrieve', 'api_write', 'category', 'current', 'date', 'desc', 'enterprise', 'file_upload_bytes', 'free', 'in', 'limit', 'memory_count', 'owner_id', 'plan', 'pro', 'quota:plan', 'quota_key', 'quotas', 'reason', 'starter', 'startswith', 'storage_bytes', 'team', 'unlimited', 'usage', 'userId']

@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_ingest_uploads.py
-# hypothesis_version: 6.151.9
-
-[400, 413, 500, 1024, ', ', '50', 'Filename is required', 'MAX_UPLOAD_FILE_MB', 'artifact', 'aw_content_scope', 'completed', 'content', 'embedding', 'event_type', 'failed', 'failed_items', 'file_upload', 'filename', 'ingest_type', 'job_id', 'knowledge', 'mode', 'parsed_files', 'parsing', 'processed', 'processed_items', 'processing', 'queued', 'rest', 'source', 'source_path', 'status', 'success', 'sync_fallback', 'timestamp', 'tool_name', 'upload', 'upload_job_id', 'upload_source', 'uploaded_at', 'wb']

@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/vector/qdrant_adapter.py
-# hypothesis_version: 6.151.9
-
-[30.0, 256, 'QDRANT_API_KEY', 'QDRANT_URL', 'already exists', 'conflict', 'content', 'id', 'list_items', 'metadata', 'points', 'qdrant_api_key', 'qdrant_client.models', 'qdrant_url', 'score', 'search', 'vector']

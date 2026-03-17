@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/tasks_usage.py
-# hypothesis_version: 6.151.9
-
-['%Y-%m-%d', ':', 'STRIPE_SECRET_KEY', 'active', 'cancel_at_period_end', 'canceled', 'cancelled', 'category', 'count', 'create', 'data', 'date', 'id', 'incomplete', 'incomplete_expired', 'items', 'memory_count', 'not', 'past_due', 'price', 'status', 'storage_bytes', 'stripe_price_id', 'total_bytes', 'trialing', 'unpaid', 'update', 'userId', 'userId_date_category', 'user_id']

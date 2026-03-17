@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/mcp_tools/server_utils.py
-# hypothesis_version: 6.151.9
-
-[0.5, 150, 300, 400, "'([^']{2,40})'", '<MCP_URL>', '<MEMORY_ID>', 'Authorization', 'Bearer <API_KEY>', '[#vV]?\\d[\\d.,:-]+\\w*', '[]', '\\b[A-Z]+\\d+\\b', '_trimmed', 'awareness', 'confidence', 'error', 'events', 'existing_cards', 'headers', 'high', 'ide_rules', 'knowledge_cards', 'last_sessions', 'low', 'mcpServers', 'mcp_config_example', 'medium', 'narrative', 'open_tasks', 'priority', 'recent_days', 'summary', 'system_prompt', 'url', '{existing_cards}']

@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/mcp_tools/helpers.py
-# hypothesis_version: 6.151.9
-
-[30.0, 60.0, 'API_KEY', 'AUTH_SECRET', 'AWARENESS_API_KEY', 'Authorization', 'MCP_DEFAULT_SOURCE', 'MCP_SESSION_PREFIX', 'X-Internal-Token', 'authorization', 'bearer ', 'cursor', 'headers', 'mcp', 'source_channel', 'source_system', 'x-api-key']

@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_insights_graph.py
-# hypothesis_version: 6.151.9
-
-[100, 'Memory', 'Open Tasks', 'Risks', 'category', 'completed', 'created_at', 'desc', 'edge_count', 'edges', 'from', 'id', 'knowledge_card', 'label', 'level', 'medium', 'memory_id', 'node_count', 'nodes', 'not', 'other', 'pending', 'priority', 'risk', 'risk_group', 'risks', 'root', 'status', 'summary', 'task', 'task_group', 'tasks', 'to', 'type']

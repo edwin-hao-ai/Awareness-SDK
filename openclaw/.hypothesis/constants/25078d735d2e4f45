@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_recall_temporal.py
-# hypothesis_version: 6.151.9
-
-['+00:00', ',', 'PREFER_DATES_FROM', 'RELATIVE_BASE', 'TZ', 'UTC', 'Z', 'aw_time_unix', 'day_offsets', 'end_utc', 'gte', 'label', 'last', 'lte', 'next', 'past', 'start_utc', 'this', 'week_scope_tokens', 'weekday_aliases']

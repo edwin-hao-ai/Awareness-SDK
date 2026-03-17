@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/memories_rules_audit_routes.py
-# hypothesis_version: 6.151.9
-
-[200, '/{memory_id}/rules', 'json']

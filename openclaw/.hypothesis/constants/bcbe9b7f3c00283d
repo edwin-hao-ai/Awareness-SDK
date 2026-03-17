@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/memories_retrieval_routes.py
-# hypothesis_version: 6.151.9
-
-[100, 500, '/{memory_id}/chat', 'hybrid', 'id', 'include_installed', 'installed', 'limit', 'owned', 'owner_id', 'results', 'score', 'source_memory_id', 'source_name', 'source_type', 'structured', 'user_id']

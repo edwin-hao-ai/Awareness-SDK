@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/core/markdown_chunker.py
-# hypothesis_version: 6.151.9
-
-[1.5, 1200, ' / ', '^(#{1,6})\\s+', '^(#{1,6})\\s+(.+)$', '^```', '```', 'aw_content_type', 'aw_section_path', 'aw_sub_chunk_index', 'body', 'content', 'heading', 'level', 'markdown', 'metadata']

@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/cache.py
-# hypothesis_version: 6.151.9
-
-[2.0, 100, 300, '0', 'REDIS_URL', 'scan', 'utf-8']

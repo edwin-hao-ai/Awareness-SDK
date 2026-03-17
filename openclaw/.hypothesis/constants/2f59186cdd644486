@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_insights_import.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.8, 1.0, 'action_items', 'active', 'activity_preference', 'career_info', 'category', 'completed', 'confidence', 'context', 'custom_misc', 'decision', 'detail', 'estimated_effort', 'evidence', 'health_info', 'high', 'import_mode', 'important_detail', 'in_progress', 'insight', 'key_point', 'knowledge_cards', 'level', 'low', 'medium', 'merge', 'methods', 'mitigated', 'mitigation', 'noted', 'open', 'pending', 'personal_preference', 'pitfall', 'plan_intention', 'priority', 'problem_solution', 'replace', 'resolved', 'risks', 'skill', 'snippet', 'source', 'status', 'summary', 'superseded', 'tags', 'title', 'workflow']

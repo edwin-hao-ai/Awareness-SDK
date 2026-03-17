@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/core/runtime_settings.py
-# hypothesis_version: 6.151.9
-
-[443, 8000, 8001, '/', '/api/v1', '/mcp', '0.0.0.0', '127.0.0.1', 'API_URL', 'AWARENESS_MCP_URL', 'BACKEND_PORT', 'MCP_HOST', 'MCP_PATH', 'MCP_PORT', 'NEXT_PUBLIC_MCP_URL', 'hostname', 'http', 'https', 'localhost', 'port', 'scheme']

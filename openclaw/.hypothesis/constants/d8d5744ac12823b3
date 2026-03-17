@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/memory/universal_read.py
-# hypothesis_version: 6.151.9
-
-[0.3, 0.5, 0.7, 0.8, 100, 1000, 4000, 8000, '%s', ',', '...', '_centroid_group', '_centroid_level', '_centroid_similarity', '_chunk_count', '_chunk_total', '_cluster_expanded', '_cluster_similarity', '_event_count', '_reconstructed', '_session_expanded', '_windowed', 'aw_chunk_group_id', 'aw_chunk_index', 'aw_chunk_total', 'aw_time_iso', 'best_idx', 'bm25_weight', 'child_clusters', 'cluster_expand', 'conn', 'content', 'created_at', 'event_timestamp', 'filter', 'group_key', 'id', 'ingested_at', 'item', 'keyword_query', 'level', 'limit', 'max_stitched_chars', 'member_count', 'metadata', 'metadata_filter', 'mmr_lambda', 'multi_level', 'offset', 'pgvector', 'reconstruct_chunks', 'representative_ids', 'rrf_score', 'score', 'session', 'session_id', 'similarity', 'super_cluster', 'total', 'use_hybrid_search', 'use_mmr', 'vector_weight', 'window_size']

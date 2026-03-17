@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/middleware/usage_metering.py
-# hypothesis_version: 6.151.9
-
-[400, '/api/v1', '/api/v1/admin', '/dashboard', '/docs', '/health', '/insights/memory', '/mcp', '/mcp/events', '/memories', '/memories/([^/]+)', '/memories/[^/]+/chat', '/openapi.json', 'Bearer ', 'DELETE', 'GET', 'POST', '^/api/v1/memories$', 'activity_logging', 'api_read', 'api_retrieve', 'api_write', 'authorization', 'aw_', 'content_added', 'content_retrieved', 'file_uploaded', 'memory_created', 'memory_deleted', 'memory_exported', 'memory_imported', 'owner_id', 'usage_metering', 'x-api-key']

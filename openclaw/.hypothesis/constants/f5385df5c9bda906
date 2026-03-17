@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/middleware/security_headers.py
-# hypothesis_version: 6.151.9
-
-['1; mode=block', 'DENY', 'Permissions-Policy', 'Referrer-Policy', 'X-Frame-Options', 'X-XSS-Protection', 'nosniff']

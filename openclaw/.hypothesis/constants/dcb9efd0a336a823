@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/session_summary.py
-# hypothesis_version: 6.151.9
-
-['content', 'event_type', 'ingested_at', 'memory_planner', 'metadata', 'session_id', 'session_summary', 'snippets', 'source', 'summary_size']

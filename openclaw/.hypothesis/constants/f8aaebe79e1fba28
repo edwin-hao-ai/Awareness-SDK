@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_insights_render.py
-# hypothesis_version: 6.151.9
-
-[100, 150, 500, '## Daily Summary', '## Overview', '### Metrics', '%H:%M', '%Y-%m-%d', '+00:00', '---', 'No Activity', 'No overview', 'Z', 'action_items', 'activities', 'analysis_date', 'brainmap', 'by_day', 'by_hour', 'by_time', 'content', 'count', 'created_at', 'date', 'edge_count', 'edges', 'event_timestamp', 'event_type', 'event_types', 'from', 'generated_at', 'graph', 'highlight', 'hour', 'id', 'insights_summary', 'is_incremental', 'key_events', 'key_metrics', 'keywords', 'knowledge_cards', 'label', 'memory_summary', 'mitigation', 'name', 'new_items', 'node_count', 'nodes', 'overview', 'risks', 'session_id', 'sessions', 'source', 'sources', 'time', 'timestamp', 'title', 'to', 'total_items', 'type', 'unknown', 'untyped', 'weight']

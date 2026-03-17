@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_insights_data.py
-# hypothesis_version: 6.151.9
-
-['access_count', 'action_count', 'action_items', 'agent_role', 'card_count', 'category', 'cnt', 'confidence', 'context', 'created_at', 'desc', 'detail', 'edges', 'estimated_effort', 'event_types', 'evidence', 'graph', 'id', 'knowledge_cards', 'last_accessed_at', 'level', 'medium', 'memory_id', 'methods', 'mitigation', 'nodes', 'pending', 'priority', 'risk_count', 'risks', 'sessions', 'source', 'sources', 'status', 'summary', 'tags', 'title', 'total_items', 'updated_at', 'user_id']

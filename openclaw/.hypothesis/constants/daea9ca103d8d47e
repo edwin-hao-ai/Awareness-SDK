@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/vector/pgvector_ops.py
-# hypothesis_version: 6.151.9
-
-['delete', 'ensure_connection', 'ensure_schema', 'fetch_chunk_siblings', 'list_items', 'list_items_cursor', 'normalize_row', 'search', 'search_bm25', 'search_by_ids', 'search_hybrid', 'search_with_vectors', 'total_count', 'upsert', 'vector_literal']

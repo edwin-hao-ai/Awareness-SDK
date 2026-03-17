@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/handlers/memory_insight_read_handlers.py
-# hypothesis_version: 6.151.9
-
-[400, 404, 500, '%Y-%m-%d', 'Content-Disposition', 'action_items', 'card_id', 'cards', 'category', 'chain_length', 'confidence', 'created_at', 'desc', 'evolution_chain', 'evolution_type', 'full_report', 'id', 'initial', 'isoformat', 'json', 'level', 'memory_id', 'name', 'ok', 'parent_card_id', 'priority', 'risks', 'status', 'summary', 'superseded', 'title', 'total', 'track_card_access']

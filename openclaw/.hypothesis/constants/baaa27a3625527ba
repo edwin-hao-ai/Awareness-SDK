@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_transfer_shared.py
-# hypothesis_version: 6.151.9
-
-['./data/memories', '.jsonl', '.safetensors', '.zip', '[^A-Za-z0-9_.-]+', '_', 'bytes', 'content', 'default', 'id', 'latin-1', 'metadata', 'path', 'score', 'session_id', 'uploads', 'utf-16', 'utf-8', 'utf-8-sig', 'vector']

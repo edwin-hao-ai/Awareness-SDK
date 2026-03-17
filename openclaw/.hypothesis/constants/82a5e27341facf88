@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_context.py
-# hypothesis_version: 6.151.9
-
-[' +', '# Session Summary', '## Highlights', '^\\d+\\.\\s*', 'actor', 'assistant', 'body', 'content', 'event', 'event_type', 'message', 'rest', 'top memory cues']

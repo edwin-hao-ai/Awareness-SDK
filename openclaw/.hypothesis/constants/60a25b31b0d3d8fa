@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/market.py
-# hypothesis_version: 6.151.9
-
-[100, 400, 401, 403, 404, 503, '/installed', '/listings', '/market', '/my-listings', 'Listing not found', '^(free|paid)$', 'buyer_id', 'count', 'email', 'id', 'listing_id', 'market', 'memory_id', 'memory_pack', 'name', 'newest', 'owner_id', 'price', 'published', 'purchased', 'skills', 'snapshots', 'status', 'summary', 'title', 'url', 'usd', 'user_id']

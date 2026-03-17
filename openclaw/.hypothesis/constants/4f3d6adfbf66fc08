@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_recall_query.py
-# hypothesis_version: 6.151.9
-
-[1200, '#recall', '/recall', '?', '[\\u4e00-\\u9fff]{2,}', '[^\\W\\d_]{2,}', '\\d+(?:[.-]\\d+)*', '\\s+', 'groups', 'memory-only', 'memory_only', 'strict_recall', 'when_all', 'when_any', '？']

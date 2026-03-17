@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/admin.py
-# hypothesis_version: 6.151.9
-
-[100, 403, 404, '/admin', '/login', '/overview', '/top-users', '/trends/usage', '/trends/users', '/users', '/users/{user_id}', 'Admin token required', 'Invalid admin token', 'Listing not found', 'User not found', 'X-Admin-Token', 'admin', 'featured', 'id', 'ok', 'title']

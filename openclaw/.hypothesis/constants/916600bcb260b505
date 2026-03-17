@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/core/logging_config.py
-# hypothesis_version: 6.151.9
-
-['%Y-%m-%dT%H:%M:%S', 'INFO', 'LOG_FORMAT', 'LOG_LEVEL', 'asctime', 'httpcore', 'httpx', 'json', 'level', 'levelname', 'text', 'timestamp', 'urllib3', 'uvicorn.access']

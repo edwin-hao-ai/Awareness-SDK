@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/memories_content_routes.py
-# hypothesis_version: 6.151.9
-
-[200, '/{memory_id}/content', '/{memory_id}/export', '/{memory_id}/import', '/{memory_id}/webhook', 'auto']

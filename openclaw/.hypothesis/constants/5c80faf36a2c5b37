@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/usage_service.py
-# hypothesis_version: 6.151.9
-
-['%Y-%m-%d', 'active', 'api_read', 'api_retrieve', 'api_total', 'api_write', 'asc', 'cancel_at_period_end', 'date', 'expires_at', 'file_upload_bytes', 'free', 'gte', 'plan', 'started_at', 'status', 'storage_bytes', 'stripe_customer_id', 'userId']

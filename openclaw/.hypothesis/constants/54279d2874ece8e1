@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_chunking.py
-# hypothesis_version: 6.151.9
-
-[1000, 'actor', 'ai:', 'ai：', 'assistant', 'assistant:', 'assistant：', 'aw_chunk_group_id', 'aw_chunk_index', 'aw_chunk_total', 'aw_group_chunk_found', 'aw_group_chunk_total', 'chunk_group_id', 'chunk_index', 'chunk_total', 'chunks', 'command', 'command:', 'command：', 'complete', 'complete_group_count', 'content', 'event_type', 'expected_total', 'found_total', 'human', 'human:', 'human：', 'id', 'max_total', 'model:', 'model：', 'stitched_group_count', 'stitched_item_count', 'system', 'template', 'tool', 'tool:', 'tool_call', 'tool_result', 'tool：', 'user', 'user:', 'user：']

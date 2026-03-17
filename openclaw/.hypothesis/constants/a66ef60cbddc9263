@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_insights_storage_extracted.py
-# hypothesis_version: 6.151.9
-
-[0.8, 255, '.', ':', '; ', 'Evidence: ', 'action', 'action_items', 'agent_role', 'category', 'confidence', 'context', 'detail', 'estimated_effort', 'evidence', 'evolution_type', 'id', 'knowledge_cards', 'level', 'memory_id', 'methods', 'mitigation', 'parent_card_id', 'priority', 'risks', 'salience_score', 'session_id', 'snippet', 'source', 'source_date', 'status', 'summary', 'superseded', 'tags', 'title', 'user_id', '|']

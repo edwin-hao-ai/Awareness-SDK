@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/routes/device_auth.py
-# hypothesis_version: 6.151.9
-
-[400, 404, 503, '/approve', '/auth/device', '/init', '/poll', 'CLI Device Auth', 'NEXT_PUBLIC_APP_URL', 'api_key', 'approved', 'created_at', 'desc', 'device-auth', 'message', 'revoked', 'status', 'userId', 'user_id']

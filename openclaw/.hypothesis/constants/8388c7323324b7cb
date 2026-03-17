@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/api/services/memory_profile_service.py
-# hypothesis_version: 6.151.9
-
-[0.8, 120, 200, ', ', '.', 'MEMORY_PROFILE', 'Memory Profile', 'No profile data yet.', 'action_count', 'active_risks', 'activity_preference', 'card_count', 'career_info', 'confidence', 'content', 'core_knowledge', 'created_at', 'custom_misc', 'date', 'decision', 'desc', 'detail', 'generated_at', 'health_info', 'id', 'important_detail', 'insight', 'key_decisions', 'key_entities', 'key_metrics', 'key_point', 'level', 'medium', 'memory_id', 'mitigation', 'not', 'other', 'overview', 'personal_context', 'personal_preference', 'pitfall', 'plan_intention', 'problem_solution', 'risk_count', 'rule_synthesis', 'status', 'summary', 'tags', 'title', 'type', 'user_preferences', 'workflow']

@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/mcp_server.py
-# hypothesis_version: 6.151.9
-
-[b'accept', b'application/json, text/event-stream', 0.3, 0.7, 15.0, 30.0, 60.0, 200, 800, 'Cache-Control', 'Connection', 'Content-Type', 'GET', 'POST', '__main__', 'action', 'all', 'api_retrieve', 'api_write', 'application/json', 'aw_', 'awareness_init', 'awareness_lookup', 'awareness_recall', 'awareness_record', 'backfill', 'done_check', 'ensure_ascii', 'example', 'headers', 'hybrid', 'ingest', 'keep-alive', 'latin-1', 'mcp-session-id', 'recall_vs_lookup', 'remember', 'remember_batch', 'replace', 'session_end', 'setup_action', 'step', 'text/event-stream', 'timeline', 'tips', 'warning', 'what', 'when', 'workflow']

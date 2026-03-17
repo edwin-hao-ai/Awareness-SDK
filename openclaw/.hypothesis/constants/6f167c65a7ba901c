@@ -1,4 +1,0 @@
-# file: /Users/edwinhao/Awareness/backend/awareness/core/upload_jobs.py
-# hypothesis_version: 6.151.9
-
-[200, 2000, '604800', 'REDIS_URL', 'created_at', 'embed_done', 'embed_failed', 'embed_total', 'embedding_job_ids', 'error', 'filename', 'memory_id', 'parse_done', 'parse_total', 'process_job_id', 'queued', 'stage', 'status', 'updated_at', 'upload_job:*', 'upload_job_id']
