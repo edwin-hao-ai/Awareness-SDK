@@ -6,7 +6,8 @@
       "headers": {
         "Authorization": "Bearer ${AWARENESS_API_KEY}",
         "X-Awareness-Memory-Id": "${AWARENESS_MEMORY_ID}",
-        "X-Awareness-Agent-Role": "${AWARENESS_AGENT_ROLE:-builder_agent}"
+        "X-Awareness-Agent-Role": "${AWARENESS_AGENT_ROLE:-builder_agent}",
+        "X-Awareness-Source": "claude-code"
       }
     }
   }
