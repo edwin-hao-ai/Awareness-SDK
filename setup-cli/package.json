@@ -6,7 +6,7 @@
     "awareness-setup": "./src/cli.mjs"
   },
   "type": "module",
-  "files": ["src/", "ide-rules.spec.json"],
+  "files": ["src/", "awareness-spec.json"],
   "keywords": ["awareness", "memory", "mcp", "ide", "setup", "claude", "cursor", "windsurf", "cline", "copilot", "github-copilot", "codex"],
   "license": "MIT",
   "publishConfig": {

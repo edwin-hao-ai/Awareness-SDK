@@ -1,9 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
   "markers": {
     "start": "<!-- AWARENESS_RULES_START -->",
     "end": "<!-- AWARENESS_RULES_END -->"
   },
+
   "core_lines": [
     "## Awareness Memory Integration (MANDATORY)",
     "",
@@ -13,6 +14,8 @@
     "",
     "STEP 1 - SESSION START:",
     "  Call awareness_init(source=\"{source}\") -> get session_id, review context.",
+    "  If active_skills[] is returned: skill = reusable procedure done 2+ times;",
+    "  summary = injectable instruction, methods = steps. Apply matching skills to tasks.",
     "",
     "STEP 2 - RECALL BEFORE WORK:",
     "  Call awareness_recall(semantic_query=..., keyword_query=...) for relevant past context.",
@@ -30,6 +33,7 @@
     "  - workflow = process, setup, or configuration steps only.",
     "  - pitfall = blocker, warning, or limitation without a fix yet.",
     "  - insight = reusable pattern or general learning.",
+    "  - skill = reusable procedure done 2+ times; summary = injectable instruction, methods = steps.",
     "  - key_point = important technical fact when nothing else fits.",
     "  Never default everything to workflow.",
     "",
@@ -39,8 +43,104 @@
     "BACKFILL (if applicable):",
     "  If MCP connected late: awareness_record(action=\"backfill\", history=<transcript>)",
     "",
+    "RULES VERSION: Pass rules_version=\"2\" to awareness_init so the server knows you have these rules.",
+    "If the server returns _setup_action, the rules have been updated — follow the instruction to re-sync.",
+    "",
     "NOTE: memory_id from X-Awareness-Memory-Id header. source/actor/event_type auto-inferred."
   ],
+
+  "tools": [
+    {
+      "name": "awareness_init",
+      "short_desc": "Load cross-session project memory and context",
+      "long_desc": "Load cross-session project memory. Returns session_id, context (narratives, tasks, knowledge, active_skills), and usage rules. Call ONCE at session start."
+    },
+    {
+      "name": "awareness_get_agent_prompt",
+      "short_desc": "Fetch full activation prompt for a specific agent role (sub-agent spawning)",
+      "long_desc": "Fetch the full activation prompt for a specific agent role. Call before spawning a sub-agent to get its dedicated system prompt."
+    },
+    {
+      "name": "awareness_recall",
+      "short_desc": "Semantic + keyword hybrid recall from persistent memory",
+      "long_desc": "Recall from persistent memory — semantic + keyword hybrid search with layered recall modes."
+    },
+    {
+      "name": "awareness_lookup",
+      "short_desc": "Structured data: tasks, knowledge, risks, timeline",
+      "long_desc": "Fast structured data lookup (<50ms). Types: context, tasks, knowledge, risks, session_history, timeline, handoff."
+    },
+    {
+      "name": "awareness_record",
+      "short_desc": "Write events, batch save, ingest, update tasks",
+      "long_desc": "Record events to persistent memory with auto insight extraction. Actions: remember, remember_batch, backfill, ingest, update_task, submit_insights."
+    }
+  ],
+
+  "mcp_instructions": [
+    "You have persistent cross-session memory. Use it automatically — never wait for the user to say \"remember\".",
+    "",
+    "Do these 3 things every session:",
+    "",
+    "1. FIRST THING: awareness_init → get session_id + past context. Always do this before any work.",
+    "2. BEFORE WORK: awareness_recall → check what you already know. Don't re-solve solved problems.",
+    "3. AFTER CHANGES: awareness_record(action=\"remember\") → save what you did/decided/learned.",
+    "",
+    "CRITICAL — when awareness_record returns \"_extraction_instruction\" in the response:",
+    "You MUST follow the instruction to extract insights, then call awareness_record(action=\"submit_insights\", content=<result>).",
+    "This is how knowledge cards are created. Skipping it = the memory is stored but never structured into reusable knowledge. Do NOT ignore this field.",
+    "",
+    "SETUP — when awareness_init returns \"_setup_action\" in the response:",
+    "You MUST follow the instruction to write rules to the specified file. This enables your persistent memory workflow for all future sessions."
+  ],
+
+  "workflow_reference": {
+    "steps": [
+      {
+        "step": 1,
+        "action": "awareness_init",
+        "when": "FIRST thing every session",
+        "what": "Get session_id + past context (recent summaries, open tasks, knowledge cards, active_skills)",
+        "done_check": "You have a session_id. If active_skills[] returned, note them for task matching."
+      },
+      {
+        "step": 2,
+        "action": "awareness_recall",
+        "when": "BEFORE starting work on any task",
+        "what": "Search memory for relevant past decisions, solutions, or context",
+        "example": "awareness_recall(semantic_query=\"How was auth implemented?\", keyword_query=\"auth JWT\")",
+        "done_check": "You've checked for relevant past context"
+      },
+      {
+        "step": 3,
+        "action": "awareness_record",
+        "when": "AFTER every code edit, decision, or bug fix",
+        "what": "awareness_record(action=\"remember\", text=\"WHAT: ... WHY: ... OUTCOME: ... FILES: ...\")",
+        "done_check": "Every meaningful change has been recorded"
+      },
+      {
+        "step": 4,
+        "action": "handle _extraction_instruction",
+        "when": "awareness_record response contains _extraction_instruction",
+        "what": "Follow the instruction to extract insights, then call awareness_record(action='submit_insights', content=<json>)",
+        "warning": "Skipping this = memories stored but NO searchable knowledge cards created"
+      }
+    ],
+    "tips": {
+      "recall_vs_lookup": "awareness_recall = search by meaning (semantic). awareness_lookup = get by type (exact DB, <50ms).",
+      "session_end": "Call awareness_record(action=\"remember_batch\", steps=[...]) with a final summary.",
+      "setup_action": "If awareness_init returned _setup_action, follow it to write rules to your project.",
+      "active_skills": "If awareness_init returned active_skills[], each skill has summary (guidance) + methods (steps). Apply matching skills to tasks — do not re-derive their patterns."
+    }
+  },
+
+  "init_guides": {
+    "write_guide": "Include WHAT/WHY/OUTCOME/FILES in awareness_record text for best extraction quality.",
+    "search_guide": "Rewrite query before calling: semantic_query=full question, keyword_query=2-5 precise terms.",
+    "sub_agent_guide": "AGENT ROUTING: When a task matches an agent_role in agent_profiles, call awareness_get_agent_prompt(agent_role='<role>') to fetch its full activation prompt, then spawn a sub-agent using that prompt as system prompt. Pass agent_role='<role>' to ALL awareness_* calls within the sub-agent. Do NOT pre-fetch all agent prompts — only fetch when actually spawning.",
+    "skill_guide": "SKILLS ACTIVE: active_skills[] contains reusable skill prompts extracted from your memory. When a task matches a skill's domain, apply its 'summary' as behavioral guidance and follow 'methods' steps. Skills are pre-loaded at session start for token efficiency — do not re-derive their patterns."
+  },
+
   "ide_order": [
     "cursor",
     "claude-code",
@@ -48,11 +148,10 @@
     "cline",
     "copilot",
     "codex",
-    "openclaw",
     "kiro",
     "trae",
-    "jetbrains",
     "zed",
+    "jetbrains",
     "augment",
     "antigravity"
   ],
@@ -153,19 +252,6 @@
         "- After each code patch, call awareness_record with the change description."
       ]
     },
-    "openclaw": {
-      "label": "OpenClaw",
-      "rules_file": null,
-      "strategy": "plugin_config",
-      "conflict_policy": "none",
-      "header": "",
-      "preamble_lines": [],
-      "notes_lines": [
-        "OpenClaw uses a native plugin system — workflow rules are injected automatically",
-        "by the Awareness plugin's before_agent_start hook. No separate rules file needed.",
-        "Config is written to ~/.openclaw/openclaw.json under plugins.entries.memory-awareness."
-      ]
-    },
     "kiro": {
       "label": "Kiro",
       "rules_file": ".kiro/steering/awareness.md",
@@ -198,6 +284,22 @@
         "- The MCP server is configured in .mcp.json at the project root."
       ]
     },
+    "zed": {
+      "label": "Zed",
+      "rules_file": ".rules",
+      "strategy": "managed_block",
+      "conflict_policy": "error_on_invalid_markers",
+      "header": "# Awareness Memory Rules",
+      "preamble_lines": [
+        "MANDATORY rules for every Zed Assistant session."
+      ],
+      "notes_lines": [
+        "## Zed-Specific Notes",
+        "- Call awareness_init at the start of every new Assistant thread.",
+        "- After each inline edit or slash command, call awareness_record.",
+        "- MCP server is configured in ~/.config/zed/settings.json under context_servers."
+      ]
+    },
     "jetbrains": {
       "label": "JetBrains (Junie)",
       "rules_file": ".junie/guidelines.md",
@@ -214,21 +316,6 @@
         "- The MCP server is configured in .junie/mcp/mcp.json."
       ]
     },
-    "zed": {
-      "label": "Zed",
-      "rules_file": ".rules",
-      "strategy": "managed_block",
-      "conflict_policy": "error_on_invalid_markers",
-      "header": "# Awareness Memory Rules",
-      "preamble_lines": [
-        "MANDATORY rules for every Zed Assistant session."
-      ],
-      "notes_lines": [
-        "## Zed-Specific Notes",
-        "- Call awareness_init at the start of every new Assistant thread.",
-        "- After each inline edit or slash command, call awareness_record."
-      ]
-    },
     "augment": {
       "label": "Augment",
       "rules_file": ".augment/guidelines.md",
@@ -241,7 +328,8 @@
       "notes_lines": [
         "## Augment-Specific Notes",
         "- Call awareness_init at the start of every new Augment task.",
-        "- After each code edit or suggestion, call awareness_record."
+        "- After each code edit or suggestion, call awareness_record.",
+        "- MCP server is configured via Augment Settings Panel or JSON import."
       ]
     },
     "antigravity": {
@@ -256,7 +344,8 @@
       "notes_lines": [
         "## AntiGravity / Jules Notes",
         "- Call awareness_init at the start of every new task or plan.",
-        "- After each code change or plan step, call awareness_record."
+        "- After each code change or plan step, call awareness_record.",
+        "- MCP server is configured in ~/.gemini/antigravity/mcp_config.json or via the MCP Servers menu."
       ]
     }
   }

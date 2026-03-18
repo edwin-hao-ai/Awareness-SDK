@@ -3,9 +3,9 @@ import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-// Resolve spec.json: bundled copy (npm publish) or repo root (dev)
-const BUNDLED_SPEC = new URL("../ide-rules.spec.json", import.meta.url);
-const REPO_SPEC = new URL("../../../ide-rules.spec.json", import.meta.url);
+// Resolve spec.json: bundled copy (npm publish) or repo backend (dev)
+const BUNDLED_SPEC = new URL("../awareness-spec.json", import.meta.url);
+const REPO_SPEC = new URL("../../../backend/awareness-spec.json", import.meta.url);
 const SPEC_URL = existsSync(fileURLToPath(BUNDLED_SPEC)) ? BUNDLED_SPEC : REPO_SPEC;
 
 const IDE_ALIASES = {
