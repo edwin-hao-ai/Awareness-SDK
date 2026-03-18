@@ -49,10 +49,11 @@ Edit `~/.openclaw/openclaw.json`:
 | Tool | Description |
 |------|-------------|
 | `__awareness_workflow__` | Workflow reference that stays visible in the tool list |
-| `awareness_init` | Load cross-session context and return `session_id` |
-| `awareness_recall` | Hybrid semantic + keyword recall |
-| `awareness_lookup` | Structured lookup for context, tasks, risks, knowledge, and handoff |
-| `awareness_record` | Unified write API for remember, remember_batch, update_task, and submit_insights |
+| `awareness_init` | Load cross-session project memory and context |
+| `awareness_get_agent_prompt` | Fetch full activation prompt for a specific agent role (sub-agent spawning) |
+| `awareness_recall` | Semantic + keyword hybrid recall from persistent memory |
+| `awareness_lookup` | Structured data: tasks, knowledge, risks, timeline |
+| `awareness_record` | Write events, batch save, ingest, update tasks |
 
 ## Auto Features
 

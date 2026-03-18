@@ -106,10 +106,11 @@ Once connected, Claude Code has access to these Awareness MCP tools:
 | Tool | Description |
 |------|-------------|
 | `__awareness_workflow__` | Workflow checklist — call when unsure what to do next |
-| `awareness_init` | Initialize session + load cross-session context (narratives, tasks, knowledge cards) |
-| `awareness_recall` | Semantic + keyword hybrid search across all stored memories |
-| `awareness_lookup` | Structured data retrieval: context, tasks, knowledge, risks, timeline, rules, graph, agents |
-| `awareness_record` | All writes: remember, remember\_batch, backfill, ingest, update\_task, submit\_insights |
+| `awareness_init` | Load cross-session project memory and context |
+| `awareness_get_agent_prompt` | Fetch full activation prompt for a specific agent role (sub-agent spawning) |
+| `awareness_recall` | Semantic + keyword hybrid recall from persistent memory |
+| `awareness_lookup` | Structured data: tasks, knowledge, risks, timeline |
+| `awareness_record` | Write events, batch save, ingest, update tasks |
 
 ---
 
