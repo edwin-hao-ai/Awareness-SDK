@@ -95,7 +95,7 @@ export interface UpdateTaskResult {
 }
 
 export interface KnowledgeCard {
-  category?: string; // problem_solution | decision | workflow | key_point | pitfall | insight | personal_preference | important_detail | plan_intention | activity_preference | health_info | career_info | custom_misc
+  category?: string; // problem_solution | decision | workflow | key_point | pitfall | insight | skill | personal_preference | important_detail | plan_intention | activity_preference | health_info | career_info | custom_misc
   title?: string;
   summary?: string;
   tags?: string[];
@@ -103,6 +103,8 @@ export interface KnowledgeCard {
   salience_score?: number; // intrinsic importance [0.5, 2.0]; higher = resists decay more
   status?: string; // open | in_progress | resolved | noted | superseded
   user_id?: string; // multi-user mode: the user this card belongs to
+  /** Explainability metadata (decay_score, intent_boost, source_date, etc.) */
+  _attribution?: CardAttribution;
 }
 
 export interface HandoffTask {
@@ -137,6 +139,68 @@ export interface ActiveSkill {
   methods?: string[];
 }
 
+/** Explainability metadata for a vector search result. */
+export interface VectorAttribution {
+  /** How the result was matched: "hybrid" | "vector" | "bm25" */
+  matched_by?: string;
+  /** Cosine similarity score (0-1) */
+  vector_score?: number;
+  /** Reciprocal rank fusion score */
+  rrf_score?: number;
+  /** Rank in vector search */
+  vector_rank?: number;
+  /** Rank in BM25 search (0 = not matched) */
+  bm25_rank?: number;
+  /** Whether BM25 also matched this result */
+  bm25_matched?: boolean;
+  /** Session ID of the source event */
+  source_session?: string;
+  /** ISO date of the source event */
+  source_date?: string;
+  /** Whether chunk reconstruction was applied */
+  reconstructed?: boolean;
+  /** Number of chunks stitched together */
+  chunk_count?: number;
+}
+
+/** Explainability metadata for a knowledge card. */
+export interface CardAttribution {
+  /** ISO date when the card was created */
+  source_date?: string;
+  /** ISO date of last access */
+  last_accessed?: string;
+  /** Ebbinghaus decay-adjusted relevance score */
+  decay_score?: number;
+  /** Intent-based category boost multiplier (null if none) */
+  intent_boost?: number | null;
+  /** Number of times this card has been recalled */
+  access_count?: number;
+  /** "update" | "reversal" | null — if card replaced another */
+  evolution?: string | null;
+}
+
+/** Actionable alert surfaced at session start. */
+export interface ProactiveAlert {
+  /** "stale_task" | "last_session_handoff" | "recent_contradiction" */
+  type?: string;
+  /** "info" | "warning" */
+  severity?: string;
+  /** Human-readable alert title */
+  title?: string;
+  /** Detailed alert message */
+  message?: string;
+  /** (stale_task only) The stale task's ID */
+  task_id?: string;
+  /** (stale_task only) Days since creation */
+  days_stale?: number;
+  /** (recent_contradiction only) The new card's ID */
+  card_id?: string;
+  /** (recent_contradiction only) The superseded card's title */
+  old_title?: string;
+  /** (last_session_handoff only) Recent events */
+  last_events?: JsonObject[];
+}
+
 export interface SessionContextResponse extends JsonObject {
   memory_id?: string;
   generated_at?: string;
@@ -146,6 +210,8 @@ export interface SessionContextResponse extends JsonObject {
   open_tasks?: OpenTask[];
   knowledge_cards?: KnowledgeCard[];
   active_skills?: ActiveSkill[];
+  /** Actionable alerts: stale tasks, session handoff, recent contradictions */
+  proactive_alerts?: ProactiveAlert[];
   trace_id?: string;
 }
 

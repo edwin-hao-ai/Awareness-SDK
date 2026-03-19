@@ -68,7 +68,7 @@ class OpenTask(TypedDict, total=False):
 
 
 class KnowledgeCard(TypedDict, total=False):
-    category: str   # problem_solution | decision | workflow | key_point | pitfall | insight | personal_preference | important_detail | plan_intention | activity_preference | health_info | career_info | custom_misc
+    category: str   # problem_solution | decision | workflow | key_point | pitfall | insight | skill | personal_preference | important_detail | plan_intention | activity_preference | health_info | career_info | custom_misc
     title: str
     summary: str
     tags: List[str]
@@ -76,6 +76,7 @@ class KnowledgeCard(TypedDict, total=False):
     salience_score: float  # intrinsic importance [0.5, 2.0]; higher = resists decay more
     status: str     # open | in_progress | resolved | noted | superseded
     user_id: str    # multi-user mode: the user this card belongs to
+    _attribution: Optional[Dict[str, Any]]  # explainability metadata (decay_score, intent_boost, etc.)
 
 
 class SessionSummary(TypedDict, total=False):
@@ -91,6 +92,43 @@ class ActiveSkill(TypedDict, total=False):
     methods: List[str]  # numbered execution steps
 
 
+class VectorAttribution(TypedDict, total=False):
+    """Explainability metadata for a vector search result."""
+    matched_by: str         # "hybrid" | "vector" | "bm25"
+    vector_score: float     # cosine similarity (0-1)
+    rrf_score: float        # reciprocal rank fusion score
+    vector_rank: int        # rank in vector search
+    bm25_rank: int          # rank in BM25 search (0 = not matched)
+    bm25_matched: bool      # whether BM25 also matched this result
+    source_session: str     # session_id of the source event
+    source_date: str        # ISO date of the source event
+    reconstructed: bool     # whether chunk reconstruction was applied
+    chunk_count: int        # number of chunks stitched together
+
+
+class CardAttribution(TypedDict, total=False):
+    """Explainability metadata for a knowledge card."""
+    source_date: str        # ISO date when the card was created
+    last_accessed: str      # ISO date of last access
+    decay_score: float      # Ebbinghaus decay-adjusted relevance score
+    intent_boost: float     # intent-based category boost multiplier (null if none)
+    access_count: int       # number of times this card has been recalled
+    evolution: str          # "update" | "reversal" | null — if card replaced another
+
+
+class ProactiveAlert(TypedDict, total=False):
+    """Actionable alert surfaced at session start."""
+    type: str               # "stale_task" | "last_session_handoff" | "recent_contradiction"
+    severity: str           # "info" | "warning"
+    title: str              # human-readable alert title
+    message: str            # detailed alert message
+    task_id: str            # (stale_task only) the stale task's ID
+    days_stale: int         # (stale_task only) days since creation
+    card_id: str            # (recent_contradiction only) the new card's ID
+    old_title: str          # (recent_contradiction only) the superseded card's title
+    last_events: List[Dict[str, Any]]  # (last_session_handoff only) recent events
+
+
 class SessionContextResult(TypedDict, total=False):
     memory_id: str
     generated_at: str
@@ -100,6 +138,7 @@ class SessionContextResult(TypedDict, total=False):
     open_tasks: List[OpenTask]
     knowledge_cards: List[KnowledgeCard]
     active_skills: List[ActiveSkill]  # reusable skill prompts, pre-loaded at session start
+    proactive_alerts: List[ProactiveAlert]  # actionable alerts (stale tasks, handoff, contradictions)
     trace_id: str
 
 
