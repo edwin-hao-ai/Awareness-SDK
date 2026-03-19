@@ -210,6 +210,7 @@ export class AwarenessClient {
           String(params.text ?? ""),
           params.metadata as Record<string, unknown> | undefined,
           userId,
+          params.insights as Record<string, unknown> | undefined,
         );
 
       case "remember_batch": {
@@ -433,6 +434,7 @@ export class AwarenessClient {
     text: string,
     metadata?: Record<string, unknown>,
     userId?: string,
+    insights?: Record<string, unknown>,
   ): Promise<IngestResponse> {
     const body: Record<string, unknown> = {
       memory_id: this.memoryId,
@@ -441,6 +443,7 @@ export class AwarenessClient {
     };
     if (this.agentRole) body.agent_role = this.agentRole;
     if (userId) body.user_id = userId;
+    if (insights) body.insights = insights;
     if (metadata) Object.assign(body, metadata);
     return this.post<IngestResponse>("/mcp/events", body);
   }

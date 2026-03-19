@@ -389,6 +389,7 @@ class MemoryCloudClient:
         async_vectorize: bool = True,
         agent_role: Optional[str] = None,
         user_id: Optional[str] = None,
+        insights: Optional[Dict[str, Any]] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
@@ -407,6 +408,8 @@ class MemoryCloudClient:
             payload["agent_role"] = agent_role
         if user_id:
             payload["user_id"] = user_id
+        if insights is not None:
+            payload["insights"] = insights
 
         data, resolved_trace_id = self._request(
             method="POST",
@@ -696,6 +699,7 @@ class MemoryCloudClient:
         metadata: Optional[Dict[str, Any]] = None,
         metadata_defaults: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
+        insights: Optional[Dict[str, Any]] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         source_label = self._clean_source(source or self.default_source)
@@ -728,6 +732,7 @@ class MemoryCloudClient:
             skip_duplicates=True,
             generate_summary=False,
             user_id=user_id or self._user_id,
+            insights=insights,
             trace_id=trace_id,
         )
         response = {
@@ -750,6 +755,7 @@ class MemoryCloudClient:
         session_id: Optional[str] = None,
         metadata_defaults: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
+        insights: Optional[Dict[str, Any]] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         source_label = self._clean_source(source or self.default_source)
@@ -776,6 +782,7 @@ class MemoryCloudClient:
             skip_duplicates=True,
             generate_summary=True,
             user_id=user_id or self._user_id,
+            insights=insights,
             trace_id=trace_id,
         )
         response = {

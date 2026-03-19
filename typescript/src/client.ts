@@ -400,6 +400,7 @@ export class MemoryCloudClient {
     asyncVectorize?: boolean;
     agentRole?: string;
     userId?: string;
+    insights?: JsonObject;
     traceId?: string;
   }): Promise<IngestEventsResponse> {
     const body: JsonObject = {
@@ -416,6 +417,7 @@ export class MemoryCloudClient {
       agent_role: input.agentRole ?? null,
     };
     if (input.userId) body.user_id = input.userId;
+    if (input.insights) body.insights = input.insights;
     return this.requestJson<IngestEventsResponse>({
       method: "POST",
       path: "/mcp/events",
@@ -555,6 +557,7 @@ export class MemoryCloudClient {
     metadata?: JsonObject;
     metadataDefaults?: JsonObject;
     userId?: string;
+    insights?: JsonObject;
     traceId?: string;
   }): Promise<JsonObject> {
     const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
@@ -590,6 +593,7 @@ export class MemoryCloudClient {
       skipDuplicates: true,
       generateSummary: false,
       userId: input.userId,
+      insights: input.insights,
       traceId: input.traceId,
     });
 
@@ -616,6 +620,7 @@ export class MemoryCloudClient {
     sessionId?: string;
     metadataDefaults?: JsonObject;
     userId?: string;
+    insights?: JsonObject;
     traceId?: string;
   }): Promise<JsonObject> {
     const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
@@ -645,6 +650,7 @@ export class MemoryCloudClient {
       skipDuplicates: true,
       generateSummary: true,
       userId: input.userId,
+      insights: input.insights,
       traceId: input.traceId,
     });
 
