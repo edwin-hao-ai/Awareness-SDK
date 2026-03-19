@@ -734,9 +734,14 @@ test("syncOpenClawConfig creates config file", () => {
 
 test("CLI dry-run with --ide openclaw does not write files", async () => {
   const cwd = makeTempDir();
+  const fakeHome = makeTempDir();
   const originalCwd = process.cwd();
+  const originalHome = process.env.HOME;
+  const originalUserProfile = process.env.USERPROFILE;
   try {
     process.chdir(cwd);
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
     const exitCode = await cliModule.main([
       "--ide", "openclaw",
       "--api-key", "aw_test_key",
@@ -746,5 +751,7 @@ test("CLI dry-run with --ide openclaw does not write files", async () => {
     assert.equal(exitCode, 0);
   } finally {
     process.chdir(originalCwd);
+    process.env.HOME = originalHome;
+    process.env.USERPROFILE = originalUserProfile;
   }
 });

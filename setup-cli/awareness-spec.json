@@ -154,7 +154,8 @@
     "zed",
     "jetbrains",
     "augment",
-    "antigravity"
+    "antigravity",
+    "openclaw"
   ],
   "ides": {
     "claude-code": {
@@ -347,6 +348,17 @@
         "- Call awareness_init at the start of every new task or plan.",
         "- After each code change or plan step, call awareness_record.",
         "- MCP server is configured in ~/.gemini/antigravity/mcp_config.json or via the MCP Servers menu."
+      ]
+    },
+    "openclaw": {
+      "label": "OpenClaw",
+      "rules_file": null,
+      "strategy": "plugin_config",
+      "notes_lines": [
+        "## OpenClaw Notes",
+        "- OpenClaw uses a plugin-based configuration via ~/.openclaw/openclaw.json.",
+        "- Install the Awareness plugin: openclaw plugins install @awareness-sdk/openclaw-memory",
+        "- MCP tools are exposed through the plugin system, no rules file needed."
       ]
     }
   }
