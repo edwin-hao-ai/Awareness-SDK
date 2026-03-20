@@ -307,7 +307,7 @@ export function buildMcpServerConfig(options = {}) {
   };
 }
 
-export function mergeMcpConfigText(existingText, nextServerConfig) {
+export function mergeMcpConfigText(existingText, nextServerConfig, topLevelKey = "mcpServers") {
   let base = {};
   if (existingText != null) {
     try {
@@ -322,13 +322,14 @@ export function mergeMcpConfigText(existingText, nextServerConfig) {
   }
 
   const currentServers =
-    base && typeof base === "object" && base.mcpServers && typeof base.mcpServers === "object"
-      ? base.mcpServers
+    base && typeof base === "object" && base[topLevelKey] && typeof base[topLevelKey] === "object"
+      ? base[topLevelKey]
       : {};
+  // nextServerConfig always uses "mcpServers" internally; extract the server entries
   const nextServers = nextServerConfig.mcpServers ?? {};
   const merged = {
     ...(base && typeof base === "object" ? base : {}),
-    mcpServers: {
+    [topLevelKey]: {
       ...currentServers,
       ...nextServers,
     },
@@ -361,10 +362,13 @@ export function syncIdeMcpConfig(options = {}) {
     };
   }
 
+  const spec = loadRulesSpec();
+  const topLevelKey = spec.ides?.[ideId]?.mcp_servers_key ?? "mcpServers";
+
   const fullPath = join(cwd, filePath);
   const existingText = existsSync(fullPath) ? readFileSync(fullPath, "utf-8") : null;
-  const nextConfig = buildMcpServerConfig(options);
-  const result = mergeMcpConfigText(existingText, nextConfig);
+  const nextConfig = buildMcpServerConfigForIde(ideId, options);
+  const result = mergeMcpConfigText(existingText, nextConfig, topLevelKey);
 
   if (result.action === "conflict") {
     return {

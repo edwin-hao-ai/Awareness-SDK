@@ -233,6 +233,8 @@
       "label": "VS Code Copilot",
       "rules_file": ".github/copilot-instructions.md",
       "mcp_path": ".vscode/mcp.json",
+      "mcp_servers_key": "servers",
+      "mcp_config_variant": "http",
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Awareness Memory Rules",
