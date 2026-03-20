@@ -335,7 +335,7 @@
     },
     "augment": {
       "label": "Augment",
-      "rules_file": ".augment/guidelines.md",
+      "rules_file": ".augment/rules/awareness.md",
       "mcp_path": null,
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
@@ -352,7 +352,7 @@
     },
     "antigravity": {
       "label": "Google AntiGravity (Jules)",
-      "rules_file": ".antigravity/GUIDELINES.md",
+      "rules_file": ".antigravity/rules.md",
       "mcp_path": null,
       "mcp_global_path": "~/.gemini/antigravity/mcp_config.json",
       "strategy": "managed_block",
