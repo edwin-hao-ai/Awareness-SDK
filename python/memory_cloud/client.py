@@ -676,6 +676,7 @@ class MemoryCloudClient:
             agent_role=agent_role,
             multi_level=multi_level,
             cluster_expand=cluster_expand,
+            include_installed=include_installed,
             trace_id=trace_id,
         )
         return {

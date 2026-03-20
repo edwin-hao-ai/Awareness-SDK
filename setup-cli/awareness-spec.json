@@ -66,7 +66,7 @@
     {
       "name": "awareness_recall",
       "short_desc": "Semantic + keyword hybrid recall from persistent memory",
-      "long_desc": "Recall from persistent memory — semantic + keyword hybrid search with layered recall modes."
+      "long_desc": "Recall from persistent memory — semantic + keyword hybrid search with layered recall modes. Set include_installed=true (default) to also search installed market memories; results are merged by score and tagged with source_type."
     },
     {
       "name": "awareness_lookup",
