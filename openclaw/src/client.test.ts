@@ -408,12 +408,12 @@ describe("AwarenessClient", () => {
   // TEST-ALIGN-10 to 15: Record (write)
   // =========================================================================
   describe("write()", () => {
-    it("action=remember sends single event to /mcp/events", async () => {
+    it("action=write with string content sends single event to /mcp/events", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
 
       const client = makeClient();
-      const result = await client.write("remember", {
-        text: "Decided to use JWT for authentication",
+      const result = await client.write("write", {
+        content: "Decided to use JWT for authentication",
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
@@ -423,14 +423,26 @@ describe("AwarenessClient", () => {
       expect(body.agent_role).toBe("builder_agent");
     });
 
-    it("action=remember_batch sends steps to /mcp/events/batch", async () => {
+    it("action=write with text param (legacy alias) sends single event", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
+
+      const client = makeClient();
+      await client.write("write", {
+        text: "Legacy text param still works",
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.content).toBe("Legacy text param still works");
+    });
+
+    it("action=write with array content sends batch to /mcp/events/batch", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 3, written: 3 }));
 
-      await makeClient().write("remember_batch", {
-        steps: [
-          { text: "Step 1: Created auth module" },
-          { text: "Step 2: Added JWT middleware" },
-          { text: "Step 3: Wrote tests" },
+      await makeClient().write("write", {
+        content: [
+          { content: "Step 1: Created auth module" },
+          { content: "Step 2: Added JWT middleware" },
+          { content: "Step 3: Wrote tests" },
         ],
       });
 
@@ -453,54 +465,51 @@ describe("AwarenessClient", () => {
       expect(mockFetch.mock.calls[0][1].method).toBe("PATCH");
     });
 
-    it("action=submit_insights POSTs to /insights/submit", async () => {
-      mockFetch.mockReturnValueOnce(jsonResponse({ status: "ok" }));
+    it("action=write with insights also submits insights", async () => {
+      // First call: rememberStep to /mcp/events
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
 
-      const insights = [
-        { type: "knowledge_card", title: "JWT Auth", category: "decision" },
-      ];
-      await makeClient().write("submit_insights", { content: insights });
-
-      const url = mockFetch.mock.calls[0][0] as string;
-      expect(url).toContain("/insights/submit");
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.insights).toEqual(insights);
-    });
-
-    it("action=backfill sends to /mcp/events/backfill", async () => {
-      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 10, written: 10 }));
-
-      const history = [
-        { role: "user", content: "Build auth" },
-        { role: "assistant", content: "I'll create the auth module..." },
-      ];
-      await makeClient().write("backfill", { history });
-
-      const url = mockFetch.mock.calls[0][0] as string;
-      expect(url).toContain("/mcp/events/backfill");
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.history).toEqual(history);
-      expect(body.generate_summary).toBe(true);
-    });
-
-    it("action=ingest sends content to /mcp/events", async () => {
-      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 5, written: 5 }));
-
-      await makeClient().write("ingest", {
-        content: "Design document content...",
-        content_scope: "knowledge",
+      const insights = {
+        knowledge_cards: [{ title: "JWT Auth", category: "decision" }],
+      };
+      const result = await makeClient().write("write", {
+        content: "Decided to use JWT for authentication",
+        insights,
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.content).toBe("Design document content...");
-      expect(body.content_scope).toBe("knowledge");
+      expect(body.content).toBe("Decided to use JWT for authentication");
+      expect(body.insights).toEqual(insights);
     });
 
-    it("action=remember passes user_id to body", async () => {
+    it("action=write with array content + insights submits both", async () => {
+      // First call: rememberBatch
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 2, written: 2 }));
+      // Second call: submitInsights
+      mockFetch.mockReturnValueOnce(jsonResponse({ status: "ok" }));
+
+      const insights = {
+        knowledge_cards: [{ title: "JWT Auth", category: "decision" }],
+      };
+      const result = await makeClient().write("write", {
+        content: ["Step 1", "Step 2"],
+        insights,
+      }) as Record<string, unknown>;
+
+      // Batch call
+      const batchUrl = mockFetch.mock.calls[0][0] as string;
+      expect(batchUrl).toContain("/mcp/events/batch");
+      // Insights call
+      const insightsUrl = mockFetch.mock.calls[1][0] as string;
+      expect(insightsUrl).toContain("/insights/submit");
+      expect(result.insights_result).toBeDefined();
+    });
+
+    it("action=write passes user_id to body", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
 
-      await makeClient().write("remember", {
-        text: "User-scoped event",
+      await makeClient().write("write", {
+        content: "User-scoped event",
         user_id: "alice@novapay.com",
       });
 
@@ -508,11 +517,11 @@ describe("AwarenessClient", () => {
       expect(body.user_id).toBe("alice@novapay.com");
     });
 
-    it("action=remember_batch passes user_id to body", async () => {
+    it("action=write with array passes user_id to batch body", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 2, written: 2 }));
 
-      await makeClient().write("remember_batch", {
-        steps: [{ text: "Step 1" }],
+      await makeClient().write("write", {
+        content: ["Step 1"],
         user_id: "bob@novapay.com",
       });
 
@@ -520,16 +529,17 @@ describe("AwarenessClient", () => {
       expect(body.user_id).toBe("bob@novapay.com");
     });
 
-    it("action=ingest defaults content_scope to timeline", async () => {
+    it("action=write passes metadata to body", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
 
-      await makeClient().write("ingest", {
-        content: "Some content",
-        // content_scope NOT specified — should default to "timeline"
+      await makeClient().write("write", {
+        content: "Some content with metadata",
+        metadata: { event_type: "decision", source: "test" },
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.content_scope).toBe("timeline");
+      expect(body.event_type).toBe("decision");
+      expect(body.source).toBe("test");
     });
 
     it("action=unknown returns error", async () => {

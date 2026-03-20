@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { registerHooks } from "./hooks";
-import type { PluginApi, PluginConfig, HookHandler, HookOptions, HookResult } from "./types";
+import type { PluginApi, PluginConfig, HookResult } from "./types";
 import { AwarenessClient } from "./client";
 
 // ---------------------------------------------------------------------------
@@ -26,8 +26,7 @@ function jsonResponse(data: unknown, status = 200) {
 
 interface RegisteredHook {
   name: string;
-  handler: HookHandler;
-  options?: HookOptions;
+  handler: (context: unknown) => Promise<unknown> | void;
 }
 
 function setupHooks(configOverrides?: Partial<PluginConfig>): RegisteredHook[] {
@@ -46,8 +45,9 @@ function setupHooks(configOverrides?: Partial<PluginConfig>): RegisteredHook[] {
 
   const api: PluginApi = {
     registerTool: vi.fn(),
-    registerHook: (name, handler, options) => {
-      hooks.push({ name, handler, options });
+    registerHook: vi.fn(),
+    on: (event, handler) => {
+      hooks.push({ name: event, handler });
     },
     config,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -90,16 +90,18 @@ describe("registerHooks", () => {
       expect(hooks.some((h) => h.name === "agent_end")).toBe(false);
     });
 
-    it("before_agent_start has low priority (10) for early execution", () => {
+    it("before_agent_start is registered via api.on()", () => {
       const hooks = setupHooks();
       const hook = hooks.find((h) => h.name === "before_agent_start");
-      expect(hook?.options?.priority).toBe(10);
+      expect(hook).toBeDefined();
+      expect(typeof hook!.handler).toBe("function");
     });
 
-    it("agent_end has high priority (90) for late execution", () => {
+    it("agent_end is registered via api.on()", () => {
       const hooks = setupHooks();
       const hook = hooks.find((h) => h.name === "agent_end");
-      expect(hook?.options?.priority).toBe(90);
+      expect(hook).toBeDefined();
+      expect(typeof hook!.handler).toBe("function");
     });
   });
 
@@ -112,7 +114,7 @@ describe("registerHooks", () => {
       const hook = hooks.find((h) => h.name === "before_agent_start")!;
 
       // OpenClaw may call hooks with undefined context during non-agent calls
-      const result = await hook.handler(undefined as unknown as HookContext);
+      const result = await hook.handler(undefined as unknown);
       expect(result).toBeUndefined();
       expect(mockFetch).not.toHaveBeenCalled();
     });
@@ -121,7 +123,7 @@ describe("registerHooks", () => {
       const hooks = setupHooks();
       const hook = hooks.find((h) => h.name === "before_agent_start")!;
 
-      const result = await hook.handler(null as unknown as HookContext);
+      const result = await hook.handler(null as unknown);
       expect(result).toBeUndefined();
       expect(mockFetch).not.toHaveBeenCalled();
     });
@@ -194,9 +196,8 @@ describe("registerHooks", () => {
       expect(result.prependSystemContext).toContain("Decided JWT over session cookies");
       expect(result.prependSystemContext).toContain("score=\"0.950\"");
 
-      // Should also set systemPrompt (for backward compat)
-      expect(result.systemPrompt).toContain("<awareness-memory>");
-      expect(result.systemPrompt).toContain("You are a helpful assistant.");
+      // prependSystemContext is the primary output
+      expect(result.prependSystemContext).toBeTruthy();
     });
 
     it("filters recall results below score 0.5", async () => {
@@ -295,7 +296,7 @@ describe("registerHooks", () => {
       const hook = hooks.find((h) => h.name === "agent_end")!;
 
       // Should not throw on undefined context
-      await hook.handler(undefined as unknown as HookContext);
+      await hook.handler(undefined as unknown);
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -303,7 +304,7 @@ describe("registerHooks", () => {
       const hooks = setupHooks();
       const hook = hooks.find((h) => h.name === "agent_end")!;
 
-      await hook.handler(null as unknown as HookContext);
+      await hook.handler(null as unknown);
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -340,6 +341,7 @@ describe("registerHooks", () => {
       const hook = hooks.find((h) => h.name === "agent_end")!;
 
       await hook.handler({
+        success: true,
         messages: [
           {
             role: "user",
@@ -375,6 +377,7 @@ describe("registerHooks", () => {
       const hook = hooks.find((h) => h.name === "agent_end")!;
 
       await hook.handler({
+        success: true,
         messages: [
           {
             role: "user",
@@ -406,6 +409,7 @@ describe("registerHooks", () => {
       const hook = hooks.find((h) => h.name === "agent_end")!;
 
       await hook.handler({
+        success: true,
         messages: [
           { role: "user", content: "Build a complete authentication module with JWT support" },
           { role: "assistant", content: "Created auth_service.py with full JWT implementation and tests" },
@@ -428,6 +432,7 @@ describe("registerHooks", () => {
 
       // Should not throw
       await hook.handler({
+        success: true,
         messages: [
           { role: "user", content: "Build a complete authentication module with JWT support" },
           { role: "assistant", content: "Created auth_service.py with full JWT implementation and tests" },

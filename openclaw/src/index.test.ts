@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import register from "./index";
-import type { PluginApi, PluginConfig, ToolDefinition, HookHandler, HookOptions } from "./types";
+import type { PluginApi, PluginConfig, ToolDefinition, HookHandler, HookOptions, HookResult } from "./types";
 
 // ---------------------------------------------------------------------------
 // Mock fetch so client constructor doesn't fail on import
@@ -34,12 +34,17 @@ describe("register (plugin entry point)", () => {
       ...configOverrides,
     } as PluginConfig;
 
+    const pushHook = (name: string, handler: HookHandler, options?: HookOptions) => {
+      hooks.push({ name, handler, options });
+    };
+
     const api: PluginApi = {
       registerTool: (tool) => {
         tools[tool.id] = tool;
       },
-      registerHook: (name, handler, options) => {
-        hooks.push({ name, handler, options });
+      registerHook: pushHook,
+      on: (event, handler) => {
+        pushHook(event, handler as HookHandler);
       },
       config,
       logger: {
@@ -122,22 +127,16 @@ describe("register (plugin entry point)", () => {
   });
 
   it("applies default config values", () => {
-    const config = {
+    const { api, tools, hooks } = makeApi({
       apiKey: "key",
       memoryId: "mem-1",
-    } as PluginConfig;
-
-    const api: PluginApi = {
-      registerTool: vi.fn(),
-      registerHook: vi.fn(),
-      config,
-      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-    };
+    } as Partial<PluginConfig>);
 
     // Should not throw — defaults are applied internally
     register(api);
-    expect(api.registerTool).toHaveBeenCalledTimes(5);
-    expect(api.registerHook).toHaveBeenCalledTimes(2);
+    expect(Object.keys(tools)).toHaveLength(5);
+    // 2 hooks registered via api.on() from registerHooks
+    expect(hooks).toHaveLength(2);
   });
 
   it("skips hooks when autoRecall=false and autoCapture=false", () => {
@@ -147,6 +146,7 @@ describe("register (plugin entry point)", () => {
     });
 
     register(api);
+    // No hooks registered (neither via registerHook nor on)
     expect(hooks).toHaveLength(0);
   });
 
@@ -157,6 +157,7 @@ describe("register (plugin entry point)", () => {
     });
 
     register(api);
+    // Only before_agent_start registered via api.on()
     expect(hooks).toHaveLength(1);
     expect(hooks[0].name).toBe("before_agent_start");
   });
@@ -201,10 +202,14 @@ describe("register (plugin entry point)", () => {
     it("prefers pluginConfig over config when both are present", () => {
       const tools: Record<string, ToolDefinition> = {};
       const hooks: { name: string; handler: HookHandler; options?: HookOptions }[] = [];
+      const pushHook = (name: string, handler: HookHandler, options?: HookOptions) => {
+        hooks.push({ name, handler, options });
+      };
 
       const api: PluginApi = {
         registerTool: (tool) => { tools[tool.id] = tool; },
-        registerHook: (name, handler, options) => { hooks.push({ name, handler, options }); },
+        registerHook: pushHook,
+        on: (event, handler) => { pushHook(event, handler as HookHandler); },
         // config = entire openclaw.json (no apiKey at top level)
         config: { plugins: { "memory-awareness": { config: { apiKey: "wrong" } } } },
         // pluginConfig = correct plugin-specific config
@@ -229,6 +234,7 @@ describe("register (plugin entry point)", () => {
       const api: PluginApi = {
         registerTool: vi.fn(),
         registerHook: vi.fn(),
+        on: vi.fn(),
         config: {
           apiKey: "key-from-config",
           memoryId: "mem-from-config",
@@ -274,6 +280,7 @@ describe("register (plugin entry point)", () => {
       const api: PluginApi = {
         registerTool: vi.fn(),
         registerHook: vi.fn(),
+        on: vi.fn(),
         pluginConfig: {
           apiKey: "test-key",
           memoryId: "mem-1",

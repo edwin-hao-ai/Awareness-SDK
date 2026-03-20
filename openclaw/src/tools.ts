@@ -23,12 +23,12 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       workflow: [
         { step: 1, action: "awareness_init", when: "FIRST thing every session", what: "Get session_id + past context" },
         { step: 2, action: "awareness_recall", when: "BEFORE starting work", what: "Search memory for relevant past context" },
-        { step: 3, action: "awareness_record", when: "AFTER every change", what: 'awareness_record(action="remember", text="WHAT/WHY/OUTCOME/FILES")' },
-        { step: 4, action: "handle _extraction_instruction", when: "response contains _extraction_instruction", what: 'Extract insights, then call awareness_record(action="submit_insights", content=<json>)', warning: "Skipping = NO searchable knowledge cards" },
+        { step: 3, action: "awareness_record", when: "AFTER every change", what: 'awareness_record(action="write", content="WHAT/WHY/OUTCOME/FILES")' },
+        { step: 4, action: "handle _extraction_instruction", when: "response contains _extraction_instruction", what: 'Extract insights, then call awareness_record(action="write", content="summary", insights=<json>)', warning: "Skipping = NO searchable knowledge cards" },
       ],
       tips: {
         recall_vs_lookup: "awareness_recall = search by meaning. awareness_lookup = get by type (<50ms).",
-        session_end: 'Call awareness_record(action="remember_batch", steps=[...]) with a final summary.',
+        session_end: 'Call awareness_record(action="write", content=[...array of summaries...]) for batch recording.',
       },
     }),
   });
@@ -228,37 +228,24 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
     description:
       "Save what you did/decided/learned to persistent memory.\n\n" +
       "Call AFTER every meaningful action. If you don't record it, it's lost.\n" +
-      "PRIMARY: awareness_record(action=\"remember\", text=\"WHAT/WHY/OUTCOME/FILES\")\n" +
-      "OTHER: remember_batch | update_task | backfill | ingest | submit_insights\n\n" +
+      "PRIMARY: awareness_record(action=\"write\", content=\"WHAT/WHY/OUTCOME/FILES\")\n" +
+      "BATCH: awareness_record(action=\"write\", content=[\"step1\", \"step2\", ...])\n" +
+      "WITH INSIGHTS: awareness_record(action=\"write\", content=\"summary\", insights={...})\n\n" +
       "CRITICAL: When response contains _extraction_instruction, you MUST follow it\n" +
-      "to extract insights, then call awareness_record(action=\"submit_insights\", content=<json>).\n" +
+      "to extract insights, then call awareness_record(action=\"write\", content=\"summary\", insights=<json>).\n" +
       "Skipping = raw events stored but NO searchable knowledge cards created.",
     inputSchema: {
       type: "object",
       properties: {
         action: {
           type: "string",
-          enum: ["remember", "remember_batch", "backfill", "ingest", "update_task", "submit_insights"],
+          enum: ["write", "update_task"],
           description: "Write action to perform.",
         },
-        text: { type: "string", description: "Text content for remember action." },
-        steps: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: { text: { type: "string" } },
-          },
-          description: "Array of {text} objects for remember_batch.",
-        },
         content: {
-          description: "Content for ingest action (string, array, or object).",
+          description: "Content to record. String for single event, array for batch. Falls back to 'text' param for legacy compatibility.",
         },
-        content_scope: {
-          type: "string",
-          enum: ["timeline", "knowledge"],
-          description: "Content scope for ingest (default timeline).",
-          default: "timeline",
-        },
+        text: { type: "string", description: "Text content (legacy alias for content)." },
         task_id: { type: "string", description: "Task ID for update_task action." },
         status: { type: "string", description: "New status for update_task (completed, in_progress, pending)." },
         metadata: {
@@ -268,9 +255,6 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         user_id: {
           type: "string",
           description: "User ID for multi-user memory attribution.",
-        },
-        history: {
-          description: "Conversation log for backfill action (array of {role, content}).",
         },
         insights: {
           type: "object",

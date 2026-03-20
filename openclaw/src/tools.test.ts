@@ -247,51 +247,72 @@ describe("registerTools", () => {
       expect(schema.required).toEqual(["action"]);
     });
 
-    it("supports all 6 actions", () => {
+    it("supports write and update_task actions", () => {
       const tools = setupTools();
       const schema = tools["awareness_record"].inputSchema as Record<string, unknown>;
       const props = schema.properties as Record<string, Record<string, unknown>>;
       expect(props.action.enum).toEqual([
-        "remember",
-        "remember_batch",
-        "backfill",
-        "ingest",
+        "write",
         "update_task",
-        "submit_insights",
       ]);
     });
 
-    it("has user_id and history in schema", () => {
+    it("has user_id and insights in schema", () => {
       const tools = setupTools();
       const schema = tools["awareness_record"].inputSchema as Record<string, unknown>;
       const props = schema.properties as Record<string, unknown>;
       expect(props.user_id).toBeDefined();
-      expect(props.history).toBeDefined();
+      expect(props.insights).toBeDefined();
     });
 
-    it("action=remember records text", async () => {
+    it("action=write with string content records text", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1 }));
       const tools = setupTools();
       await tools["awareness_record"].execute({
-        action: "remember",
-        text: "Important decision",
+        action: "write",
+        content: "Important decision",
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(body.content).toBe("Important decision");
     });
 
-    it("action=submit_insights sends insights data", async () => {
-      mockFetch.mockReturnValueOnce(jsonResponse({ status: "ok" }));
+    it("action=write with text param (legacy) records text", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1 }));
       const tools = setupTools();
-      const insights = [{ type: "knowledge_card", title: "Test" }];
       await tools["awareness_record"].execute({
-        action: "submit_insights",
-        content: insights,
+        action: "write",
+        text: "Legacy text param",
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.content).toBe("Legacy text param");
+    });
+
+    it("action=write with array content sends batch", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 2 }));
+      const tools = setupTools();
+      await tools["awareness_record"].execute({
+        action: "write",
+        content: ["Step 1", "Step 2"],
       });
 
       const url = mockFetch.mock.calls[0][0] as string;
-      expect(url).toContain("/insights/submit");
+      expect(url).toContain("/mcp/events/batch");
+    });
+
+    it("action=write with insights submits insights inline", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1 }));
+      const tools = setupTools();
+      const insights = { knowledge_cards: [{ title: "Test", category: "decision" }] };
+      await tools["awareness_record"].execute({
+        action: "write",
+        content: "Made a decision",
+        insights,
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.insights).toEqual(insights);
     });
   });
 });
