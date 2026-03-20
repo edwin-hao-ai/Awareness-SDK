@@ -127,14 +127,14 @@
     ],
     "tips": {
       "recall_vs_lookup": "awareness_recall = search by meaning (semantic). awareness_lookup = get by type (exact DB, <50ms).",
-      "session_end": "Call awareness_record(action=\"remember_batch\", steps=[...]) with a final summary.",
+      "session_end": "Call awareness_record(content=[step1, step2, ...], insights={...}) with a final summary.",
       "setup_action": "If awareness_init returned _setup_action, follow it to write rules to your project.",
       "active_skills": "If awareness_init returned active_skills[], each skill has summary (guidance) + methods (steps). Apply matching skills to tasks — do not re-derive their patterns."
     }
   },
 
   "init_guides": {
-    "write_guide": "Include WHAT/WHY/OUTCOME/FILES in awareness_record text. RECOMMENDED: pass insights={knowledge_cards:[{category,title,summary,status,tags,confidence}], action_items:[{title,priority,status}], risks:[{title,level,detail}]} with your remember call to create searchable knowledge in ONE step. Categories: decision|problem_solution|workflow|key_point|pitfall|insight|skill|personal_preference|important_detail|plan_intention. If you omit insights, the legacy _extraction_instruction flow will be used.",
+    "write_guide": "Include WHAT/WHY/OUTCOME/FILES in awareness_record content. RECOMMENDED: pass insights={knowledge_cards:[{category,title,summary,status,tags,confidence}], action_items:[{title,priority,status}], risks:[{title,level,detail}]} to create searchable knowledge in ONE step. Categories: decision|problem_solution|workflow|key_point|pitfall|insight|skill|personal_preference|important_detail|plan_intention.",
     "search_guide": "Rewrite query before calling: semantic_query=full question, keyword_query=2-5 precise terms.",
     "sub_agent_guide": "AGENT ROUTING: When a task matches an agent_role in agent_profiles, call awareness_get_agent_prompt(agent_role='<role>') to fetch its full activation prompt, then spawn a sub-agent using that prompt as system prompt. Pass agent_role='<role>' to ALL awareness_* calls within the sub-agent. Do NOT pre-fetch all agent prompts — only fetch when actually spawning.",
     "skill_guide": "SKILLS ACTIVE: active_skills[] contains reusable skill prompts extracted from your memory. When a task matches a skill's domain, apply its 'summary' as behavioral guidance and follow 'methods' steps. Skills are pre-loaded at session start for token efficiency — do not re-derive their patterns."
@@ -171,7 +171,7 @@
         "## Compliance Check",
         "Before responding to ANY user request:",
         "1. Have you called awareness_init yet this session? If not, call it NOW.",
-        "2. Did you just edit a file? Call awareness_record(action=\"remember\") IMMEDIATELY.",
+        "2. Did you just edit a file? Call awareness_record(content=\"WHAT/WHY/OUTCOME\", insights={...}) IMMEDIATELY.",
         "3. Is the user asking about past work? Call awareness_recall FIRST."
       ]
     },
