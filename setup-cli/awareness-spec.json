@@ -22,8 +22,11 @@
     "",
     "STEP 3 - RECORD EVERY CHANGE:",
     "  After EVERY code edit, decision, or bug fix:",
-    "  awareness_record(content=\"WHAT/WHY/OUTCOME/FILES\",",
+    "  awareness_record(content=<detailed natural language description>,",
     "    insights={knowledge_cards:[...], action_items:[...], risks:[...]})",
+    "  Content should be RICH and DETAILED — include reasoning, key code snippets,",
+    "  user quotes, alternatives considered, and files changed. Do NOT compress into",
+    "  a single-line summary. The content IS the memory — more detail = better recall.",
     "  Include insights to create searchable knowledge in ONE step (recommended).",
     "  Skipping = permanent data loss.",
     "",
@@ -84,7 +87,7 @@
     "",
     "1. FIRST THING: awareness_init → get session_id + past context. Always do this before any work.",
     "2. BEFORE WORK: awareness_recall → check what you already know. Don't re-solve solved problems.",
-    "3. AFTER CHANGES: awareness_record(content=\"WHAT/WHY/OUTCOME\", insights={...}) → save what you did/decided/learned.",
+    "3. AFTER CHANGES: awareness_record(content=<detailed description>, insights={...}) → save what you did/decided/learned. Be detailed — include reasoning, code snippets, user quotes.",
     "",
     "RECOMMENDED: Pass insights={knowledge_cards:[...], action_items:[...], risks:[...]} with awareness_record to create searchable knowledge in ONE step — no round-trip needed.",
     "Knowledge cards MUST be created. Skipping = the memory is stored but never structured into reusable knowledge.",
@@ -114,8 +117,8 @@
         "step": 3,
         "action": "awareness_record with inline insights",
         "when": "AFTER every code edit, decision, or bug fix",
-        "what": "awareness_record(content=\"WHAT/WHY/OUTCOME/FILES\", insights={knowledge_cards:[...], action_items:[...], risks:[...]})",
-        "done_check": "Every meaningful change has been recorded WITH structured insights"
+        "what": "awareness_record(content=<detailed description with reasoning, code snippets, user quotes, files changed>, insights={knowledge_cards:[...], action_items:[...], risks:[...]})",
+        "done_check": "Every meaningful change has been recorded WITH rich detail AND structured insights"
       },
       {
         "step": 4,
@@ -134,7 +137,7 @@
   },
 
   "init_guides": {
-    "write_guide": "Include WHAT/WHY/OUTCOME/FILES in awareness_record content. RECOMMENDED: pass insights={knowledge_cards:[{category,title,summary,status,tags,confidence}], action_items:[{title,priority,status}], risks:[{title,level,detail}]} to create searchable knowledge in ONE step. Categories: decision|problem_solution|workflow|key_point|pitfall|insight|skill|personal_preference|important_detail|plan_intention.",
+    "write_guide": "Write DETAILED content in awareness_record — include reasoning, alternatives considered, key code snippets, user quotes, and files changed. Do NOT compress into a single-line summary; the content IS the memory. RECOMMENDED: pass insights={knowledge_cards:[{category,title,summary,status,tags,confidence}], action_items:[{title,priority,status}], risks:[{title,level,detail}]} to create searchable knowledge in ONE step. Categories: decision|problem_solution|workflow|key_point|pitfall|insight|skill|personal_preference|important_detail|plan_intention.",
     "search_guide": "Rewrite query before calling: semantic_query=full question, keyword_query=2-5 precise terms.",
     "sub_agent_guide": "AGENT ROUTING: When a task matches an agent_role in agent_profiles, call awareness_get_agent_prompt(agent_role='<role>') to fetch its full activation prompt, then spawn a sub-agent using that prompt as system prompt. Pass agent_role='<role>' to ALL awareness_* calls within the sub-agent. Do NOT pre-fetch all agent prompts — only fetch when actually spawning.",
     "skill_guide": "SKILLS ACTIVE: active_skills[] contains reusable skill prompts extracted from your memory. When a task matches a skill's domain, apply its 'summary' as behavioral guidance and follow 'methods' steps. Skills are pre-loaded at session start for token efficiency — do not re-derive their patterns."
@@ -171,7 +174,7 @@
         "## Compliance Check",
         "Before responding to ANY user request:",
         "1. Have you called awareness_init yet this session? If not, call it NOW.",
-        "2. Did you just edit a file? Call awareness_record(content=\"WHAT/WHY/OUTCOME\", insights={...}) IMMEDIATELY.",
+        "2. Did you just edit a file? Call awareness_record(content=<detailed description>, insights={...}) IMMEDIATELY.",
         "3. Is the user asking about past work? Call awareness_recall FIRST."
       ]
     },

@@ -23,7 +23,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       workflow: [
         { step: 1, action: "awareness_init", when: "FIRST thing every session", what: "Get session_id + past context" },
         { step: 2, action: "awareness_recall", when: "BEFORE starting work", what: "Search memory for relevant past context" },
-        { step: 3, action: "awareness_record", when: "AFTER every change", what: 'awareness_record(action="write", content="WHAT/WHY/OUTCOME/FILES")' },
+        { step: 3, action: "awareness_record", when: "AFTER every change", what: 'awareness_record(action="write", content=<detailed description with reasoning, code snippets, files changed>)' },
         { step: 4, action: "handle _extraction_instruction", when: "response contains _extraction_instruction", what: 'Extract insights, then call awareness_record(action="write", content="summary", insights=<json>)', warning: "Skipping = NO searchable knowledge cards" },
       ],
       tips: {
@@ -228,7 +228,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
     description:
       "Save what you did/decided/learned to persistent memory.\n\n" +
       "Call AFTER every meaningful action. If you don't record it, it's lost.\n" +
-      "PRIMARY: awareness_record(action=\"write\", content=\"WHAT/WHY/OUTCOME/FILES\")\n" +
+      "PRIMARY: awareness_record(action=\"write\", content=<detailed description with reasoning, code snippets, files>)\n" +
       "BATCH: awareness_record(action=\"write\", content=[\"step1\", \"step2\", ...])\n" +
       "WITH INSIGHTS: awareness_record(action=\"write\", content=\"summary\", insights={...})\n\n" +
       "CRITICAL: When response contains _extraction_instruction, you MUST follow it\n" +

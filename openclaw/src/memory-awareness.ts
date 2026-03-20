@@ -330,7 +330,7 @@ const awarenessPlugin = {
           "Record events to cross-session persistent memory.\n" +
           "ACTIONS: remember (single event) | remember_batch (session-end summary) | " +
           "update_task | submit_insights\n" +
-          "Include WHAT/WHY/OUTCOME/FILES in text.",
+          "Write detailed content — include reasoning, code snippets, user quotes, files changed.",
         parameters: {
           type: "object",
           properties: {
