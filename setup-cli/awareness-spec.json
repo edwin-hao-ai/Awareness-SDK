@@ -179,6 +179,7 @@
     "cursor": {
       "label": "Cursor",
       "rules_file": ".cursor/rules/awareness.mdc",
+      "mcp_path": ".cursor/mcp.json",
       "strategy": "managed_file",
       "conflict_policy": "error_on_unmanaged_file_unless_force",
       "header": "# Awareness Memory Rules",
@@ -197,6 +198,7 @@
     "windsurf": {
       "label": "Windsurf",
       "rules_file": ".windsurfrules",
+      "mcp_path": null,
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Awareness Memory Rules",
@@ -212,6 +214,7 @@
     "cline": {
       "label": "Cline",
       "rules_file": ".clinerules",
+      "mcp_path": null,
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Awareness Memory Rules",
@@ -227,6 +230,7 @@
     "copilot": {
       "label": "VS Code Copilot",
       "rules_file": ".github/copilot-instructions.md",
+      "mcp_path": ".vscode/mcp.json",
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Awareness Memory Rules",
@@ -243,6 +247,7 @@
     "codex": {
       "label": "Codex",
       "rules_file": "AGENTS.md",
+      "mcp_path": null,
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Awareness Memory Integration",
@@ -258,6 +263,7 @@
     "kiro": {
       "label": "Kiro",
       "rules_file": ".kiro/steering/awareness.md",
+      "mcp_path": ".kiro/settings/mcp.json",
       "strategy": "managed_file",
       "conflict_policy": "error_on_unmanaged_file_unless_force",
       "header": "# Awareness Memory Rules",
@@ -274,6 +280,7 @@
     "trae": {
       "label": "Trae",
       "rules_file": ".trae/rules/awareness.md",
+      "mcp_path": ".trae/mcp.json",
       "strategy": "managed_file",
       "conflict_policy": "error_on_unmanaged_file_unless_force",
       "header": "# Awareness Memory Rules",
@@ -284,12 +291,13 @@
         "## Trae-Specific Notes",
         "- Call awareness_init at the start of every new chat or Builder session.",
         "- After each file edit or terminal command, call awareness_record.",
-        "- The MCP server is configured in .mcp.json at the project root."
+        "- The MCP server is configured in .trae/mcp.json at the project root."
       ]
     },
     "zed": {
       "label": "Zed",
       "rules_file": ".rules",
+      "mcp_path": null,
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Awareness Memory Rules",
@@ -306,6 +314,7 @@
     "jetbrains": {
       "label": "JetBrains (Junie)",
       "rules_file": ".junie/guidelines.md",
+      "mcp_path": ".junie/mcp/mcp.json",
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Awareness Memory Rules",
@@ -322,6 +331,7 @@
     "augment": {
       "label": "Augment",
       "rules_file": ".augment/guidelines.md",
+      "mcp_path": null,
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Awareness Memory Rules",
@@ -338,6 +348,7 @@
     "antigravity": {
       "label": "Google AntiGravity (Jules)",
       "rules_file": ".antigravity/GUIDELINES.md",
+      "mcp_path": null,
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Awareness Memory Rules",
@@ -354,6 +365,7 @@
     "openclaw": {
       "label": "OpenClaw",
       "rules_file": null,
+      "mcp_path": null,
       "strategy": "plugin_config",
       "notes_lines": [
         "## OpenClaw Notes",
