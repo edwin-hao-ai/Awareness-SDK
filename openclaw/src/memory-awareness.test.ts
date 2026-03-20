@@ -68,7 +68,7 @@ const VALID_CONFIG = {
 describe("memory-awareness (native OpenClaw adapter)", () => {
   describe("plugin metadata", () => {
     it("has correct id and kind", () => {
-      expect(awarenessPlugin.id).toBe("memory-awareness");
+      expect(awarenessPlugin.id).toBe("openclaw-memory");
       expect(awarenessPlugin.kind).toBe("memory");
     });
 

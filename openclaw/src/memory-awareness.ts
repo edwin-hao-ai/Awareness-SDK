@@ -34,7 +34,7 @@ const awarenessConfigSchema = {
   parse(value: unknown): AwarenessPluginConfig {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       throw new Error(
-        "Awareness config required. Set plugins.entries.memory-awareness.config in openclaw.json",
+        "Awareness config required. Set plugins.entries.openclaw-memory.config in openclaw.json",
       );
     }
     const cfg = value as Record<string, unknown>;
@@ -194,7 +194,7 @@ function buildMemoryBlock(
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const awarenessPlugin = {
-  id: "memory-awareness",
+  id: "openclaw-memory",
   name: "Awareness Memory",
   description: "Cloud-backed long-term memory with knowledge cards, tasks, and structured recall",
   kind: "memory" as const,

@@ -516,12 +516,21 @@ export function mergeOpenClawConfigText(existingText, pluginConfig) {
     base.plugins.slots = {};
   }
 
+  // Migrate old plugin ID: rename "memory-awareness" → "openclaw-memory"
+  if (base.plugins.entries["memory-awareness"] !== undefined) {
+    base.plugins.entries["openclaw-memory"] = base.plugins.entries["memory-awareness"];
+    delete base.plugins.entries["memory-awareness"];
+  }
+  if (base.plugins.slots.memory === "memory-awareness") {
+    base.plugins.slots.memory = "openclaw-memory";
+  }
+
   // Set memory slot to awareness
-  base.plugins.slots.memory = "memory-awareness";
+  base.plugins.slots.memory = "openclaw-memory";
 
   // Merge plugin entry (preserve other fields like "enabled", add/update "config")
-  const existing = base.plugins.entries["memory-awareness"];
-  base.plugins.entries["memory-awareness"] = {
+  const existing = base.plugins.entries["openclaw-memory"];
+  base.plugins.entries["openclaw-memory"] = {
     ...(existing && typeof existing === "object" ? existing : {}),
     enabled: true,
     config: pluginConfig,

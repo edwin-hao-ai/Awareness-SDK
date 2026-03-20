@@ -60,9 +60,10 @@ test("syncIdeMcpConfig merges into existing MCP config JSON", () => {
   const cwd = makeTempDir();
   const filePath = path.join(cwd, ".vscode", "mcp.json");
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  // Copilot uses "servers" as top-level key (not "mcpServers")
   fs.writeFileSync(
     filePath,
-    JSON.stringify({ mcpServers: { other: { url: "http://localhost:9999" } } }, null, 2) + "\n",
+    JSON.stringify({ servers: { other: { url: "http://localhost:9999" } } }, null, 2) + "\n",
     "utf-8",
   );
 
@@ -77,8 +78,8 @@ test("syncIdeMcpConfig merges into existing MCP config JSON", () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.action, "replace");
-  assert.ok(parsed.mcpServers.other);
-  assert.ok(parsed.mcpServers["awareness-memory"]);
+  assert.ok(parsed.servers.other);
+  assert.ok(parsed.servers["awareness-memory"]);
 });
 
 test("syncIdeRules appends managed_block when file has no markers", () => {
@@ -656,9 +657,9 @@ test("mergeOpenClawConfigText creates new config", () => {
   const result = rulesModule.mergeOpenClawConfigText(null, pluginConfig);
   assert.equal(result.action, "create");
   const parsed = JSON.parse(result.content);
-  assert.equal(parsed.plugins.slots.memory, "memory-awareness");
-  assert.equal(parsed.plugins.entries["memory-awareness"].enabled, true);
-  assert.equal(parsed.plugins.entries["memory-awareness"].config.apiKey, "aw_test");
+  assert.equal(parsed.plugins.slots.memory, "openclaw-memory");
+  assert.equal(parsed.plugins.entries["openclaw-memory"].enabled, true);
+  assert.equal(parsed.plugins.entries["openclaw-memory"].config.apiKey, "aw_test");
 });
 
 test("mergeOpenClawConfigText merges into existing config preserving other entries", () => {
@@ -689,9 +690,9 @@ test("mergeOpenClawConfigText merges into existing config preserving other entri
   assert.ok(parsed.plugins.entries["feishu"]);
   assert.ok(parsed.models);
   // Updated awareness entry
-  assert.equal(parsed.plugins.slots.memory, "memory-awareness");
-  assert.equal(parsed.plugins.entries["memory-awareness"].enabled, true);
-  assert.equal(parsed.plugins.entries["memory-awareness"].config.apiKey, "aw_new");
+  assert.equal(parsed.plugins.slots.memory, "openclaw-memory");
+  assert.equal(parsed.plugins.entries["openclaw-memory"].enabled, true);
+  assert.equal(parsed.plugins.entries["openclaw-memory"].config.apiKey, "aw_new");
 });
 
 test("mergeOpenClawConfigText returns noop when config unchanged", () => {
@@ -729,7 +730,7 @@ test("syncOpenClawConfig creates config file", () => {
   const result = rulesModule.mergeOpenClawConfigText(null, pluginConfig);
   assert.equal(result.action, "create");
   const parsed = JSON.parse(result.content);
-  assert.equal(parsed.plugins.entries["memory-awareness"].config.memoryId, "mem_int_test");
+  assert.equal(parsed.plugins.entries["openclaw-memory"].config.memoryId, "mem_int_test");
 });
 
 test("CLI dry-run with --ide openclaw does not write files", async () => {

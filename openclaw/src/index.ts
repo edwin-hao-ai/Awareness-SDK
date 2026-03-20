@@ -32,7 +32,7 @@ function registerSetupMode(api: PluginApi): void {
             "1. Sign up or log in at https://awareness.market",
             "2. Copy your API key (starts with aw_) from Settings",
             "3. Copy your Memory ID from the memory detail page",
-            '4. Edit ~/.openclaw/openclaw.json → plugins.entries["memory-awareness"].config',
+            '4. Edit ~/.openclaw/openclaw.json → plugins.entries["openclaw-memory"].config',
             "5. Set apiKey and memoryId, then restart OpenClaw",
           ],
         },

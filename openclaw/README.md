@@ -24,10 +24,10 @@ Edit `~/.openclaw/openclaw.json`:
 {
   "plugins": {
     "slots": {
-      "memory": "memory-awareness"
+      "memory": "openclaw-memory"
     },
     "entries": {
-      "memory-awareness": {
+      "openclaw-memory": {
         "enabled": true,
         "config": {
           "apiKey": "aw_your-api-key",
@@ -83,7 +83,7 @@ When `autoCapture` is enabled, the plugin stores a concise run summary after the
 openclaw plugins list
 ```
 
-You should see `memory-awareness` loaded.
+You should see `openclaw-memory` loaded.
 
 ## License
 
