@@ -5,6 +5,14 @@ import type { AwarenessClient } from "./client";
 // Language-agnostic keyword extraction for full-text search (zero LLM cost)
 // ---------------------------------------------------------------------------
 
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function extractKeywords(text: string, maxKeywords: number = 8): string {
   if (!text) return "";
   const tokens: string[] = [];
@@ -58,12 +66,11 @@ export function registerHooks(
   // before_agent_start — auto-recall context when a session begins
   // -----------------------------------------------------------------------
   if (config.autoRecall) {
-    api.registerHook(
-      "before_agent_start",
-      async (context: HookContext): Promise<HookResult | void> => {
+    api.on("before_agent_start", async (context: unknown): Promise<HookResult | void> => {
+        const ctx = context as HookContext | undefined;
         // Guard: context may be undefined in non-agent calls (e.g. plugins list)
-        if (!context) return;
-        const prompt = (context.prompt ?? "").trim();
+        if (!ctx) return;
+        const prompt = (ctx.prompt ?? "").trim();
         if (!prompt) {
           return;
         }
@@ -87,6 +94,19 @@ export function registerHooks(
           // Build the XML memory block to prepend
           const parts: string[] = ["<awareness-memory>"];
 
+          // Active skills (high-priority, placed first)
+          const activeSkills = (sessionCtx as any).active_skills ?? [];
+          if (activeSkills.length > 0) {
+            parts.push("  <skills>");
+            for (const skill of activeSkills) {
+              const title = escapeXml(skill.title ?? "");
+              parts.push(`    <skill title="${title}">`);
+              if (skill.summary) parts.push(`      ${skill.summary}`);
+              parts.push("    </skill>");
+            }
+            parts.push("  </skills>");
+          }
+
           // Last session summaries
           const lastSessions = sessionCtx.last_sessions ?? [];
           if (lastSessions.length > 0) {
@@ -96,7 +116,7 @@ export function registerHooks(
               const events = (session as Record<string, unknown>).event_count ?? 0;
               const summary = (session as Record<string, unknown>).summary ?? "";
               parts.push(
-                `    <session date="${date}" events="${events}">${summary}</session>`,
+                `    <session date="${escapeXml(String(date))}" events="${events}">${escapeXml(String(summary))}</session>`,
               );
             }
             parts.push("  </last-sessions>");
@@ -109,7 +129,7 @@ export function registerHooks(
             for (const day of days) {
               if (day.narrative) {
                 parts.push(
-                  `    <day date="${day.date ?? "unknown"}">${day.narrative}</day>`,
+                  `    <day date="${escapeXml(day.date ?? "unknown")}">${escapeXml(day.narrative)}</day>`,
                 );
               }
             }
@@ -122,7 +142,7 @@ export function registerHooks(
             parts.push("  <open-tasks>");
             for (const task of tasks) {
               parts.push(
-                `    <task priority="${task.priority ?? "medium"}" status="${task.status ?? "pending"}">${task.title ?? ""}</task>`,
+                `    <task priority="${task.priority ?? "medium"}" status="${task.status ?? "pending"}">${escapeXml(task.title ?? "")}</task>`,
               );
             }
             parts.push("  </open-tasks>");
@@ -134,7 +154,7 @@ export function registerHooks(
             parts.push("  <knowledge>");
             for (const card of cards) {
               parts.push(
-                `    <card category="${card.category ?? ""}">${card.title ?? ""}: ${card.summary ?? ""}</card>`,
+                `    <card category="${escapeXml(card.category ?? "")}">${escapeXml(card.title ?? "")}: ${escapeXml(card.summary ?? "")}</card>`,
               );
             }
             parts.push("  </knowledge>");
@@ -161,12 +181,10 @@ export function registerHooks(
           parts.push("</awareness-memory>");
 
           const memoryBlock = parts.join("\n");
-          // Prefer prependSystemContext (OpenClaw 2026.3.7+) to avoid overwriting system prompt;
-          // fall back to systemPrompt replacement for older hosts.
-          return {
-            prependSystemContext: memoryBlock,
-            systemPrompt: memoryBlock + "\n\n" + (context.systemPrompt ?? ""),
-          };
+          api.logger.info(
+            `Awareness auto-recall injected ${memoryBlock.length} chars (skills=${activeSkills.length}, sessions=${lastSessions.length}, recall=${results.length})`,
+          );
+          return { prependSystemContext: memoryBlock };
         } catch (err) {
           api.logger.warn(
             "Awareness auto-recall failed, continuing without memory context",
@@ -175,7 +193,6 @@ export function registerHooks(
           return;
         }
       },
-      { priority: 10 },
     );
   }
 
@@ -183,30 +200,45 @@ export function registerHooks(
   // agent_end — auto-capture conversation summary after the agent finishes
   // -----------------------------------------------------------------------
   if (config.autoCapture) {
-    api.registerHook(
-      "agent_end",
-      async (context: HookContext): Promise<void> => {
-        // Guard: context may be undefined in non-agent calls
-        if (!context) return;
-        const messages = context.messages ?? [];
+    api.on("agent_end", async (context: unknown): Promise<void> => {
+        const ctx = context as (HookContext & { messages?: unknown[] }) | undefined;
+        // Guard: context may be undefined in non-agent calls; skip failed/incomplete runs
+        if (!ctx) return;
+        if (!ctx.success) return;
+        const messages = ctx.messages ?? [];
         if (messages.length === 0) {
           return;
         }
 
         try {
-          // Extract first user request and last assistant result for structured brief
-          const cleanMsg = (content: string) =>
-            content.replace(/<awareness-memory>[\s\S]*?<\/awareness-memory>/g, "").trim();
+          // Extract text from a message content value (string or content-blocks array)
+          const extractText = (raw: unknown): string => {
+            if (typeof raw === "string") return raw;
+            if (Array.isArray(raw)) {
+              return raw
+                .filter((b): b is Record<string, unknown> => !!b && typeof b === "object")
+                .filter((b) => b.type === "text" && typeof b.text === "string")
+                .map((b) => b.text as string)
+                .join("\n");
+            }
+            return "";
+          };
+          const cleanMsg = (raw: unknown) =>
+            extractText(raw)
+              .replace(/<awareness-memory>[\s\S]*?<\/awareness-memory>/g, "")
+              .trim();
 
           let firstUserContent = "";
           let lastAssistantContent = "";
           let messageCount = 0;
 
           for (const msg of messages) {
-            const content = cleanMsg(msg.content ?? "");
+            if (!msg || typeof msg !== "object") continue;
+            const m = msg as unknown as Record<string, unknown>;
+            const content = cleanMsg(m.content);
             if (content.length < 30) continue;
             messageCount++;
-            const role = msg.role ?? "unknown";
+            const role = m.role ?? "unknown";
             if (role === "user" && !firstUserContent) {
               firstUserContent = content;
             }
@@ -257,7 +289,6 @@ export function registerHooks(
           );
         }
       },
-      { priority: 90 },
     );
   }
 }

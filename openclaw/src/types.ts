@@ -26,7 +26,10 @@ export interface PluginApi {
   /** Register a tool that the agent can invoke explicitly. */
   registerTool(tool: ToolDefinition): void;
 
-  /** Register a lifecycle hook. */
+  /** Register a lifecycle event handler (real OpenClaw API). */
+  on(event: string, handler: (event: unknown) => Promise<unknown> | void): void;
+
+  /** Register a lifecycle hook with optional priority (alias for on(); priority ignored by host). */
   registerHook(name: string, handler: HookHandler, options?: HookOptions): void;
 
   /**
@@ -79,6 +82,9 @@ export interface HookContext {
 
   /** Mutable system prompt that hooks can prepend / append to. */
   systemPrompt?: string;
+
+  /** Whether the agent run completed successfully (available in agent_end). */
+  success?: boolean;
 }
 
 export interface HookMessage {
