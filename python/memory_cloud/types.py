@@ -26,6 +26,17 @@ class IngestResult(TypedDict, total=False):
     trace_id: str
 
 
+class RecordResult(TypedDict, total=False):
+    """Result from the unified record() write interface."""
+    memory_id: str
+    session_id: str
+    source: str
+    events_sent: int
+    ingest: IngestResult
+    insights: Dict[str, Any]
+    trace_id: str
+
+
 class ExportPackageResult(TypedDict, total=False):
     filename: str
     content_type: str

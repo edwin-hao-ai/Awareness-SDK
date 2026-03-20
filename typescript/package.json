@@ -1,6 +1,6 @@
 {
   "name": "@awareness-sdk/memory-cloud",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "TypeScript SDK for Awareness Memory Cloud",
   "license": "Apache-2.0",
   "repository": {

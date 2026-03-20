@@ -357,3 +357,29 @@ export interface AgentListResponse {
   agents?: AgentProfile[];
   total?: number;
 }
+
+/**
+ * Input for the unified `record()` write method.
+ */
+export interface RecordInput {
+  memoryId: string;
+  /** String → single event; Array → batch events; Object → single structured event. */
+  content?: string | Array<Record<string, any>> | Record<string, any>;
+  /** Pre-extracted insights to submit (bypasses server-side LLM). */
+  insights?: {
+    knowledge_cards?: Array<Record<string, any>>;
+    action_items?: Array<Record<string, any>>;
+    risks?: Array<Record<string, any>>;
+    entities?: Array<Record<string, any>>;
+    relations?: Array<Record<string, any>>;
+    turn_brief?: string;
+  };
+  scope?: "timeline" | "knowledge";
+  sessionId?: string;
+  source?: string;
+  userId?: string;
+  agentRole?: string;
+  generateSummary?: boolean;
+  maxEvents?: number;
+  traceId?: string;
+}

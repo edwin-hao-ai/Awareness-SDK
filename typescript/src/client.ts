@@ -15,6 +15,7 @@ import {
   MemoryUsersResult,
   OpenTask,
   PendingTasksResponse,
+  RecordInput,
   RetrieveResponse,
   SessionContextResponse,
   UpdateTaskResult,
@@ -426,6 +427,121 @@ export class MemoryCloudClient {
     });
   }
 
+  /**
+   * Unified write interface for recording content and/or insights into memory.
+   *
+   * - `content` as string → single event with event_type "message"
+   * - `content` as array → batch events
+   * - `content` as object → single structured event
+   * - `insights` → pre-extracted insights submitted directly (no server-side LLM)
+   * - Both `content` and `insights` can be provided together.
+   */
+  async record(input: RecordInput): Promise<Record<string, any>> {
+    const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
+    const activeSession = this.resolveSession({
+      memoryId: input.memoryId,
+      source: sourceLabel,
+      sessionId: input.sessionId,
+      rotate: !input.sessionId,
+    });
+
+    const results: Record<string, any> = {
+      memory_id: input.memoryId,
+      source: sourceLabel,
+      session_id: activeSession,
+    };
+
+    // Ingest content if provided
+    if (input.content !== undefined && input.content !== null) {
+      let events: JsonObject[];
+
+      if (typeof input.content === "string") {
+        const text = input.content.trim();
+        if (!text) {
+          throw new MemoryCloudError("INVALID_ARGUMENT", "content string is empty");
+        }
+        events = [{
+          content: text,
+          source: sourceLabel,
+          session_id: activeSession,
+          actor: this.inferActor(text),
+          event_type: "message",
+          timestamp: this.nowIso(),
+        }];
+      } else if (Array.isArray(input.content)) {
+        events = [];
+        for (const item of input.content) {
+          const normalized = this.normalizeStep(
+            item as string | JsonObject,
+            sourceLabel,
+            activeSession,
+          );
+          if (normalized) events.push(normalized);
+        }
+        if (events.length === 0) {
+          throw new MemoryCloudError("INVALID_ARGUMENT", "no valid events in content array");
+        }
+      } else {
+        // Single object event
+        const normalized = this.normalizeStep(
+          input.content as JsonObject,
+          sourceLabel,
+          activeSession,
+        );
+        if (!normalized) {
+          throw new MemoryCloudError("INVALID_ARGUMENT", "content object has no text");
+        }
+        events = [normalized];
+      }
+
+      const maxEvents = Math.max(1, Math.min(input.maxEvents ?? 800, 5000));
+      const cappedEvents = events.slice(0, maxEvents);
+
+      const metadataDefaults: JsonObject = {};
+      if (input.scope === "knowledge") {
+        metadataDefaults["aw_content_scope"] = "knowledge";
+      }
+
+      const ingestResult = await this.ingestEvents({
+        memoryId: input.memoryId,
+        events: cappedEvents,
+        defaultSource: sourceLabel,
+        metadataDefaults,
+        skipDuplicates: true,
+        generateSummary: input.generateSummary ?? true,
+        userId: input.userId,
+        agentRole: input.agentRole,
+        traceId: input.traceId,
+      });
+
+      results.ingest = ingestResult;
+      results.events_count = cappedEvents.length;
+      results.trace_id = ingestResult.trace_id;
+    }
+
+    // Submit insights if provided
+    if (input.insights && Object.keys(input.insights).length > 0) {
+      const insightsPayload: JsonObject = { ...input.insights };
+      const insightsResult = await this.submitInsights({
+        memoryId: input.memoryId,
+        insights: insightsPayload,
+        sessionId: activeSession,
+        userId: input.userId,
+        agentRole: input.agentRole,
+        traceId: input.traceId,
+      });
+      results.insights = insightsResult;
+      if (!results.trace_id) {
+        results.trace_id = (insightsResult as any).trace_id;
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * @deprecated Use `record({ content: ..., scope: 'knowledge' })` instead.
+   */
   async ingestContent(input: {
     memoryId: string;
     content: unknown;
@@ -547,6 +663,9 @@ export class MemoryCloudClient {
     };
   }
 
+  /**
+   * @deprecated Use `record()` instead.
+   */
   async rememberStep(input: {
     memoryId: string;
     text: string;
@@ -613,6 +732,9 @@ export class MemoryCloudClient {
     return response;
   }
 
+  /**
+   * @deprecated Use `record()` instead.
+   */
   async rememberBatch(input: {
     memoryId: string;
     steps: Array<string | JsonObject>;
@@ -675,6 +797,8 @@ export class MemoryCloudClient {
    *
    * Called after processing an extraction_request returned from rememberStep/rememberBatch.
    * The server stores insights with server-side deduplication (zero LLM calls).
+   *
+   * @deprecated Use `record({ insights: {...} })` instead.
    */
   async submitInsights(input: {
     memoryId: string;
@@ -697,6 +821,9 @@ export class MemoryCloudClient {
     });
   }
 
+  /**
+   * @deprecated Use `record()` instead.
+   */
   async backfillConversationHistory(input: {
     memoryId: string;
     history: string | string[] | JsonObject | JsonObject[];

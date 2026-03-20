@@ -22,10 +22,9 @@
     "",
     "STEP 3 - RECORD EVERY CHANGE:",
     "  After EVERY code edit, decision, or bug fix:",
-    "  awareness_record(action=\"remember\", session_id=<id>, text=\"WHAT/WHY/OUTCOME/FILES\",",
+    "  awareness_record(content=\"WHAT/WHY/OUTCOME/FILES\",",
     "    insights={knowledge_cards:[...], action_items:[...], risks:[...]})",
     "  Include insights to create searchable knowledge in ONE step (recommended).",
-    "  If you omit insights, _extraction_instruction may be returned — process it and call submit_insights.",
     "  Skipping = permanent data loss.",
     "",
     "STEP 4 - CATEGORY GUIDE (for insights.knowledge_cards):",
@@ -39,10 +38,10 @@
     "  Never default everything to workflow.",
     "",
     "STEP 5 - SESSION END:",
-    "  awareness_record(action=\"remember_batch\", steps=[...]) with final summary.",
+    "  awareness_record(content=[step1, step2, ...], insights={...}) with final summary.",
     "",
     "BACKFILL (if applicable):",
-    "  If MCP connected late: awareness_record(action=\"backfill\", history=<transcript>)",
+    "  If MCP connected late: awareness_record(content=<transcript>)",
     "",
     "RULES VERSION: Pass rules_version=\"2\" to awareness_init so the server knows you have these rules.",
     "If the server returns _setup_action, the rules have been updated — follow the instruction to re-sync.",
@@ -73,8 +72,8 @@
     },
     {
       "name": "awareness_record",
-      "short_desc": "Write events, batch save, ingest, update tasks",
-      "long_desc": "Record events to persistent memory. Pass insights={...} to create knowledge cards in one step. Actions: remember, remember_batch, backfill, ingest, update_task, submit_insights."
+      "short_desc": "Record what you did/decided/learned to persistent memory",
+      "long_desc": "Unified write to memory. Pass content (str, list, or dict) + insights={...} to record events and create knowledge cards in ONE call. Content auto-detected: str=single event, list=batch, str+scope=knowledge for docs. Actions: write (default), update_task."
     }
   ],
 
@@ -85,11 +84,10 @@
     "",
     "1. FIRST THING: awareness_init → get session_id + past context. Always do this before any work.",
     "2. BEFORE WORK: awareness_recall → check what you already know. Don't re-solve solved problems.",
-    "3. AFTER CHANGES: awareness_record(action=\"remember\") → save what you did/decided/learned.",
+    "3. AFTER CHANGES: awareness_record(content=\"WHAT/WHY/OUTCOME\", insights={...}) → save what you did/decided/learned.",
     "",
     "RECOMMENDED: Pass insights={knowledge_cards:[...], action_items:[...], risks:[...]} with awareness_record to create searchable knowledge in ONE step — no round-trip needed.",
-    "LEGACY: If you omit insights and awareness_record returns \"_extraction_instruction\", you MUST follow the instruction to extract insights, then call awareness_record(action=\"submit_insights\", content=<result>).",
-    "Either way, knowledge cards MUST be created. Skipping = the memory is stored but never structured into reusable knowledge.",
+    "Knowledge cards MUST be created. Skipping = the memory is stored but never structured into reusable knowledge.",
     "",
     "SETUP — when awareness_init returns \"_setup_action\" in the response:",
     "You MUST follow the instruction to write rules to the specified file. This enables your persistent memory workflow for all future sessions."
@@ -116,14 +114,14 @@
         "step": 3,
         "action": "awareness_record with inline insights",
         "when": "AFTER every code edit, decision, or bug fix",
-        "what": "awareness_record(action=\"remember\", text=\"WHAT/WHY/OUTCOME/FILES\", insights={knowledge_cards:[...], action_items:[...], risks:[...]})",
+        "what": "awareness_record(content=\"WHAT/WHY/OUTCOME/FILES\", insights={knowledge_cards:[...], action_items:[...], risks:[...]})",
         "done_check": "Every meaningful change has been recorded WITH structured insights"
       },
       {
         "step": 4,
         "action": "handle _extraction_instruction (legacy fallback)",
         "when": "awareness_record response contains _extraction_instruction (only when insights was omitted)",
-        "what": "Follow the instruction to extract insights, then call awareness_record(action='submit_insights', content=<json>)",
+        "what": "Follow the instruction to extract insights, then call awareness_record(content=<json>)",
         "warning": "Skipping this = memories stored but NO searchable knowledge cards created"
       }
     ],

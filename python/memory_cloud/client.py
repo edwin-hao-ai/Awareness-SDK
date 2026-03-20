@@ -375,6 +375,142 @@ class MemoryCloudClient:
     # ----------------------------
     # Ingest / MCP-style helpers
     # ----------------------------
+    def record(
+        self,
+        memory_id: str,
+        *,
+        content: Union[str, List, Dict, None] = None,
+        insights: Optional[Dict[str, Any]] = None,
+        scope: str = "timeline",
+        session_id: str = "",
+        source: str = "",
+        user_id: str = "",
+        agent_role: str = "",
+        generate_summary: bool = True,
+        max_events: int = 800,
+        trace_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Unified write interface for recording content and/or insights to memory.
+
+        Args:
+            memory_id: Target memory id.
+            content: What to record. Accepts:
+                - str: single event (stored as a message event)
+                - list: batch of events (each item is str or dict with 'content' key)
+                - dict: single event dict (must have 'content' key)
+                - None: no events (use with insights for insights-only submission)
+            insights: Pre-extracted insights dict to submit directly.
+                Keys: knowledge_cards, risks, action_items.
+            scope: Content scope — "timeline" (default) or "knowledge".
+            session_id: Explicit session id. Auto-generated if empty.
+            source: Source label. Falls back to client default_source.
+            user_id: User id for multi-user memories.
+            agent_role: Agent role for multi-agent memories.
+            generate_summary: Whether to generate a session summary.
+            max_events: Max events to ingest (caps large batches).
+            trace_id: Optional trace id.
+
+        Returns:
+            Dict with ingest result and/or insights submission result.
+        """
+        source_label = self._clean_source(source or self.default_source)
+        active_session = self._resolve_session(
+            memory_id=memory_id,
+            source=source_label,
+            session_id=session_id or None,
+            rotate=False,
+        )
+        resolved_user_id = user_id or self._user_id or ""
+        resolved_agent_role = agent_role or self._agent_role or ""
+
+        result: Dict[str, Any] = {
+            "memory_id": memory_id,
+            "session_id": active_session,
+            "source": source_label,
+        }
+
+        # --- Ingest events from content ---
+        if content is not None:
+            events = self._build_record_events(
+                content, source=source_label, session_id=active_session, scope=scope,
+            )
+            if events:
+                capped = events[:max(1, min(max_events, 5000))]
+                metadata_defaults: Dict[str, Any] = {}
+                if scope == "knowledge":
+                    metadata_defaults["aw_content_scope"] = "knowledge"
+                ingest_result = self.ingest_events(
+                    memory_id=memory_id,
+                    events=capped,
+                    default_source=source_label,
+                    metadata_defaults=metadata_defaults or None,
+                    skip_duplicates=True,
+                    generate_summary=generate_summary,
+                    user_id=resolved_user_id or None,
+                    agent_role=resolved_agent_role or None,
+                    trace_id=trace_id,
+                )
+                result["ingest"] = ingest_result
+                result["events_sent"] = len(capped)
+                if ingest_result.get("trace_id"):
+                    result["trace_id"] = ingest_result["trace_id"]
+
+        # --- Submit insights directly ---
+        if insights is not None:
+            insights_result = self.submit_insights(
+                memory_id=memory_id,
+                insights=insights,
+                session_id=active_session,
+                user_id=resolved_user_id or None,
+                agent_role=resolved_agent_role or None,
+                trace_id=trace_id,
+            )
+            result["insights"] = insights_result
+            if insights_result.get("trace_id") and "trace_id" not in result:
+                result["trace_id"] = insights_result["trace_id"]
+
+        return result
+
+    def _build_record_events(
+        self,
+        content: Union[str, List, Dict],
+        source: str,
+        session_id: str,
+        scope: str,
+    ) -> List[Dict[str, Any]]:
+        """Convert record() content argument into a list of event dicts."""
+        if isinstance(content, str):
+            text = content.strip()
+            if not text:
+                return []
+            return [{
+                "content": text,
+                "source": source,
+                "session_id": session_id,
+                "actor": self._infer_actor(text),
+                "event_type": self._infer_event_type(text),
+                "timestamp": self._now_iso(),
+            }]
+
+        if isinstance(content, dict):
+            normalized = self._normalize_step(content, source=source, session_id=session_id)
+            return [normalized] if normalized else []
+
+        if isinstance(content, list):
+            events: List[Dict[str, Any]] = []
+            for item in content:
+                if isinstance(item, str):
+                    normalized = self._normalize_step(item, source=source, session_id=session_id)
+                    if normalized:
+                        events.append(normalized)
+                elif isinstance(item, dict):
+                    normalized = self._normalize_step(item, source=source, session_id=session_id)
+                    if normalized:
+                        events.append(normalized)
+            return events
+
+        return []
+
     def ingest_events(
         self,
         memory_id: str,
@@ -429,6 +565,7 @@ class MemoryCloudClient:
         async_vectorize: bool = True,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Deprecated: use record(scope='knowledge') instead."""
         payload: Dict[str, Any] = {
             "memory_id": memory_id,
             "content": content,
@@ -702,6 +839,7 @@ class MemoryCloudClient:
         insights: Optional[Dict[str, Any]] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Deprecated: use record() instead."""
         source_label = self._clean_source(source or self.default_source)
         active_session = self._resolve_session(
             memory_id=memory_id,
@@ -758,6 +896,7 @@ class MemoryCloudClient:
         insights: Optional[Dict[str, Any]] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Deprecated: use record() instead."""
         source_label = self._clean_source(source or self.default_source)
         active_session = self._resolve_session(
             memory_id=memory_id,
@@ -806,7 +945,9 @@ class MemoryCloudClient:
         agent_role: Optional[str] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Submit pre-extracted insights from client-side LLM processing (no server LLM needed).
+        """Deprecated: use record(insights={...}) instead.
+
+        Submit pre-extracted insights from client-side LLM processing (no server LLM needed).
 
         Called after processing an extraction_request returned from remember_step/remember_batch.
         The server stores insights with server-side deduplication (zero LLM calls).
@@ -840,6 +981,7 @@ class MemoryCloudClient:
         max_events: int = 800,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Deprecated: use record() instead."""
         source_label = self._clean_source(source or self.default_source)
         active_session = self._resolve_session(
             memory_id=memory_id,

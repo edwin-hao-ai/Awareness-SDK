@@ -19,10 +19,7 @@ Steps:
    - risks: potential issues, concerns discovered (each with title, description, severity)
 
 3. Call MCP tool `awareness_record` with:
-   - action: "remember_batch"
-   - memory_id: value of env var AWARENESS_MEMORY_ID
-   - session_id: the session_id from awareness_init (if available)
-   - steps: an array of objects, each with "text" field, covering:
+   - content: an array of objects, each with "content" field, covering:
      a. "Session summary: [what was accomplished]"
      b. "Files changed: [list relative paths of modified files]"
      c. "Tests: [what tests were added, modified, or are currently failing]"
@@ -31,18 +28,13 @@ Steps:
      f. "TODOs: [what remains to be done next session]"
      g. "Next session: [recommended starting point and first action]"
    - insights: the structured object from step 2, with knowledge_cards, action_items, risks
+   - memory_id: value of env var AWARENESS_MEMORY_ID
+   - session_id: the session_id from awareness_init (if available)
 
-4. Fallback — check if the response contains `_extraction_instruction`:
-   - If YES (insights were omitted or server needs reprocessing): read the System Prompt and
-     Events in the instruction, process them to extract structured insights, then call:
-     `awareness_record(action="submit_insights", content=<the_json_result>)`
-   - If NO: skip this step
-
-5. Confirm what was saved.
+4. Confirm what was saved.
 
 Rules:
 - If $ARGUMENTS is provided, focus the summary on that specific area
 - Always include file paths for any code that was written or modified
 - Include WHAT happened, WHY it matters, OUTCOME, and FILES affected
-- Always include insights in the remember_batch call — this is faster and more accurate than server-side extraction
-- Never skip _extraction_instruction fallback processing — skipping causes permanent knowledge loss
+- Always include insights in the call — this is faster and more accurate than server-side extraction
