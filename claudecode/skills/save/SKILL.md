@@ -36,5 +36,5 @@ Steps:
 Rules:
 - If $ARGUMENTS is provided, focus the summary on that specific area
 - Always include file paths for any code that was written or modified
-- Include WHAT happened, WHY it matters, OUTCOME, and FILES affected
+- Write detailed content — include reasoning, alternatives considered, key code snippets, user quotes, and files changed. Do NOT compress into single-line summaries
 - Always include insights in the call — this is faster and more accurate than server-side extraction
