@@ -11,11 +11,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   autoDetectAllIdes,
   autoDetectIde,
+  buildMcpSnippet,
   getIdeConfig,
+  getIdeMcpGlobalPath,
   getIdeMcpPath,
   getSupportedIdeIds,
   normalizeIdeId,
   syncIdeMcpConfig,
+  syncIdeMcpGlobalConfig,
+  syncIdeMcpTomlConfig,
   syncIdeRules,
   syncOpenClawConfig,
 } from "./rules.mjs";
@@ -184,6 +188,76 @@ export async function promptIdeSelection(ideChoices, promptFn) {
 }
 
 /**
+ * Handle MCP config for IDEs that have no project-level JSON path:
+ * - Global file (Windsurf, Antigravity): write directly to ~/... path
+ * - TOML project file (Codex): write .codex/config.toml
+ * - UI-based (Cline, Zed, Augment): print filled-in copy-paste snippet
+ */
+async function _handleUnsupportedMcp({ ideId, config, mcpInputs, dryRun }) {
+  const hasCreds = Boolean(mcpInputs.mcpUrl && mcpInputs.apiKey && mcpInputs.memoryId);
+
+  // 1. Global file (Windsurf, Antigravity)
+  const globalPath = getIdeMcpGlobalPath(ideId);
+  if (globalPath) {
+    if (!hasCreds) {
+      const displayPath = config?.mcp_global_path ?? globalPath;
+      console.log(`ℹ MCP config for ${config?.label ?? ideId} lives at ${displayPath}`);
+      console.log(`  Re-run with auth (or --api-key / --memory-id / --mcp-url) to write it automatically.`);
+      return;
+    }
+    const mcpResult = syncIdeMcpGlobalConfig({ ideId, dryRun, ...mcpInputs });
+    if (!mcpResult.ok) {
+      console.error(`Conflict while syncing ${mcpResult.filePath}: ${mcpResult.reason}`);
+      return;
+    }
+    const label = { create: dryRun ? "Would create" : "Created", replace: dryRun ? "Would merge" : "Merged", noop: "Already up to date" }[mcpResult.action] ?? mcpResult.action;
+    if (mcpResult.action === "noop") {
+      console.log(`✓ ${mcpResult.filePath} already up to date.`);
+    } else {
+      console.log(`✓ ${label} ${mcpResult.filePath}`);
+      if (dryRun) console.log(mcpResult.content);
+    }
+    return;
+  }
+
+  // 2. TOML project file (Codex)
+  const ideConfig = getIdeConfig(ideId);
+  if (ideConfig?.mcp_path_toml) {
+    if (!hasCreds) {
+      console.log(`ℹ MCP config for ${ideConfig.label} is written to ${ideConfig.mcp_path_toml} (TOML format).`);
+      console.log(`  Re-run with auth (or --api-key / --memory-id / --mcp-url) to write it automatically.`);
+      return;
+    }
+    const mcpResult = syncIdeMcpTomlConfig({ ideId, dryRun, ...mcpInputs });
+    if (!mcpResult.ok) {
+      console.error(`Error syncing ${mcpResult.filePath ?? ideConfig.mcp_path_toml}: ${mcpResult.reason}`);
+      return;
+    }
+    const label = { create: dryRun ? "Would create" : "Created", replace: dryRun ? "Would append" : "Appended", noop: "Already up to date" }[mcpResult.action] ?? mcpResult.action;
+    if (mcpResult.action === "noop") {
+      console.log(`✓ ${mcpResult.filePath} already up to date.`);
+    } else {
+      console.log(`✓ ${label} ${mcpResult.filePath}`);
+      if (dryRun) console.log(mcpResult.content);
+    }
+    return;
+  }
+
+  // 3. UI-based: show filled-in snippet (Cline, Zed, Augment)
+  const snippet = buildMcpSnippet(ideId, mcpInputs);
+  if (snippet) {
+    console.log(snippet);
+  } else {
+    console.log(`ℹ ${config?.label ?? ideId} does not support automatic MCP configuration.`);
+    if (hasCreds) {
+      console.log(`  MCP URL:   ${mcpInputs.mcpUrl}`);
+      console.log(`  API Key:   ${mcpInputs.apiKey}`);
+      console.log(`  Memory ID: ${mcpInputs.memoryId}`);
+    }
+  }
+}
+
+/**
  * Sync rules + optional MCP config for a single IDE.  Returns 0 on success, 1 on error.
  */
 async function syncOneIde({ ideId, argv, dryRun, force }) {
@@ -224,7 +298,7 @@ async function syncOneIde({ ideId, argv, dryRun, force }) {
   const mcpInputs = await resolveMcpConfigInputs({ argv, ideId });
   if (mcpInputs.shouldSync) {
     if (mcpInputs.unsupported) {
-      console.log(`ℹ ${ideId} does not use a file-based MCP config. Rules were synced, but MCP config was not written.`);
+      await _handleUnsupportedMcp({ ideId, config, mcpInputs, dryRun });
       return 0;
     }
 
@@ -324,8 +398,21 @@ async function syncOneIdeOpenClaw({ argv, dryRun }) {
   }
 
   console.log("ℹ OpenClaw uses a native plugin system — workflow rules are injected automatically by the Awareness plugin.");
-  if (!dryRun && result.action !== "noop") {
-    console.log("ℹ Restart OpenClaw to apply the new configuration.");
+
+  if (!dryRun) {
+    // Attempt to auto-install the Awareness plugin via the openclaw CLI
+    try {
+      const { execSync } = await import("node:child_process");
+      execSync("openclaw plugins install @awareness-sdk/openclaw-memory", { stdio: "pipe" });
+      console.log("✓ Awareness plugin installed in OpenClaw.");
+    } catch {
+      console.log("ℹ To install the Awareness plugin, run:");
+      console.log("    openclaw plugins install @awareness-sdk/openclaw-memory");
+    }
+
+    if (result.action !== "noop") {
+      console.log("ℹ Restart OpenClaw to apply the new configuration.");
+    }
   }
 
   return 0;

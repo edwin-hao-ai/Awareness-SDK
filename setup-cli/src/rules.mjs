@@ -566,3 +566,236 @@ export function syncOpenClawConfig(options = {}) {
     dryRun,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Global MCP config helpers (Windsurf, Antigravity)
+// ---------------------------------------------------------------------------
+
+export function getIdeMcpGlobalPath(ideId) {
+  const normalizedIde = normalizeIdeId(ideId);
+  if (!normalizedIde) return null;
+  const spec = loadRulesSpec();
+  const globalPath = spec.ides?.[normalizedIde]?.mcp_global_path;
+  if (!globalPath) return null;
+  return String(globalPath).replace(/^~/, homedir());
+}
+
+function buildMcpServerConfigForIde(ideId, options = {}) {
+  const normalizedIde = normalizeIdeId(ideId);
+  const spec = loadRulesSpec();
+  const variant = spec.ides?.[normalizedIde]?.mcp_config_variant ?? null;
+  const serverName = String(options.serverName || "awareness-memory").trim() || "awareness-memory";
+  const mcpUrl = String(options.mcpUrl || "").trim();
+  const apiKey = String(options.apiKey || "").trim();
+  const memoryId = String(options.memoryId || "").trim();
+  const agentRole = String(options.agentRole || "builder_agent").trim() || "builder_agent";
+
+  if (!mcpUrl || !apiKey || !memoryId) {
+    throw new Error("mcpUrl, apiKey, and memoryId are required to build MCP config");
+  }
+
+  const serverEntry = { url: mcpUrl };
+  if (variant) serverEntry.type = variant;
+  serverEntry.headers = {
+    Authorization: `Bearer ${apiKey}`,
+    "X-Awareness-Memory-Id": memoryId,
+    "X-Awareness-Agent-Role": agentRole,
+  };
+  return { mcpServers: { [serverName]: serverEntry } };
+}
+
+export function syncIdeMcpGlobalConfig(options = {}) {
+  const ideId = normalizeIdeId(options.ideId);
+  const dryRun = Boolean(options.dryRun);
+  const fullPath = getIdeMcpGlobalPath(ideId);
+  const spec = loadRulesSpec();
+  const displayPath = spec.ides?.[ideId]?.mcp_global_path ?? fullPath ?? null;
+
+  if (!ideId || !fullPath) {
+    return {
+      ok: false,
+      action: "unsupported",
+      reason: `No global MCP path configured for ${ideId}`,
+      ideId,
+      filePath: displayPath,
+      fullPath: null,
+      dryRun,
+    };
+  }
+
+  const existingText = existsSync(fullPath) ? readFileSync(fullPath, "utf-8") : null;
+  const nextConfig = buildMcpServerConfigForIde(ideId, options);
+  const result = mergeMcpConfigText(existingText, nextConfig);
+
+  if (result.action === "conflict") {
+    return { ok: false, ...result, ideId, filePath: displayPath, fullPath, dryRun };
+  }
+
+  if (!dryRun && result.action !== "noop") {
+    const dir = dirname(fullPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(fullPath, result.content, "utf-8");
+  }
+
+  return { ok: true, ...result, ideId, filePath: displayPath, fullPath, dryRun };
+}
+
+// ---------------------------------------------------------------------------
+// TOML MCP config helper (Codex: .codex/config.toml)
+// ---------------------------------------------------------------------------
+
+export function buildMcpTomlConfig(options = {}) {
+  const serverName = String(options.serverName || "awareness-memory").trim() || "awareness-memory";
+  const mcpUrl = String(options.mcpUrl || "").trim();
+  const apiKey = String(options.apiKey || "").trim();
+  const memoryId = String(options.memoryId || "").trim();
+  const agentRole = String(options.agentRole || "builder_agent").trim() || "builder_agent";
+
+  if (!mcpUrl || !apiKey || !memoryId) {
+    throw new Error("mcpUrl, apiKey, and memoryId are required to build TOML config");
+  }
+
+  return [
+    `[mcp_servers.${serverName}]`,
+    `url = "${mcpUrl}"`,
+    ``,
+    `[mcp_servers.${serverName}.http_headers]`,
+    `Authorization = "Bearer ${apiKey}"`,
+    `X-Awareness-Memory-Id = "${memoryId}"`,
+    `X-Awareness-Agent-Role = "${agentRole}"`,
+    ``,
+  ].join("\n");
+}
+
+export function syncIdeMcpTomlConfig(options = {}) {
+  const cwd = options.cwd ?? process.cwd();
+  const ideId = normalizeIdeId(options.ideId);
+  const dryRun = Boolean(options.dryRun);
+  const spec = loadRulesSpec();
+  const tomlPath = spec.ides?.[ideId]?.mcp_path_toml ?? null;
+
+  if (!ideId || !tomlPath) {
+    return {
+      ok: false,
+      action: "unsupported",
+      reason: `No TOML MCP path configured for ${ideId}`,
+      ideId,
+      filePath: null,
+      fullPath: null,
+      dryRun,
+    };
+  }
+
+  const fullPath = join(cwd, tomlPath);
+  const existingText = existsSync(fullPath) ? readFileSync(fullPath, "utf-8") : null;
+  const serverName = String(options.serverName || "awareness-memory").trim() || "awareness-memory";
+  const sectionHeader = `[mcp_servers.${serverName}]`;
+
+  if (existingText?.includes(sectionHeader)) {
+    return { ok: true, action: "noop", ideId, filePath: tomlPath, fullPath, dryRun };
+  }
+
+  const newBlock = buildMcpTomlConfig(options);
+  const content = existingText ? `${existingText.replace(/\n+$/, "")}\n\n${newBlock}` : newBlock;
+
+  if (!dryRun) {
+    const dir = dirname(fullPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(fullPath, content, "utf-8");
+  }
+
+  return {
+    ok: true,
+    action: existingText ? "replace" : "create",
+    content,
+    ideId,
+    filePath: tomlPath,
+    fullPath,
+    dryRun,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Copy-paste snippet builder for UI-based IDEs (Cline, Zed, Augment)
+// ---------------------------------------------------------------------------
+
+export function buildMcpSnippet(ideId, options = {}) {
+  const normalizedIde = normalizeIdeId(ideId);
+  const serverName = String(options.serverName || "awareness-memory").trim() || "awareness-memory";
+  const mcpUrl = String(options.mcpUrl || "<AWARENESS_MCP_URL>").trim();
+  const apiKey = String(options.apiKey || "<API_KEY>").trim();
+  const memoryId = String(options.memoryId || "<MEMORY_ID>").trim();
+  const agentRole = String(options.agentRole || "builder_agent").trim() || "builder_agent";
+
+  const stdJson = JSON.stringify(
+    {
+      [serverName]: {
+        url: mcpUrl,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "X-Awareness-Memory-Id": memoryId,
+          "X-Awareness-Agent-Role": agentRole,
+        },
+      },
+    },
+    null,
+    2
+  );
+
+  if (normalizedIde === "cline") {
+    return [
+      `ℹ Cline manages MCP servers through its Settings UI:`,
+      `  1. Open VS Code → Cline sidebar → Settings (⚙) → MCP Servers → + Add Server`,
+      `  2. Select type: HTTP  (or SSE if HTTP is unavailable)`,
+      `  3. Enter the following values:`,
+      `       Name:   ${serverName}`,
+      `       URL:    ${mcpUrl}`,
+      `     Headers (add each one):`,
+      `       Authorization: Bearer ${apiKey}`,
+      `       X-Awareness-Memory-Id: ${memoryId}`,
+      `       X-Awareness-Agent-Role: ${agentRole}`,
+      ``,
+      `  Or paste this JSON block into the MCP server import dialog:`,
+      stdJson,
+    ].join("\n");
+  }
+
+  if (normalizedIde === "zed") {
+    const zedArgs = [
+      "-y", "mcp-remote", mcpUrl,
+      "--header", `Authorization:Bearer ${apiKey}`,
+      "--header", `X-Awareness-Memory-Id:${memoryId}`,
+      "--header", `X-Awareness-Agent-Role:${agentRole}`,
+    ];
+    const zedEntry = JSON.stringify(
+      { "awareness-bridge": { command: "npx", args: zedArgs } },
+      null,
+      2
+    );
+    return [
+      `ℹ Zed uses a global settings file for MCP (via the mcp-remote bridge):`,
+      `  1. Open settings: Cmd+Shift+P → "zed: open settings"  (file: ~/.config/zed/settings.json)`,
+      `  2. Add the following inside the "context_servers" key:`,
+      ``,
+      zedEntry,
+      ``,
+      `  Note: mcp-remote is a local bridge — Zed will run it automatically via npx.`,
+    ].join("\n");
+  }
+
+  if (normalizedIde === "augment") {
+    return [
+      `ℹ Augment uses its Settings Panel for MCP configuration:`,
+      `  1. Open Augment sidebar → Settings → MCP Servers → + Add`,
+      `  2. Paste the following JSON:`,
+      ``,
+      stdJson,
+      ``,
+      `  Server URL:  ${mcpUrl}`,
+      `  API Key:     ${apiKey}`,
+      `  Memory ID:   ${memoryId}`,
+    ].join("\n");
+  }
+
+  return null;
+}
