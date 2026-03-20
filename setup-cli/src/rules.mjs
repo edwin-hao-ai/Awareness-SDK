@@ -321,18 +321,31 @@ export function mergeMcpConfigText(existingText, nextServerConfig, topLevelKey =
     }
   }
 
-  const currentServers =
-    base && typeof base === "object" && base[topLevelKey] && typeof base[topLevelKey] === "object"
-      ? base[topLevelKey]
-      : {};
-  // nextServerConfig always uses "mcpServers" internally; extract the server entries
   const nextServers = nextServerConfig.mcpServers ?? {};
+  const isArrayFormat = Array.isArray(nextServers);
+
+  let mergedServers;
+  if (isArrayFormat) {
+    // Trae uses array format: merge by "name" field
+    const currentArr = Array.isArray(base?.[topLevelKey]) ? [...base[topLevelKey]] : [];
+    for (const entry of nextServers) {
+      const idx = currentArr.findIndex((s) => s.name === entry.name);
+      if (idx >= 0) currentArr[idx] = entry;
+      else currentArr.push(entry);
+    }
+    mergedServers = currentArr;
+  } else {
+    // Standard object format: shallow merge
+    const currentServers =
+      base && typeof base === "object" && base[topLevelKey] && typeof base[topLevelKey] === "object"
+        ? base[topLevelKey]
+        : {};
+    mergedServers = { ...currentServers, ...nextServers };
+  }
+
   const merged = {
     ...(base && typeof base === "object" ? base : {}),
-    [topLevelKey]: {
-      ...currentServers,
-      ...nextServers,
-    },
+    [topLevelKey]: mergedServers,
   };
   const rendered = `${JSON.stringify(merged, null, 2)}\n`;
   return {
@@ -607,13 +620,23 @@ function buildMcpServerConfigForIde(ideId, options = {}) {
     throw new Error("mcpUrl, apiKey, and memoryId are required to build MCP config");
   }
 
+  const ideConfig = spec.ides?.[normalizedIde] ?? {};
+  const typeField = ideConfig.mcp_type_field || "type";
+  const arrayFormat = Boolean(ideConfig.mcp_array_format);
+
   const serverEntry = { url: mcpUrl };
-  if (variant) serverEntry.type = variant;
+  if (variant) serverEntry[typeField] = variant;
   serverEntry.headers = {
     Authorization: `Bearer ${apiKey}`,
     "X-Awareness-Memory-Id": memoryId,
     "X-Awareness-Agent-Role": agentRole,
   };
+
+  // Trae uses array format: "mcpServers": [{ "name": "...", ... }]
+  if (arrayFormat) {
+    serverEntry.name = serverName;
+    return { mcpServers: [serverEntry] };
+  }
   return { mcpServers: { [serverName]: serverEntry } };
 }
 
