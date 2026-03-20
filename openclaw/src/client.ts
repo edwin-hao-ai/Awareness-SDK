@@ -205,42 +205,34 @@ export class AwarenessClient {
   ): Promise<unknown> {
     const userId = params.user_id !== undefined ? String(params.user_id) : undefined;
     switch (action) {
-      case "remember":
-        return this.rememberStep(
-          String(params.text ?? ""),
+      case "write": {
+        const content = params.content ?? params.text ?? "";
+        const insights = params.insights as Record<string, unknown> | undefined;
+        if (Array.isArray(content)) {
+          const steps = content.map((s: unknown) =>
+            typeof s === "string" ? s : String((s as Record<string, unknown>).content ?? s),
+          );
+          const result = await this.rememberBatch(steps, userId);
+          if (insights) {
+            const insightsResult = await this.submitInsights(insights);
+            return { ...result as Record<string, unknown>, insights_result: insightsResult };
+          }
+          return result;
+        }
+        const result = await this.rememberStep(
+          String(content),
           params.metadata as Record<string, unknown> | undefined,
           userId,
-          params.insights as Record<string, unknown> | undefined,
+          insights,
         );
-
-      case "remember_batch": {
-        const steps = Array.isArray(params.steps)
-          ? (params.steps as { text?: string }[]).map((s) => String(s.text ?? s))
-          : [];
-        return this.rememberBatch(steps, userId);
+        return result;
       }
-
-      case "backfill":
-        return this.backfillConversation(
-          params.history ?? params.content ?? params.text ?? "",
-          params.metadata as Record<string, unknown> | undefined,
-        );
-
-      case "ingest":
-        return this.ingestContent(
-          params.content,
-          (params.content_scope as string) ?? "timeline",
-          params.metadata as Record<string, unknown> | undefined,
-        );
 
       case "update_task":
         return this.updateTask(
           String(params.task_id ?? ""),
           String(params.status ?? "completed"),
         );
-
-      case "submit_insights":
-        return this.submitInsights(params.content);
 
       default:
         return { error: `Unknown action: ${action}` };
