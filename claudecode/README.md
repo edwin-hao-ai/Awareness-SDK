@@ -87,8 +87,8 @@ Session starts
 Before new feature
   └─ /awareness-memory:recall "feature name"  ← check existing work
 
-During development (every 5-8 steps)
-  └─ Claude auto-saves via remember_step
+During development (after each meaningful change)
+  └─ Claude auto-saves via awareness_record
 
 Before ending session
   └─ /awareness-memory:save               ← persist progress

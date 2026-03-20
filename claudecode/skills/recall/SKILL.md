@@ -22,7 +22,16 @@ Steps:
    - memory_id: value of env var AWARENESS_MEMORY_ID
    - semantic_query: the expanded natural-language question
    - keyword_query: the extracted precise terms
-   - limit: 12
+   - Choose appropriate recall_mode based on intent:
+     - "hybrid" (default): structured data + vector results in parallel — best for general queries
+     - "precise": targeted vector search with chunk reconstruction — best for specific facts
+     - "session": expands matched chunks to full session histories — best for "what happened when?"
+     - "structured": zero-LLM DB-only lookup — fastest, best for verified knowledge
+   - Choose appropriate scope:
+     - "all" (default): search everything
+     - "timeline": session events, steps, decisions
+     - "knowledge": uploaded docs, ingested content
+     - "insights": compressed session summaries
 
 3. Present results clearly, highlighting:
    - Existing implementations that can be reused (include file paths if mentioned)

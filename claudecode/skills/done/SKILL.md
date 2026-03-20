@@ -29,3 +29,4 @@ Steps:
 Rules:
 - If no session_id is available, inform user to start a session first with /awareness-memory:session-start
 - Always save progress with inline insights — this is faster and more accurate than server-side extraction
+- Write detailed content — include reasoning, alternatives considered, key code snippets, user quotes, and files changed. Do NOT compress into single-line summaries
