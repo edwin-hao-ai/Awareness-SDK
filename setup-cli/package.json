@@ -1,20 +1,36 @@
 {
   "name": "@awareness-sdk/setup",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "CLI tool to inject Awareness Memory workflow rules into IDE config files",
   "bin": {
-    "awareness-setup": "./src/cli.mjs"
+    "awareness-setup": "src/cli.mjs"
   },
   "type": "module",
-  "files": ["src/", "awareness-spec.json"],
-  "keywords": ["awareness", "memory", "mcp", "ide", "setup", "claude", "cursor", "windsurf", "cline", "copilot", "github-copilot", "codex"],
+  "files": [
+    "src/",
+    "awareness-spec.json"
+  ],
+  "keywords": [
+    "awareness",
+    "memory",
+    "mcp",
+    "ide",
+    "setup",
+    "claude",
+    "cursor",
+    "windsurf",
+    "cline",
+    "copilot",
+    "github-copilot",
+    "codex"
+  ],
   "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/edwin-hao-ai/Awareness-SDK.git",
+    "url": "git+https://github.com/edwin-hao-ai/Awareness-SDK.git",
     "directory": "setup-cli"
   },
   "engines": {

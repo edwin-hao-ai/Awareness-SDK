@@ -5,7 +5,8 @@
  */
 
 import readline from "node:readline";
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   autoDetectAllIdes,
@@ -491,6 +492,16 @@ export async function main(argv = process.argv.slice(2)) {
 }
 
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Resolve symlinks so npx (which uses symlinked binaries) correctly detects
+// this as the main module. Fallback to URL comparison if realpath fails.
+function _isMainModule() {
+  try {
+    return fileURLToPath(import.meta.url) === realpathSync(process.argv[1]);
+  } catch {
+    return import.meta.url === pathToFileURL(process.argv[1]).href;
+  }
+}
+
+if (_isMainModule()) {
   process.exitCode = await main();
 }
