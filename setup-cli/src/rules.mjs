@@ -40,7 +40,7 @@ let specCache = null;
 
 const MCP_PATHS = {
   cursor: ".cursor/mcp.json",
-  "claude-code": ".claude/settings.json",
+  "claude-code": ".mcp.json",
   windsurf: ".windsurf/mcp.json",
   copilot: ".vscode/mcp.json",
   kiro: ".kiro/settings/mcp.json",
@@ -88,6 +88,12 @@ export function getIdeMcpPath(ideId) {
   const normalizedIde = normalizeIdeId(ideId);
   if (!normalizedIde) {
     return null;
+  }
+  // Prefer mcp_path from spec (single source of truth), fall back to hardcoded MCP_PATHS
+  const spec = loadRulesSpec();
+  const specMcpPath = spec.ides?.[normalizedIde]?.mcp_path;
+  if (specMcpPath !== undefined) {
+    return specMcpPath || null;
   }
   return MCP_PATHS[normalizedIde] ?? null;
 }
