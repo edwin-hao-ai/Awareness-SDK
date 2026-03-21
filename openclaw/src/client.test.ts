@@ -256,6 +256,18 @@ describe("AwarenessClient", () => {
       expect(body.include_installed).toBe(true);
     });
 
+    // TEST: include_installed defaults to true when omitted
+    it("defaults include_installed to true when not provided", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
+
+      await makeClient().search({
+        semanticQuery: "test",
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.include_installed).toBe(true);
+    });
+
     // TEST: user_id filtering
     it("passes user_id for multi-user filtering", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));

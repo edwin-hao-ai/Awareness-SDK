@@ -173,7 +173,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         },
         include_installed: {
           type: "boolean",
-          description: "Search installed marketplace memories in addition to primary memory.",
+          description: "Search installed marketplace memories in addition to primary memory (default true).",
         },
         user_id: {
           type: "string",
@@ -204,7 +204,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         multiLevel: input.multi_level !== undefined ? Boolean(input.multi_level) : undefined,
         clusterExpand: input.cluster_expand !== undefined ? Boolean(input.cluster_expand) : undefined,
         confidenceThreshold: input.confidence_threshold !== undefined ? Number(input.confidence_threshold) : undefined,
-        includeInstalled: input.include_installed !== undefined ? Boolean(input.include_installed) : undefined,
+        includeInstalled: input.include_installed !== undefined ? Boolean(input.include_installed) : true,
         userId: input.user_id !== undefined ? String(input.user_id) : undefined,
         agentRole: input.agent_role !== undefined ? String(input.agent_role) : undefined,
       });

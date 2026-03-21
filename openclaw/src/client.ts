@@ -29,7 +29,7 @@ export interface SearchOptions {
   clusterExpand?: boolean;
   /** Minimum confidence threshold for structured/hybrid cards. */
   confidenceThreshold?: number;
-  /** Search installed marketplace memories. */
+  /** Search installed marketplace memories (default true to match server). */
   includeInstalled?: boolean;
   /** Multi-user filtering. */
   userId?: string;
@@ -101,7 +101,8 @@ export class AwarenessClient {
 
     const body: Record<string, unknown> = { query, custom_kwargs: customKwargs };
     if (opts.confidenceThreshold !== undefined) body.confidence_threshold = opts.confidenceThreshold;
-    if (opts.includeInstalled !== undefined) body.include_installed = opts.includeInstalled;
+    const includeInstalled = opts.includeInstalled ?? true;
+    body.include_installed = includeInstalled;
     if (opts.keywordQuery) {
       body.keyword_query = opts.keywordQuery;
     }
