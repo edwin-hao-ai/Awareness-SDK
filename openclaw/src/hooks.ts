@@ -89,6 +89,7 @@ export function registerHooks(
             semanticQuery: prompt,
             keywordQuery: keywords || undefined,
             limit: config.recallLimit,
+            detail: "summary",
           });
 
           // Build the XML memory block to prepend

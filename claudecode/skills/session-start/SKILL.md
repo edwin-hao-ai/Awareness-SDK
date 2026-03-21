@@ -20,6 +20,7 @@ Steps:
    - memory_id: value of env var AWARENESS_MEMORY_ID
    - semantic_query: expand $ARGUMENTS into a full natural-language question
    - keyword_query: extract 2-5 precise terms from $ARGUMENTS
+   - detail: "summary" (lightweight index; use detail="full" with ids=[...] only if you need to expand specific items)
 
 4. If the response contains `_setup_action`, you MUST follow the instruction to write workflow rules to the specified file. This enables persistent memory for all future sessions. Do this before presenting results.
 

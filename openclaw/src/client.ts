@@ -35,6 +35,10 @@ export interface SearchOptions {
   userId?: string;
   /** Override agent role per-call (defaults to plugin config). */
   agentRole?: string;
+  /** Progressive disclosure: 'summary' for lightweight index, 'full' for complete content of specified ids. */
+  detail?: "summary" | "full";
+  /** Item IDs to expand (used with detail='full'). IDs come from a prior detail='summary' call. */
+  ids?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -119,6 +123,8 @@ export class AwarenessClient {
     const agentRole = opts.agentRole ?? this.agentRole;
     if (agentRole) body.agent_role = agentRole;
     if (opts.userId) body.user_id = opts.userId;
+    if (opts.detail) body.detail = opts.detail;
+    if (opts.ids && opts.ids.length > 0) body.ids = opts.ids;
     return this.post<RecallResult>(
       `/memories/${this.memoryId}/retrieve`,
       body,

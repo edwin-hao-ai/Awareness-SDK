@@ -183,6 +183,19 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
           type: "string",
           description: "Override agent role for scoped recall (defaults to plugin config).",
         },
+        detail: {
+          type: "string",
+          enum: ["summary", "full"],
+          description:
+            "Progressive disclosure mode. " +
+            "'summary' = lightweight index (~50-100 tokens each, returns title/summary/score/tokens_est). " +
+            "'full' = complete content for items specified in 'ids' (from a prior summary call).",
+        },
+        ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Item IDs to expand (used with detail='full'). IDs come from a prior detail='summary' call.",
+        },
       },
       required: ["semantic_query"],
     },
@@ -207,6 +220,8 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         includeInstalled: input.include_installed !== undefined ? Boolean(input.include_installed) : true,
         userId: input.user_id !== undefined ? String(input.user_id) : undefined,
         agentRole: input.agent_role !== undefined ? String(input.agent_role) : undefined,
+        detail: input.detail !== undefined ? String(input.detail) as "summary" | "full" : undefined,
+        ids: Array.isArray(input.ids) ? (input.ids as unknown[]).map(String) : undefined,
       });
     },
   });

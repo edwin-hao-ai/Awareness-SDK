@@ -168,6 +168,8 @@ class MemoryCloudClient:
         multi_level: bool = False,
         cluster_expand: bool = False,
         include_installed: bool = True,
+        detail: Optional[str] = None,
+        ids: Optional[List[str]] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Retrieve from memory using the specified recall mode.
@@ -185,6 +187,12 @@ class MemoryCloudClient:
         multi_level: Enable broader context retrieval across sessions and time ranges.
         cluster_expand: Enable topic-based context expansion for deeper exploration.
         include_installed: Search installed market memories alongside primary memory.
+        detail: Progressive disclosure level — "summary" (default server behavior),
+            "full", or "debug". Controls how much metadata and context is returned
+            per result. Omit to use the server default.
+        ids: Restrict recall to specific record IDs. When provided, only matching
+            records are returned (bypasses vector search). Useful for follow-up
+            drill-down after an initial broad recall.
         """
         merged: Dict[str, Any] = {
             "limit": limit,
@@ -241,6 +249,10 @@ class MemoryCloudClient:
             body["cluster_expand"] = True
         # Always send explicit flag to avoid依赖服务端默认值
         body["include_installed"] = include_installed
+        if detail is not None:
+            body["detail"] = detail
+        if ids is not None:
+            body["ids"] = ids
 
         payload, resolved_trace_id = self._request(
             method="POST",
@@ -629,6 +641,8 @@ class MemoryCloudClient:
         multi_level: bool = False,
         cluster_expand: bool = False,
         include_installed: bool = True,
+        detail: Optional[str] = None,
+        ids: Optional[List[str]] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Recall relevant context for a task.
@@ -643,6 +657,9 @@ class MemoryCloudClient:
         multi_level: Enable broader context retrieval across sessions and time ranges.
         cluster_expand: Enable topic-based context expansion for deeper exploration.
         include_installed: Search installed market memories alongside primary memory.
+        detail: Progressive disclosure level — "summary", "full", or "debug".
+            Controls how much metadata is returned per result.
+        ids: Restrict recall to specific record IDs (bypasses vector search).
         """
         source_label = self._clean_source(source or self.default_source)
         active_session = self._resolve_session(
@@ -677,6 +694,8 @@ class MemoryCloudClient:
             multi_level=multi_level,
             cluster_expand=cluster_expand,
             include_installed=include_installed,
+            detail=detail,
+            ids=ids,
             trace_id=trace_id,
         )
         return {

@@ -162,6 +162,11 @@ export class MemoryCloudClient {
    * - "structured": zero-LLM DB-only — returns cards + narratives + tasks (~1-2k tokens)
    * - "hybrid": structured data + top-K vector results (~2-4k tokens)
    * - "auto": detect from query intent
+   *
+   * Progressive disclosure:
+   * - detail "summary" (default): compact cards with title + summary only
+   * - detail "full": includes tags, confidence, attribution metadata, full text
+   * - ids: when provided, fetches specific items by ID (ignores query matching)
    */
   async retrieve(input: {
     memoryId: string;
@@ -187,6 +192,10 @@ export class MemoryCloudClient {
     multiLevel?: boolean;
     clusterExpand?: boolean;
     includeInstalled?: boolean;
+    /** Progressive disclosure: "summary" returns compact cards, "full" includes all metadata. */
+    detail?: "summary" | "full";
+    /** Fetch specific items by ID (ignores query matching). */
+    ids?: string[];
     traceId?: string;
   }): Promise<RetrieveResponse> {
     const merged: JsonObject = {
@@ -248,6 +257,8 @@ export class MemoryCloudClient {
     } else {
       body["include_installed"] = true;
     }
+    if (input.detail) body["detail"] = input.detail;
+    if (input.ids && input.ids.length > 0) body["ids"] = input.ids;
 
     return this.requestJson<RetrieveResponse>({
       method: "POST",
@@ -594,6 +605,11 @@ export class MemoryCloudClient {
    * - "structured": zero-LLM DB-only (~1-2k tokens)
    * - "hybrid" (default): structured + top-K vector results (~2-4k tokens)
    * - "auto": detect from query intent
+   *
+   * Progressive disclosure:
+   * - detail "summary" (default): compact cards with title + summary only
+   * - detail "full": includes tags, confidence, attribution metadata, full text
+   * - ids: when provided, fetches specific items by ID (ignores query matching)
    */
   async recallForTask(input: {
     memoryId: string;
@@ -619,6 +635,10 @@ export class MemoryCloudClient {
     multiLevel?: boolean;
     clusterExpand?: boolean;
     includeInstalled?: boolean;
+    /** Progressive disclosure: "summary" returns compact cards, "full" includes all metadata. */
+    detail?: "summary" | "full";
+    /** Fetch specific items by ID (ignores query matching). */
+    ids?: string[];
     traceId?: string;
   }): Promise<JsonObject> {
     const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
@@ -655,6 +675,8 @@ export class MemoryCloudClient {
       multiLevel: input.multiLevel,
       clusterExpand: input.clusterExpand,
       includeInstalled: input.includeInstalled,
+      detail: input.detail,
+      ids: input.ids,
       traceId: input.traceId,
     });
 
