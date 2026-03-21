@@ -4,7 +4,7 @@ import type { AwarenessClient } from "./client";
 const LEGACY_TEXT_WEIGHT_KEY = ["b", "m", "25", "_weight"].join("");
 
 // ---------------------------------------------------------------------------
-// Register 4 OpenClaw tools backed by the Awareness REST API
+// Register 5 OpenClaw tools backed by the Awareness REST API
 // ---------------------------------------------------------------------------
 
 export function registerTools(api: PluginApi, client: AwarenessClient): void {
@@ -74,6 +74,37 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       const maxCards = input.max_cards !== undefined ? Number(input.max_cards) : undefined;
       const maxTasks = input.max_tasks !== undefined ? Number(input.max_tasks) : undefined;
       return client.init(days, maxCards, maxTasks);
+    },
+  });
+
+  // -----------------------------------------------------------------------
+  // 1.5. awareness_get_agent_prompt — fetch sub-agent activation prompt
+  // -----------------------------------------------------------------------
+  api.registerTool({
+    id: "awareness_get_agent_prompt",
+    name: "awareness_get_agent_prompt",
+    description:
+      "Fetch the full activation prompt for a specific agent role (sub-agent spawning).\n\n" +
+      "Call BEFORE spawning a sub-agent to get its dedicated system prompt.\n" +
+      "Use the returned activation_prompt as the sub-agent's system prompt so that\n" +
+      "the main agent context stays clean and each sub-agent has an isolated, focused prompt.\n\n" +
+      "Typical usage:\n" +
+      "1. awareness_init returns agent_profiles with slim summaries.\n" +
+      "2. When a task matches a role, call awareness_get_agent_prompt(agent_role='<role>').\n" +
+      "3. Spawn a sub-agent with the returned activation_prompt as its system prompt.\n" +
+      "4. The sub-agent passes agent_role='<role>' to all awareness_* calls for memory isolation.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agent_role: {
+          type: "string",
+          description: "The agent role to fetch (e.g. 'developer_agent', 'reviewer_agent').",
+        },
+      },
+      required: ["agent_role"],
+    },
+    execute: async (input) => {
+      return client.getAgentPrompt(String(input.agent_role ?? ""));
     },
   });
 

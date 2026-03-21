@@ -420,6 +420,14 @@ export class AwarenessClient {
     return this.get<unknown>(`/memories/${this.memoryId}/agents`);
   }
 
+  async getAgentPrompt(agentRole: string): Promise<unknown> {
+    const params = new URLSearchParams({ agent_role: agentRole });
+    return this.get<unknown>(
+      `/memories/${this.memoryId}/agents/prompt`,
+      params,
+    );
+  }
+
   // -----------------------------------------------------------------------
   // Internal — Write operations
   // -----------------------------------------------------------------------

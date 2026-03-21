@@ -243,7 +243,11 @@ export class MemoryCloudClient {
     if (input.agentRole) body["agent_role"] = input.agentRole;
     if (input.multiLevel) body["multi_level"] = true;
     if (input.clusterExpand) body["cluster_expand"] = true;
-    if (input.includeInstalled) body["include_installed"] = true;
+    if (input.includeInstalled !== undefined) {
+      body["include_installed"] = input.includeInstalled;
+    } else {
+      body["include_installed"] = true;
+    }
 
     return this.requestJson<RetrieveResponse>({
       method: "POST",
