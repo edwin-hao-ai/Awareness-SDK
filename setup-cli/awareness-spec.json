@@ -17,8 +17,10 @@
     "  If active_skills[] is returned: skill = reusable procedure done 2+ times;",
     "  summary = injectable instruction, methods = steps. Apply matching skills to tasks.",
     "",
-    "STEP 2 - RECALL BEFORE WORK:",
-    "  Call awareness_recall(semantic_query=..., keyword_query=...) for relevant past context.",
+    "STEP 2 - RECALL BEFORE WORK (progressive disclosure):",
+    "  1. awareness_recall(semantic_query=..., keyword_query=..., detail='summary') → lightweight index.",
+    "  2. Review summaries/scores, pick relevant IDs.",
+    "  3. awareness_recall(detail='full', ids=[...]) → expand only what you need.",
     "",
     "STEP 3 - RECORD EVERY CHANGE:",
     "  After EVERY code edit, decision, or bug fix:",
@@ -65,8 +67,8 @@
     },
     {
       "name": "awareness_recall",
-      "short_desc": "Semantic + keyword hybrid recall from persistent memory",
-      "long_desc": "Recall from persistent memory — semantic + keyword hybrid search with layered recall modes. Set include_installed=true (default) to also search installed market memories; results are merged by score and tagged with source_type."
+      "short_desc": "Semantic + keyword hybrid recall with progressive disclosure (detail=summary→full)",
+      "long_desc": "Recall from persistent memory — semantic + keyword hybrid search with progressive disclosure. Use detail='summary' (default) for a lightweight index of matching items, then detail='full' with ids=[...] to expand only the relevant ones. This two-phase pattern saves tokens and improves accuracy. token_budget is deprecated — use detail+ids instead. Set include_installed=true (default) to also search installed market memories; results are merged by score and tagged with source_type."
     },
     {
       "name": "awareness_lookup",
@@ -107,11 +109,11 @@
       },
       {
         "step": 2,
-        "action": "awareness_recall",
+        "action": "awareness_recall (two-phase progressive disclosure)",
         "when": "BEFORE starting work on any task",
-        "what": "Search memory for relevant past decisions, solutions, or context",
-        "example": "awareness_recall(semantic_query=\"How was auth implemented?\", keyword_query=\"auth JWT\")",
-        "done_check": "You've checked for relevant past context"
+        "what": "Phase 1: awareness_recall(semantic_query=..., keyword_query=..., detail='summary') → lightweight index. Phase 2: awareness_recall(detail='full', ids=[...relevant IDs...]) → expand only what you need.",
+        "example": "awareness_recall(semantic_query=\"How was auth implemented?\", keyword_query=\"auth JWT\", detail=\"summary\") → review → awareness_recall(detail=\"full\", ids=[\"id1\",\"id2\"])",
+        "done_check": "You've retrieved summaries, selected relevant items, and expanded the ones you need"
       },
       {
         "step": 3,
@@ -129,7 +131,7 @@
       }
     ],
     "tips": {
-      "recall_vs_lookup": "awareness_recall = search by meaning (semantic). awareness_lookup = get by type (exact DB, <50ms).",
+      "recall_vs_lookup": "awareness_recall = search by meaning (semantic), use detail='summary' then detail='full'+ids for progressive disclosure. awareness_lookup = get by type (exact DB, <50ms).",
       "session_end": "Call awareness_record(content=[step1, step2, ...], insights={...}) with a final summary.",
       "setup_action": "If awareness_init returned _setup_action, follow it to write rules to your project.",
       "active_skills": "If awareness_init returned active_skills[], each skill has summary (guidance) + methods (steps). Apply matching skills to tasks — do not re-derive their patterns."
@@ -138,7 +140,7 @@
 
   "init_guides": {
     "write_guide": "Write DETAILED content in awareness_record — include reasoning, alternatives considered, key code snippets, user quotes, and files changed. Do NOT compress into a single-line summary; the content IS the memory. RECOMMENDED: pass insights={knowledge_cards:[{category,title,summary,status,tags,confidence}], action_items:[{title,priority,status}], risks:[{title,level,detail}]} to create searchable knowledge in ONE step. Categories: decision|problem_solution|workflow|key_point|pitfall|insight|skill|personal_preference|important_detail|plan_intention.",
-    "search_guide": "Rewrite query before calling: semantic_query=full question, keyword_query=2-5 precise terms.",
+    "search_guide": "Use progressive disclosure for best recall results: 1) Call awareness_recall(semantic_query=<full question>, keyword_query=<2-5 precise terms>, detail='summary') to get a lightweight index with scores. 2) Review summaries and relevance scores to decide which items matter. 3) Call awareness_recall(detail='full', ids=[<relevant IDs>]) to fetch complete content for only what you need. This saves tokens and improves accuracy. token_budget is deprecated — use the detail+ids two-phase pattern instead.",
     "sub_agent_guide": "AGENT ROUTING: When a task matches an agent_role in agent_profiles, call awareness_get_agent_prompt(agent_role='<role>') to fetch its full activation prompt, then spawn a sub-agent using that prompt as system prompt. Pass agent_role='<role>' to ALL awareness_* calls within the sub-agent. Do NOT pre-fetch all agent prompts — only fetch when actually spawning.",
     "skill_guide": "SKILLS ACTIVE: active_skills[] contains reusable skill prompts extracted from your memory. When a task matches a skill's domain, apply its 'summary' as behavioral guidance and follow 'methods' steps. Skills are pre-loaded at session start for token efficiency — do not re-derive their patterns."
   },
