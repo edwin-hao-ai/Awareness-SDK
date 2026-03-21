@@ -15,7 +15,16 @@ function registerSetupMode(api: PluginApi): void {
     description:
       "Awareness Memory is not configured yet. Call this tool to get setup instructions.\n" +
       "The quickest way: run `npx @awareness-sdk/setup --ide openclaw` in a terminal.",
-    inputSchema: { type: "object", properties: {} },
+    inputSchema: {
+      type: "object",
+      properties: {
+        format: {
+          type: "string",
+          description: "Output format: 'text' (default) or 'json'",
+          enum: ["text", "json"],
+        },
+      },
+    },
     execute: async () => ({
       status: "not_configured",
       message: "Awareness Memory plugin needs an API key and Memory ID to work.",
