@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e1a"/>
+      <stop offset="50%" style="stop-color:#0f1628"/>
+      <stop offset="100%" style="stop-color:#0a1220"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4ff"/>
+      <stop offset="100%" style="stop-color:#7b68ee"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:0"/>
+      <stop offset="30%" style="stop-color:#00d4ff;stop-opacity:0.6"/>
+      <stop offset="70%" style="stop-color:#7b68ee;stop-opacity:0.6"/>
+      <stop offset="100%" style="stop-color:#7b68ee;stop-opacity:0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1200" height="420" fill="url(#bg)" rx="16"/>
+  <!-- Subtle grid -->
+  <g opacity="0.03" stroke="#ffffff" stroke-width="0.5">
+    <line x1="0" y1="60" x2="1200" y2="60"/><line x1="0" y1="120" x2="1200" y2="120"/>
+    <line x1="0" y1="180" x2="1200" y2="180"/><line x1="0" y1="240" x2="1200" y2="240"/>
+    <line x1="0" y1="300" x2="1200" y2="300"/><line x1="0" y1="360" x2="1200" y2="360"/>
+    <line x1="200" y1="0" x2="200" y2="420"/><line x1="400" y1="0" x2="400" y2="420"/>
+    <line x1="600" y1="0" x2="600" y2="420"/><line x1="800" y1="0" x2="800" y2="420"/>
+    <line x1="1000" y1="0" x2="1000" y2="420"/>
+  </g>
+  <!-- Title -->
+  <text x="600" y="120" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="800" fill="url(#cyan)" filter="url(#glow)">Awareness</text>
+  <text x="600" y="170" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="26" fill="#c8d6e5" letter-spacing="1">Long-Term Memory Infrastructure for AI Agents</text>
+  <!-- Divider -->
+  <rect x="300" y="195" width="600" height="1.5" fill="url(#line)" rx="1"/>
+  <!-- Subtitle tags -->
+  <text x="600" y="230" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" fill="#5ce0d2" letter-spacing="3" opacity="0.8">MCP NATIVE  |  STRUCTURED COGNITION  |  HYBRID RETRIEVAL</text>
+  <!-- Feature cards -->
+  <g transform="translate(90, 270)">
+    <rect width="230" height="110" rx="12" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+    <text x="20" y="40" font-family="system-ui, sans-serif" font-size="18" font-weight="700" fill="#4ade80">Experience</text>
+    <text x="20" y="65" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">Retain proven steps</text>
+    <text x="20" y="85" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">and outcomes</text>
+  </g>
+  <g transform="translate(350, 270)">
+    <rect width="230" height="110" rx="12" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+    <text x="20" y="40" font-family="system-ui, sans-serif" font-size="18" font-weight="700" fill="#60a5fa">Habits</text>
+    <text x="20" y="65" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">Remember user and</text>
+    <text x="20" y="85" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">team preferences</text>
+  </g>
+  <g transform="translate(610, 270)">
+    <rect width="230" height="110" rx="12" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+    <text x="20" y="40" font-family="system-ui, sans-serif" font-size="18" font-weight="700" fill="#f59e0b">Decisions</text>
+    <text x="20" y="65" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">Track architecture</text>
+    <text x="20" y="85" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">rationale</text>
+  </g>
+  <g transform="translate(870, 270)">
+    <rect width="230" height="110" rx="12" fill="#111827" stroke="#1e293b" stroke-width="1"/>
+    <text x="20" y="40" font-family="system-ui, sans-serif" font-size="18" font-weight="700" fill="#f472b6">Collaboration</text>
+    <text x="20" y="65" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">Share context across</text>
+    <text x="20" y="85" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">agents</text>
+  </g>
+</svg>

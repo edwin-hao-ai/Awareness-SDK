@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520">
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e1a"/>
+      <stop offset="100%" style="stop-color:#0f1628"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="520" fill="url(#bg3)" rx="16"/>
+  <!-- Title -->
+  <text x="600" y="45" text-anchor="middle" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#e2e8f0" letter-spacing="1">REAL-WORLD USE CASES</text>
+  <!-- Case 1: Coding Agent -->
+  <g transform="translate(40, 70)">
+    <rect width="360" height="195" rx="12" fill="#111827" stroke="#1e3a5f" stroke-width="1"/>
+    <rect x="16" y="16" width="36" height="36" rx="8" fill="#0d2847"/>
+    <text x="34" y="41" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20">&#x1F6E0;</text>
+    <text x="64" y="40" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#60a5fa">Coding Agent</text>
+    <line x1="16" y1="60" x2="344" y2="60" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Session 1: "Refactored auth to use JWT tokens"</text>
+    <text x="16" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Session 2: "What auth approach did we choose?"</text>
+    <text x="16" y="126" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Agent instantly recalls JWT decision</text>
+    <text x="16" y="144" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; No repeated explanations needed</text>
+    <rect x="16" y="158" width="328" height="24" rx="4" fill="#0d1b2a"/>
+    <text x="180" y="174" text-anchor="middle" font-family="monospace" font-size="10" fill="#5ce0d2">recall_for_task(task="auth implementation approach")</text>
+  </g>
+  <!-- Case 2: Multi-Agent Team -->
+  <g transform="translate(420, 70)">
+    <rect width="360" height="195" rx="12" fill="#111827" stroke="#3b2e7e" stroke-width="1"/>
+    <rect x="16" y="16" width="36" height="36" rx="8" fill="#1a1040"/>
+    <text x="34" y="41" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20">&#x1F91D;</text>
+    <text x="64" y="40" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#c4b5fd">Multi-Agent Team</text>
+    <line x1="16" y1="60" x2="344" y2="60" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Builder Agent: records architecture decisions</text>
+    <text x="16" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Reviewer Agent: reads decisions before review</text>
+    <text x="16" y="126" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Shared memory across agent roles</text>
+    <text x="16" y="144" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Consistent context, no drift</text>
+    <rect x="16" y="158" width="328" height="24" rx="4" fill="#0d1b2a"/>
+    <text x="180" y="174" text-anchor="middle" font-family="monospace" font-size="10" fill="#c4b5fd">get_session_context(days=7, max_cards=20)</text>
+  </g>
+  <!-- Case 3: Claude Code -->
+  <g transform="translate(800, 70)">
+    <rect width="360" height="195" rx="12" fill="#111827" stroke="#1e3a5f" stroke-width="1"/>
+    <rect x="16" y="16" width="36" height="36" rx="8" fill="#0d2847"/>
+    <text x="34" y="41" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20">&#x1F4BB;</text>
+    <text x="64" y="40" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#00d4ff">Claude Code Plugin</text>
+    <line x1="16" y1="60" x2="344" y2="60" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">/session-start loads past context</text>
+    <text x="16" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">/recall searches past decisions</text>
+    <text x="16" y="126" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Claude never forgets across sessions</text>
+    <text x="16" y="144" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Auto-captures progress on save</text>
+    <rect x="16" y="158" width="328" height="24" rx="4" fill="#0d1b2a"/>
+    <text x="180" y="174" text-anchor="middle" font-family="monospace" font-size="10" fill="#5ce0d2">/awareness-memory:session-start</text>
+  </g>
+  <!-- Case 4: LLM Injection -->
+  <g transform="translate(40, 290)">
+    <rect width="360" height="195" rx="12" fill="#111827" stroke="#1e3a5f" stroke-width="1"/>
+    <rect x="16" y="16" width="36" height="36" rx="8" fill="#0d2847"/>
+    <text x="34" y="41" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20">&#x1F52E;</text>
+    <text x="64" y="40" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#f59e0b">Zero-Code Injection</text>
+    <line x1="16" y1="60" x2="344" y2="60" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Wrap OpenAI/Anthropic client once</text>
+    <text x="16" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Memory auto-injected into every LLM call</text>
+    <text x="16" y="126" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; No prompt changes required</text>
+    <text x="16" y="144" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Auto-stores and auto-recalls</text>
+    <rect x="16" y="158" width="328" height="24" rx="4" fill="#0d1b2a"/>
+    <text x="180" y="174" text-anchor="middle" font-family="monospace" font-size="10" fill="#fbbf24">interceptor.wrap_openai(oai_client)</text>
+  </g>
+  <!-- Case 5: Framework Integration -->
+  <g transform="translate(420, 290)">
+    <rect width="360" height="195" rx="12" fill="#111827" stroke="#3b2e7e" stroke-width="1"/>
+    <rect x="16" y="16" width="36" height="36" rx="8" fill="#1a1040"/>
+    <text x="34" y="41" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20">&#x1F9E9;</text>
+    <text x="64" y="40" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#f472b6">Framework Adapters</text>
+    <line x1="16" y1="60" x2="344" y2="60" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">LangChain retriever, CrewAI tools</text>
+    <text x="16" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">PraisonAI toolkit, AutoGen hooks</text>
+    <text x="16" y="126" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Native integration, no glue code</text>
+    <text x="16" y="144" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Drop-in memory for any framework</text>
+    <rect x="16" y="158" width="328" height="24" rx="4" fill="#0d1b2a"/>
+    <text x="180" y="174" text-anchor="middle" font-family="monospace" font-size="10" fill="#f9a8d4">mc.as_retriever() / mc.build_tools()</text>
+  </g>
+  <!-- Case 6: Task Tracking -->
+  <g transform="translate(800, 290)">
+    <rect width="360" height="195" rx="12" fill="#111827" stroke="#1e3a5f" stroke-width="1"/>
+    <rect x="16" y="16" width="36" height="36" rx="8" fill="#0d2847"/>
+    <text x="34" y="41" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20">&#x1F4CB;</text>
+    <text x="64" y="40" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#4ade80">Task &amp; Risk Tracking</text>
+    <line x1="16" y1="60" x2="344" y2="60" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Auto-extract action items from sessions</text>
+    <text x="16" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Track risks and mitigation strategies</text>
+    <text x="16" y="126" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Persistent TODO across sessions</text>
+    <text x="16" y="144" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2713; Priority-based task retrieval</text>
+    <rect x="16" y="158" width="328" height="24" rx="4" fill="#0d1b2a"/>
+    <text x="180" y="174" text-anchor="middle" font-family="monospace" font-size="10" fill="#86efac">get_pending_tasks() / update_task_status()</text>
+  </g>
+</svg>

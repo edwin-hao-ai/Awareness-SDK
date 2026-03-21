@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360">
+  <defs>
+    <linearGradient id="bg5" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e1a"/>
+      <stop offset="100%" style="stop-color:#0f1628"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4ff"/>
+      <stop offset="100%" style="stop-color:#7b68ee"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="360" fill="url(#bg5)" rx="16"/>
+  <text x="600" y="40" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" font-weight="700" fill="#e2e8f0" letter-spacing="1">CLAUDE CODE WORKFLOW</text>
+  <!-- Timeline bar -->
+  <rect x="100" y="80" width="1000" height="4" rx="2" fill="#1e293b"/>
+  <rect x="100" y="80" width="1000" height="4" rx="2" fill="url(#flow)" opacity="0.4"/>
+  <!-- Step 1: session-start -->
+  <g transform="translate(100, 60)">
+    <circle cx="0" cy="22" r="10" fill="#00d4ff"/>
+    <circle cx="0" cy="22" r="5" fill="#0a0e1a"/>
+    <rect x="-90" y="100" width="180" height="130" rx="10" fill="#111827" stroke="#1e3a5f" stroke-width="1"/>
+    <text x="0" y="125" text-anchor="middle" font-family="monospace" font-size="11" font-weight="700" fill="#00d4ff">/session-start</text>
+    <text x="0" y="148" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">Load recent progress,</text>
+    <text x="0" y="165" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">open tasks, and</text>
+    <text x="0" y="182" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">knowledge cards</text>
+    <rect x="-70" y="195" width="140" height="22" rx="4" fill="#0d1b2a"/>
+    <text x="0" y="210" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#5ce0d2">awareness_init</text>
+  </g>
+  <!-- Step 2: recall -->
+  <g transform="translate(370, 60)">
+    <circle cx="0" cy="22" r="10" fill="#7b68ee"/>
+    <circle cx="0" cy="22" r="5" fill="#0a0e1a"/>
+    <rect x="-90" y="100" width="180" height="130" rx="10" fill="#111827" stroke="#3b2e7e" stroke-width="1"/>
+    <text x="0" y="125" text-anchor="middle" font-family="monospace" font-size="11" font-weight="700" fill="#c4b5fd">/recall "auth flow"</text>
+    <text x="0" y="148" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">Search past decisions</text>
+    <text x="0" y="165" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">and implementations</text>
+    <text x="0" y="182" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">before coding</text>
+    <rect x="-70" y="195" width="140" height="22" rx="4" fill="#1a1040"/>
+    <text x="0" y="210" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#c4b5fd">awareness_recall</text>
+  </g>
+  <!-- Step 3: code -->
+  <g transform="translate(640, 60)">
+    <circle cx="0" cy="22" r="10" fill="#4ade80"/>
+    <circle cx="0" cy="22" r="5" fill="#0a0e1a"/>
+    <rect x="-90" y="100" width="180" height="130" rx="10" fill="#111827" stroke="#166534" stroke-width="1"/>
+    <text x="0" y="125" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#4ade80">Code &amp; Commit</text>
+    <text x="0" y="148" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">Work with full context</text>
+    <text x="0" y="165" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">from past sessions.</text>
+    <text x="0" y="182" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">Auto-records steps.</text>
+    <rect x="-70" y="195" width="140" height="22" rx="4" fill="#0d2a0d"/>
+    <text x="0" y="210" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#86efac">awareness_record</text>
+  </g>
+  <!-- Step 4: save/done -->
+  <g transform="translate(910, 60)">
+    <circle cx="0" cy="22" r="10" fill="#f59e0b"/>
+    <circle cx="0" cy="22" r="5" fill="#0a0e1a"/>
+    <rect x="-90" y="100" width="180" height="130" rx="10" fill="#111827" stroke="#92400e" stroke-width="1"/>
+    <text x="0" y="125" text-anchor="middle" font-family="monospace" font-size="11" font-weight="700" fill="#fbbf24">/save &amp; /done</text>
+    <text x="0" y="148" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">Persist progress,</text>
+    <text x="0" y="165" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">extract knowledge,</text>
+    <text x="0" y="182" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">finalize session</text>
+    <rect x="-70" y="195" width="140" height="22" rx="4" fill="#2a1a0a"/>
+    <text x="0" y="210" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#fbbf24">awareness_record</text>
+  </g>
+  <!-- Loop label -->
+  <g transform="translate(600, 310)">
+    <text x="0" y="0" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#5ce0d2" opacity="0.6">Next session picks up exactly where you left off</text>
+    <path d="M-200,10 Q-250,-20 -200,-40" fill="none" stroke="#00d4ff" stroke-width="1" opacity="0.3"/>
+    <path d="M200,10 Q250,-20 200,-40" fill="none" stroke="#7b68ee" stroke-width="1" opacity="0.3"/>
+  </g>
+</svg>
