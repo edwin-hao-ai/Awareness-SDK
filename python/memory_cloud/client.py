@@ -239,8 +239,8 @@ class MemoryCloudClient:
             body["multi_level"] = True
         if cluster_expand:
             body["cluster_expand"] = True
-        if include_installed:
-            body["include_installed"] = True
+        # Always send explicit flag to avoid依赖服务端默认值
+        body["include_installed"] = include_installed
 
         payload, resolved_trace_id = self._request(
             method="POST",

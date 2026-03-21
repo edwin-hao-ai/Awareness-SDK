@@ -147,7 +147,7 @@ describe("registerTools", () => {
       ]);
     });
 
-    it("exposes multi_level, cluster_expand, confidence_threshold, include_installed, user_id", () => {
+    it("exposes multi_level, cluster_expand, confidence_threshold, include_installed, user_id, agent_role", () => {
       const tools = setupTools();
       const schema = tools["awareness_recall"].inputSchema as Record<string, unknown>;
       const props = schema.properties as Record<string, unknown>;
@@ -157,6 +157,7 @@ describe("registerTools", () => {
       expect(props.confidence_threshold).toBeDefined();
       expect(props.include_installed).toBeDefined();
       expect(props.user_id).toBeDefined();
+      expect(props.agent_role).toBeDefined();
     });
 
     it("passes all params to client.search", async () => {
@@ -176,6 +177,7 @@ describe("registerTools", () => {
         confidence_threshold: 0.6,
         include_installed: true,
         user_id: "alice",
+        agent_role: "builder_agent",
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
@@ -186,6 +188,7 @@ describe("registerTools", () => {
       expect(body.confidence_threshold).toBe(0.6);
       expect(body.include_installed).toBe(true);
       expect(body.user_id).toBe("alice");
+      expect(body.agent_role).toBe("builder_agent");
       expect(body.keyword_query).toBe("JWT token");
     });
   });

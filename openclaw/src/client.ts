@@ -33,6 +33,8 @@ export interface SearchOptions {
   includeInstalled?: boolean;
   /** Multi-user filtering. */
   userId?: string;
+  /** Override agent role per-call (defaults to plugin config). */
+  agentRole?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +115,7 @@ export class AwarenessClient {
         aw_content_scope: scopeMap[opts.scope],
       };
     }
-    const agentRole = this.agentRole;
+    const agentRole = opts.agentRole ?? this.agentRole;
     if (agentRole) body.agent_role = agentRole;
     if (opts.userId) body.user_id = opts.userId;
     return this.post<RecallResult>(

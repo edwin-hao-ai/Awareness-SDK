@@ -110,9 +110,9 @@ describe("SDK Functional Tests (live API)", { timeout: 60000 }, () => {
     const result = await client.record({
       memoryId,
       content: [
-        "Decided to use PostgreSQL with pgvector for vector storage.",
+        "Decided to use a vector database alongside relational storage for embeddings.",
         "Set up Redis for caching and task queue management.",
-        "Configured Celery workers for async processing pipeline.",
+        "Configured async workers for the processing pipeline.",
       ],
       scope: "timeline",
     });
@@ -143,11 +143,11 @@ describe("SDK Functional Tests (live API)", { timeout: 60000 }, () => {
   test("listMemoryContent — returns content items", { timeout: 30000 }, async () => {
     const result = await client.listMemoryContent({ memoryId, limit: 50 });
     assert.ok(Array.isArray(result), "should return an array");
-    // Content vectorization is async (Celery worker); may be empty if worker not running
+    // Content vectorization is async (background worker); may be empty if worker not running
     if (result.length > 0) {
       assert.ok(typeof result[0] === "object", "items should be objects");
     } else {
-      console.log("    ⚠ listMemoryContent returned 0 items — Celery worker may not be running");
+      console.log("    ⚠ listMemoryContent returned 0 items — background worker may not be running");
     }
   });
 

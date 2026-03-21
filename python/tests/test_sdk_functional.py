@@ -129,8 +129,8 @@ class TestSDKFunctionalJourney:
         """record() with a plain string should succeed."""
         result = client.record(
             memory_id=memory_id,
-            content="Decided to use PostgreSQL with pgvector for vector storage. "
-                    "This simplifies infrastructure by keeping relational and vector data in one DB.",
+            content="Decided to use a combined relational + vector database for embeddings, "
+                "so we keep structured and semantic data together.",
             scope="timeline",
             source="sdk-functest",
         )
@@ -176,7 +176,7 @@ class TestSDKFunctionalJourney:
 
     def test_08_list_memory_content(self, client: MemoryCloudClient, memory_id: str):
         """list_memory_content should return a list (may be empty if worker not running)."""
-        # Vectorization is async via Celery worker; if worker is not running,
+        # Vectorization is async via background workers; if workers are not running,
         # the content list may be empty even after recording.
         time.sleep(3)
         items = client.list_memory_content(memory_id, limit=50)

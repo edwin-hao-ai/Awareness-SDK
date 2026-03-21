@@ -148,6 +148,10 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
           type: "string",
           description: "Filter results by user ID (multi-user memory).",
         },
+        agent_role: {
+          type: "string",
+          description: "Override agent role for scoped recall (defaults to plugin config).",
+        },
       },
       required: ["semantic_query"],
     },
@@ -171,6 +175,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         confidenceThreshold: input.confidence_threshold !== undefined ? Number(input.confidence_threshold) : undefined,
         includeInstalled: input.include_installed !== undefined ? Boolean(input.include_installed) : undefined,
         userId: input.user_id !== undefined ? String(input.user_id) : undefined,
+        agentRole: input.agent_role !== undefined ? String(input.agent_role) : undefined,
       });
     },
   });
