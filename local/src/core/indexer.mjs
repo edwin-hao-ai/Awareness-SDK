@@ -1,0 +1,726 @@
+/**
+ * Indexer — SQLite FTS5 full-text search index for Awareness Local.
+ *
+ * Uses better-sqlite3 in WAL mode for concurrent read access.
+ * Manages 7 tables + 2 FTS5 virtual tables + 1 embeddings table.
+ */
+
+import Database from 'better-sqlite3';
+import { createHash } from 'node:crypto';
+
+// ---------------------------------------------------------------------------
+// Schema DDL
+// ---------------------------------------------------------------------------
+
+const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS memories (
+  id TEXT PRIMARY KEY,
+  filepath TEXT NOT NULL UNIQUE,
+  type TEXT NOT NULL,
+  title TEXT,
+  session_id TEXT,
+  agent_role TEXT DEFAULT 'builder_agent',
+  source TEXT,
+  status TEXT DEFAULT 'active',
+  tags TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  content_hash TEXT,
+  synced_to_cloud INTEGER DEFAULT 0
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+  id UNINDEXED, title, content, tags,
+  tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_cards (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT,
+  source_memories TEXT,
+  confidence REAL DEFAULT 0.8,
+  status TEXT DEFAULT 'active',
+  tags TEXT,
+  created_at TEXT NOT NULL,
+  filepath TEXT NOT NULL UNIQUE
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
+  id UNINDEXED, title, summary, content, tags,
+  tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT DEFAULT 'open',
+  priority TEXT DEFAULT 'medium',
+  agent_role TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  filepath TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  source TEXT,
+  agent_role TEXT,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  memory_count INTEGER DEFAULT 0,
+  summary TEXT
+);
+
+CREATE TABLE IF NOT EXISTS embeddings (
+  memory_id TEXT PRIMARY KEY,
+  vector BLOB NOT NULL,
+  model_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (memory_id) REFERENCES memories(id)
+);
+
+CREATE TABLE IF NOT EXISTS sync_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute SHA-256 hex digest of a string.
+ */
+function sha256(text) {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+/**
+ * Sanitise a query string for FTS5 MATCH — escape double-quotes and wrap
+ * each token in double-quotes so special characters don't break the query.
+ * Falls back to a simple prefix search when the input is a single token.
+ */
+/** FTS5 boolean operators — pass through without quoting. */
+const FTS5_OPS = new Set(['OR', 'AND', 'NOT', 'NEAR']);
+
+function sanitiseFtsQuery(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+
+  // If the query already contains FTS5 operators or quoted phrases, pass it
+  // through with minimal sanitisation (just remove dangerous chars).
+  if (/\bOR\b|\bAND\b|\bNOT\b|\bNEAR\b/.test(trimmed) || trimmed.includes('"')) {
+    // Already structured — strip only chars that would break FTS5 syntax
+    return trimmed.replace(/[;\\]/g, '');
+  }
+
+  // Plain text query — quote each token to prevent FTS5 syntax errors.
+  const tokens = trimmed.split(/\s+/).map((t) => {
+    const escaped = t.replace(/"/g, '""');
+    return `"${escaped}"`;
+  });
+  return tokens.join(' ');
+}
+
+/**
+ * Current ISO-8601 timestamp.
+ */
+function nowISO() {
+  return new Date().toISOString();
+}
+
+// ---------------------------------------------------------------------------
+// Indexer class
+// ---------------------------------------------------------------------------
+
+export class Indexer {
+  /**
+   * @param {string} dbPath — path to the SQLite database file.
+   */
+  constructor(dbPath) {
+    this.db = new Database(dbPath);
+
+    // WAL mode for concurrent reads from the daemon & file-watchers.
+    this.db.pragma('journal_mode = WAL');
+    // Reasonable busy timeout so concurrent writers wait instead of failing.
+    this.db.pragma('busy_timeout = 5000');
+
+    this.initSchema();
+    this._prepareStatements();
+  }
+
+  // -----------------------------------------------------------------------
+  // Schema initialisation
+  // -----------------------------------------------------------------------
+
+  /**
+   * Execute all CREATE TABLE / CREATE VIRTUAL TABLE statements.
+   * Safe to call repeatedly — every statement uses IF NOT EXISTS.
+   */
+  initSchema() {
+    this.db.exec(SCHEMA_SQL);
+  }
+
+  // -----------------------------------------------------------------------
+  // Prepared-statement cache (lazy, created once)
+  // -----------------------------------------------------------------------
+
+  /** @private */
+  _prepareStatements() {
+    // -- memories upsert --------------------------------------------------
+    this._stmtUpsertMemory = this.db.prepare(`
+      INSERT INTO memories (id, filepath, type, title, session_id, agent_role,
+                            source, status, tags, created_at, updated_at, content_hash, synced_to_cloud)
+      VALUES (@id, @filepath, @type, @title, @session_id, @agent_role,
+              @source, @status, @tags, @created_at, @updated_at, @content_hash, @synced_to_cloud)
+      ON CONFLICT(id) DO UPDATE SET
+        filepath     = excluded.filepath,
+        type         = excluded.type,
+        title        = excluded.title,
+        session_id   = excluded.session_id,
+        agent_role   = excluded.agent_role,
+        source       = excluded.source,
+        status       = excluded.status,
+        tags         = excluded.tags,
+        updated_at   = excluded.updated_at,
+        content_hash = excluded.content_hash,
+        synced_to_cloud = excluded.synced_to_cloud
+    `);
+
+    this._stmtGetMemoryHash = this.db.prepare(
+      `SELECT content_hash FROM memories WHERE id = ?`
+    );
+
+    // -- memories_fts upsert (delete + insert, FTS5 has no ON CONFLICT) ---
+    this._stmtDeleteFts = this.db.prepare(
+      `DELETE FROM memories_fts WHERE id = ?`
+    );
+    this._stmtInsertFts = this.db.prepare(`
+      INSERT INTO memories_fts (id, title, content, tags)
+      VALUES (@id, @title, @content, @tags)
+    `);
+
+    // -- knowledge_cards --------------------------------------------------
+    this._stmtUpsertKnowledge = this.db.prepare(`
+      INSERT INTO knowledge_cards (id, category, title, summary, source_memories,
+                                   confidence, status, tags, created_at, filepath)
+      VALUES (@id, @category, @title, @summary, @source_memories,
+              @confidence, @status, @tags, @created_at, @filepath)
+      ON CONFLICT(id) DO UPDATE SET
+        category        = excluded.category,
+        title           = excluded.title,
+        summary         = excluded.summary,
+        source_memories = excluded.source_memories,
+        confidence      = excluded.confidence,
+        status          = excluded.status,
+        tags            = excluded.tags,
+        filepath        = excluded.filepath
+    `);
+
+    this._stmtDeleteKnowledgeFts = this.db.prepare(
+      `DELETE FROM knowledge_fts WHERE id = ?`
+    );
+    this._stmtInsertKnowledgeFts = this.db.prepare(`
+      INSERT INTO knowledge_fts (id, title, summary, content, tags)
+      VALUES (@id, @title, @summary, @content, @tags)
+    `);
+
+    // -- tasks ------------------------------------------------------------
+    this._stmtUpsertTask = this.db.prepare(`
+      INSERT INTO tasks (id, title, description, status, priority, agent_role,
+                         created_at, updated_at, filepath)
+      VALUES (@id, @title, @description, @status, @priority, @agent_role,
+              @created_at, @updated_at, @filepath)
+      ON CONFLICT(id) DO UPDATE SET
+        title       = excluded.title,
+        description = excluded.description,
+        status      = excluded.status,
+        priority    = excluded.priority,
+        agent_role  = excluded.agent_role,
+        updated_at  = excluded.updated_at,
+        filepath    = excluded.filepath
+    `);
+
+    // -- sessions ---------------------------------------------------------
+    this._stmtInsertSession = this.db.prepare(`
+      INSERT INTO sessions (id, source, agent_role, started_at)
+      VALUES (@id, @source, @agent_role, @started_at)
+    `);
+
+    this._stmtUpdateSession = this.db.prepare(`
+      UPDATE sessions
+      SET ended_at     = COALESCE(@ended_at, ended_at),
+          memory_count = COALESCE(@memory_count, memory_count),
+          summary      = COALESCE(@summary, summary)
+      WHERE id = @id
+    `);
+
+    // -- embeddings -------------------------------------------------------
+    this._stmtUpsertEmbedding = this.db.prepare(`
+      INSERT OR REPLACE INTO embeddings (memory_id, vector, model_id, created_at)
+      VALUES (@memory_id, @vector, @model_id, @created_at)
+    `);
+
+    this._stmtGetEmbedding = this.db.prepare(
+      `SELECT vector FROM embeddings WHERE memory_id = ?`
+    );
+
+    this._stmtGetAllEmbeddings = this.db.prepare(
+      `SELECT memory_id, vector FROM embeddings`
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Memory indexing
+  // -----------------------------------------------------------------------
+
+  /**
+   * Upsert a memory record and its FTS5 entry.
+   *
+   * If the content_hash is unchanged, the write is skipped entirely (no-op).
+   *
+   * @param {string} id
+   * @param {Object} metadata — must include at least { filepath, type, created_at, updated_at }.
+   * @param {string} content — the full Markdown body (used for FTS indexing).
+   * @returns {{ indexed: boolean }} — true if the record was written.
+   */
+  indexMemory(id, metadata, content) {
+    const contentHash = sha256(content);
+
+    // Fast path: skip if unchanged.
+    const existing = this._stmtGetMemoryHash.get(id);
+    if (existing && existing.content_hash === contentHash) {
+      return { indexed: false };
+    }
+
+    const now = nowISO();
+    const tags =
+      typeof metadata.tags === 'string'
+        ? metadata.tags
+        : Array.isArray(metadata.tags)
+          ? JSON.stringify(metadata.tags)
+          : null;
+
+    const row = {
+      id,
+      filepath: metadata.filepath,
+      type: metadata.type || 'turn_summary',
+      title: metadata.title || null,
+      session_id: metadata.session_id || null,
+      agent_role: metadata.agent_role || 'builder_agent',
+      source: metadata.source || null,
+      status: metadata.status || 'active',
+      tags,
+      created_at: metadata.created_at || now,
+      updated_at: metadata.updated_at || now,
+      content_hash: contentHash,
+      synced_to_cloud: metadata.synced_to_cloud ? 1 : 0,
+    };
+
+    // Wrap in a transaction so the metadata + FTS rows are atomic.
+    const upsert = this.db.transaction(() => {
+      this._stmtUpsertMemory.run(row);
+      this._stmtDeleteFts.run(id);
+      this._stmtInsertFts.run({
+        id,
+        title: row.title || '',
+        content,
+        tags: tags || '',
+      });
+    });
+    upsert();
+
+    return { indexed: true };
+  }
+
+  // -----------------------------------------------------------------------
+  // Knowledge card indexing
+  // -----------------------------------------------------------------------
+
+  /**
+   * Insert or update a knowledge card and its FTS5 entry.
+   *
+   * @param {Object} card — { id, category, title, summary, source_memories,
+   *                           confidence, status, tags, created_at, filepath, content }
+   *   `content` is used only for FTS indexing and is NOT stored in the
+   *   knowledge_cards table (the full body lives in the Markdown file).
+   */
+  indexKnowledgeCard(card) {
+    const tags =
+      typeof card.tags === 'string'
+        ? card.tags
+        : Array.isArray(card.tags)
+          ? JSON.stringify(card.tags)
+          : null;
+
+    const now = nowISO();
+    const row = {
+      id: card.id,
+      category: card.category,
+      title: card.title,
+      summary: card.summary || null,
+      source_memories:
+        typeof card.source_memories === 'string'
+          ? card.source_memories
+          : Array.isArray(card.source_memories)
+            ? JSON.stringify(card.source_memories)
+            : null,
+      confidence: card.confidence ?? 0.8,
+      status: card.status || 'active',
+      tags,
+      created_at: card.created_at || now,
+      filepath: card.filepath,
+    };
+
+    const upsert = this.db.transaction(() => {
+      this._stmtUpsertKnowledge.run(row);
+      this._stmtDeleteKnowledgeFts.run(card.id);
+      this._stmtInsertKnowledgeFts.run({
+        id: card.id,
+        title: card.title || '',
+        summary: card.summary || '',
+        content: card.content || '',
+        tags: tags || '',
+      });
+    });
+    upsert();
+  }
+
+  // -----------------------------------------------------------------------
+  // Task indexing
+  // -----------------------------------------------------------------------
+
+  /**
+   * Insert or update a task.
+   *
+   * @param {Object} task — { id, title, description, status, priority,
+   *                           agent_role, created_at, updated_at, filepath }
+   */
+  indexTask(task) {
+    const now = nowISO();
+    this._stmtUpsertTask.run({
+      id: task.id,
+      title: task.title,
+      description: task.description || null,
+      status: task.status || 'open',
+      priority: task.priority || 'medium',
+      agent_role: task.agent_role || null,
+      created_at: task.created_at || now,
+      updated_at: task.updated_at || now,
+      filepath: task.filepath,
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Sessions
+  // -----------------------------------------------------------------------
+
+  /**
+   * Create a new session.
+   *
+   * @param {string} source  — e.g. 'claude-code', 'openclaw'
+   * @param {string} [agentRole='builder_agent']
+   * @returns {{ id: string, source: string, agent_role: string, started_at: string }}
+   */
+  createSession(source, agentRole = 'builder_agent') {
+    const now = nowISO();
+    const id = `ses_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const row = { id, source: source || null, agent_role: agentRole, started_at: now };
+    this._stmtInsertSession.run(row);
+    return { ...row };
+  }
+
+  /**
+   * Update an existing session (e.g. set ended_at, memory_count, summary).
+   *
+   * @param {string} id
+   * @param {Object} updates — any subset of { ended_at, memory_count, summary }.
+   */
+  updateSession(id, updates = {}) {
+    this._stmtUpdateSession.run({
+      id,
+      ended_at: updates.ended_at ?? null,
+      memory_count: updates.memory_count ?? null,
+      summary: updates.summary ?? null,
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // FTS5 search
+  // -----------------------------------------------------------------------
+
+  /**
+   * Full-text search over indexed memories.
+   *
+   * @param {string} query — natural language or keyword query.
+   * @param {Object} [options]
+   * @param {string[]} [options.types]  — filter by memory type.
+   * @param {string[]} [options.tags]   — filter by tag (JSON array substring match).
+   * @param {number}   [options.limit=10]
+   * @param {number}   [options.offset=0]
+   * @returns {Array<Object>} — memory rows with an additional `rank` field (lower = more relevant).
+   */
+  search(query, options = {}) {
+    const ftsQuery = sanitiseFtsQuery(query);
+    if (!ftsQuery) return [];
+
+    const limit = options.limit ?? 10;
+    const offset = options.offset ?? 0;
+
+    // Build dynamic WHERE clauses for optional filters.
+    const conditions = [`memories_fts MATCH ?`, `m.status = 'active'`];
+    const params = [ftsQuery];
+
+    if (Array.isArray(options.types) && options.types.length > 0) {
+      const placeholders = options.types.map(() => '?').join(', ');
+      conditions.push(`m.type IN (${placeholders})`);
+      params.push(...options.types);
+    }
+
+    if (Array.isArray(options.tags) && options.tags.length > 0) {
+      // tags is stored as a JSON array string — use LIKE for substring match.
+      for (const tag of options.tags) {
+        conditions.push(`m.tags LIKE ?`);
+        params.push(`%${tag}%`);
+      }
+    }
+
+    params.push(limit, offset);
+
+    const sql = `
+      SELECT m.*, memories_fts.content AS fts_content, bm25(memories_fts) AS rank
+      FROM memories_fts
+      JOIN memories m ON m.id = memories_fts.id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY rank
+      LIMIT ? OFFSET ?
+    `;
+
+    return this.db.prepare(sql).all(...params);
+  }
+
+  /**
+   * Full-text search over knowledge cards.
+   *
+   * @param {string} query
+   * @param {Object} [options]
+   * @param {string[]} [options.categories]
+   * @param {number}   [options.limit=10]
+   * @param {number}   [options.offset=0]
+   * @returns {Array<Object>}
+   */
+  searchKnowledge(query, options = {}) {
+    const ftsQuery = sanitiseFtsQuery(query);
+    if (!ftsQuery) return [];
+
+    const limit = options.limit ?? 10;
+    const offset = options.offset ?? 0;
+
+    const conditions = [`knowledge_fts MATCH ?`, `k.status = 'active'`];
+    const params = [ftsQuery];
+
+    if (Array.isArray(options.categories) && options.categories.length > 0) {
+      const placeholders = options.categories.map(() => '?').join(', ');
+      conditions.push(`k.category IN (${placeholders})`);
+      params.push(...options.categories);
+    }
+
+    params.push(limit, offset);
+
+    const sql = `
+      SELECT k.*, bm25(knowledge_fts) AS rank
+      FROM knowledge_fts
+      JOIN knowledge_cards k ON k.id = knowledge_fts.id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY rank
+      LIMIT ? OFFSET ?
+    `;
+
+    return this.db.prepare(sql).all(...params);
+  }
+
+  // -----------------------------------------------------------------------
+  // Incremental indexing
+  // -----------------------------------------------------------------------
+
+  /**
+   * Scan the memory store for new or changed files and index them.
+   *
+   * @param {Object} memoryStore — a MemoryStore instance with list() and read() methods.
+   * @returns {Promise<{ indexed: number, skipped: number }>}
+   */
+  async incrementalIndex(memoryStore) {
+    const files = await memoryStore.list();
+    let indexed = 0;
+    let skipped = 0;
+
+    for (const file of files) {
+      try {
+        const id = file.metadata?.id;
+        if (!id) {
+          skipped++;
+          continue;
+        }
+        // Ensure filepath is in metadata (list() returns it at top level)
+        const meta = { ...file.metadata, filepath: file.filepath || file.metadata.filepath };
+        // Derive title from first sentence of content if not in metadata
+        if (!meta.title && file.content) {
+          const firstSentence = file.content.split(/[.\n!?。！？]/)[0].trim();
+          meta.title = firstSentence.length > 80
+            ? firstSentence.substring(0, 77) + '...'
+            : firstSentence || null;
+        }
+        const result = this.indexMemory(id, meta, file.content);
+        if (result.indexed) {
+          indexed++;
+        } else {
+          skipped++;
+        }
+      } catch (err) {
+        console.error(`[indexer] failed to index ${file.metadata?.id}:`, err.message);
+        skipped++;
+      }
+    }
+
+    return { indexed, skipped };
+  }
+
+  // -----------------------------------------------------------------------
+  // Stats & convenience queries
+  // -----------------------------------------------------------------------
+
+  /**
+   * Get aggregate counts for dashboard / healthz.
+   */
+  getStats() {
+    return {
+      totalMemories: this.db
+        .prepare(`SELECT COUNT(*) AS c FROM memories WHERE status = ?`)
+        .get('active').c,
+      totalKnowledge: this.db
+        .prepare(`SELECT COUNT(*) AS c FROM knowledge_cards WHERE status = ?`)
+        .get('active').c,
+      totalTasks: this.db
+        .prepare(`SELECT COUNT(*) AS c FROM tasks WHERE status = ?`)
+        .get('open').c,
+      totalSessions: this.db
+        .prepare(`SELECT COUNT(*) AS c FROM sessions`)
+        .get().c,
+    };
+  }
+
+  /**
+   * Return the most recently created knowledge cards.
+   *
+   * @param {number} [limit=5]
+   */
+  getRecentKnowledge(limit = 5) {
+    return this.db
+      .prepare(
+        `SELECT * FROM knowledge_cards WHERE status = 'active'
+         ORDER BY created_at DESC LIMIT ?`
+      )
+      .all(limit);
+  }
+
+  /**
+   * Return open (un-completed) tasks.
+   *
+   * @param {number} [limit=5]
+   */
+  getOpenTasks(limit = 5) {
+    return this.db
+      .prepare(
+        `SELECT * FROM tasks WHERE status = 'open'
+         ORDER BY created_at DESC LIMIT ?`
+      )
+      .all(limit);
+  }
+
+  /**
+   * Return sessions started within the last N days.
+   *
+   * @param {number} [days=7]
+   */
+  getRecentSessions(days = 7) {
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+    return this.db
+      .prepare(`SELECT * FROM sessions WHERE started_at > ? ORDER BY started_at DESC`)
+      .all(cutoff);
+  }
+
+  // -----------------------------------------------------------------------
+  // Embedding storage (SQLite BLOB)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Store (or replace) an embedding vector for a memory.
+   *
+   * @param {string} memoryId
+   * @param {Float32Array} vector — 384-dimensional embedding.
+   * @param {string} modelId — e.g. 'all-MiniLM-L6-v2' or 'multilingual-e5-small'.
+   */
+  storeEmbedding(memoryId, vector, modelId) {
+    const buf = Buffer.from(vector.buffer, vector.byteOffset, vector.byteLength);
+    this._stmtUpsertEmbedding.run({
+      memory_id: memoryId,
+      vector: buf,
+      model_id: modelId,
+      created_at: nowISO(),
+    });
+  }
+
+  /**
+   * Retrieve the embedding vector for a single memory.
+   *
+   * @param {string} memoryId
+   * @returns {Float32Array|null}
+   */
+  getEmbedding(memoryId) {
+    const row = this._stmtGetEmbedding.get(memoryId);
+    if (!row) return null;
+    return new Float32Array(
+      row.vector.buffer,
+      row.vector.byteOffset,
+      row.vector.byteLength / Float32Array.BYTES_PER_ELEMENT
+    );
+  }
+
+  /**
+   * Retrieve all embeddings (for brute-force cosine search).
+   *
+   * @returns {Array<{ memory_id: string, vector: Float32Array }>}
+   */
+  getAllEmbeddings() {
+    const rows = this._stmtGetAllEmbeddings.all();
+    return rows.map((row) => ({
+      memory_id: row.memory_id,
+      vector: new Float32Array(
+        row.vector.buffer,
+        row.vector.byteOffset,
+        row.vector.byteLength / Float32Array.BYTES_PER_ELEMENT
+      ),
+    }));
+  }
+
+  // -----------------------------------------------------------------------
+  // Lifecycle
+  // -----------------------------------------------------------------------
+
+  /**
+   * Close the database connection.  Safe to call multiple times.
+   */
+  close() {
+    if (this.db && this.db.open) {
+      this.db.close();
+    }
+  }
+}
+
+export default Indexer;

@@ -288,21 +288,27 @@ export function buildMcpServerConfig(options = {}) {
   const apiKey = String(options.apiKey || "").trim();
   const memoryId = String(options.memoryId || "").trim();
   const agentRole = String(options.agentRole || "builder_agent").trim() || "builder_agent";
+  const isLocal = Boolean(options.isLocal);
 
-  if (!mcpUrl || !apiKey || !memoryId) {
-    throw new Error("mcpUrl, apiKey, and memoryId are required to build MCP config");
+  if (!mcpUrl) {
+    throw new Error("mcpUrl is required to build MCP config");
+  }
+  if (!isLocal && (!apiKey || !memoryId)) {
+    throw new Error("mcpUrl, apiKey, and memoryId are required to build MCP config (cloud mode)");
+  }
+
+  const serverEntry = { url: mcpUrl };
+  if (!isLocal) {
+    serverEntry.headers = {
+      Authorization: `Bearer ${apiKey}`,
+      "X-Awareness-Memory-Id": memoryId,
+      "X-Awareness-Agent-Role": agentRole,
+    };
   }
 
   return {
     mcpServers: {
-      [serverName]: {
-        url: mcpUrl,
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "X-Awareness-Memory-Id": memoryId,
-          "X-Awareness-Agent-Role": agentRole,
-        },
-      },
+      [serverName]: serverEntry,
     },
   };
 }
@@ -615,9 +621,13 @@ function buildMcpServerConfigForIde(ideId, options = {}) {
   const apiKey = String(options.apiKey || "").trim();
   const memoryId = String(options.memoryId || "").trim();
   const agentRole = String(options.agentRole || "builder_agent").trim() || "builder_agent";
+  const isLocal = Boolean(options.isLocal);
 
-  if (!mcpUrl || !apiKey || !memoryId) {
-    throw new Error("mcpUrl, apiKey, and memoryId are required to build MCP config");
+  if (!mcpUrl) {
+    throw new Error("mcpUrl is required to build MCP config");
+  }
+  if (!isLocal && (!apiKey || !memoryId)) {
+    throw new Error("mcpUrl, apiKey, and memoryId are required to build MCP config (cloud mode)");
   }
 
   const ideConfig = spec.ides?.[normalizedIde] ?? {};
@@ -626,11 +636,13 @@ function buildMcpServerConfigForIde(ideId, options = {}) {
 
   const serverEntry = { url: mcpUrl };
   if (variant) serverEntry[typeField] = variant;
-  serverEntry.headers = {
-    Authorization: `Bearer ${apiKey}`,
-    "X-Awareness-Memory-Id": memoryId,
-    "X-Awareness-Agent-Role": agentRole,
-  };
+  if (!isLocal) {
+    serverEntry.headers = {
+      Authorization: `Bearer ${apiKey}`,
+      "X-Awareness-Memory-Id": memoryId,
+      "X-Awareness-Agent-Role": agentRole,
+    };
+  }
 
   // Trae uses array format: "mcpServers": [{ "name": "...", ... }]
   if (arrayFormat) {

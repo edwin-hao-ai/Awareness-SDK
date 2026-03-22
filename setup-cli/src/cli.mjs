@@ -5,6 +5,7 @@
  */
 
 import readline from "node:readline";
+import http from "node:http";
 import { realpathSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -32,6 +33,87 @@ import {
   runAuthFlow,
   runMemoryFlow,
 } from "./auth.mjs";
+
+// ---------------------------------------------------------------------------
+// Local daemon helpers (zero dependencies — uses built-in http module)
+// ---------------------------------------------------------------------------
+
+const LOCAL_DAEMON_PORT = 37800;
+const LOCAL_DAEMON_URL = `http://localhost:${LOCAL_DAEMON_PORT}`;
+const LOCAL_MCP_URL = `${LOCAL_DAEMON_URL}/mcp`;
+const LOCAL_HEALTHZ_URL = `${LOCAL_DAEMON_URL}/healthz`;
+
+/**
+ * Check if the local Awareness daemon is running by hitting /healthz.
+ * Returns true if healthy, false otherwise. Timeout: 2 seconds.
+ */
+function checkDaemonHealth() {
+  return new Promise((resolve) => {
+    const req = http.get(LOCAL_HEALTHZ_URL, { timeout: 2000 }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => { resolve(res.statusCode >= 200 && res.statusCode < 300); });
+    });
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+  });
+}
+
+/**
+ * Attempt to start the local daemon via `npx @awareness-sdk/local start`.
+ * Returns true if spawn succeeded (does NOT wait for readiness).
+ */
+async function tryStartDaemon(embeddingLang = "en") {
+  try {
+    const { spawn } = await import("node:child_process");
+    const { existsSync } = await import("node:fs");
+    const { resolve, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const env = { ...process.env };
+    if (embeddingLang === "multi") {
+      env.AWARENESS_EMBEDDING_LANG = "multi";
+    }
+
+    // Try local sibling package first (development), then npx (production)
+    const thisDir = dirname(fileURLToPath(import.meta.url));
+    const localBin = resolve(thisDir, "../../local/bin/awareness-local.mjs");
+
+    if (existsSync(localBin)) {
+      // Development: use local sibling package directly
+      const child = spawn("node", [localBin, "start"], {
+        detached: true,
+        stdio: "ignore",
+        env,
+      });
+      child.unref();
+    } else {
+      // Production: use npx (package published to npm)
+      const child = spawn("npx", ["@awareness-sdk/local", "start"], {
+        detached: true,
+        stdio: "ignore",
+        env,
+      });
+      child.unref();
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Poll /healthz until the daemon is ready, up to `maxWaitMs`.
+ * Returns true if daemon became ready, false if timed out.
+ */
+async function waitForDaemon(maxWaitMs = 10000) {
+  const start = Date.now();
+  const interval = 500;
+  while (Date.now() - start < maxWaitMs) {
+    if (await checkDaemonHealth()) return true;
+    await new Promise((r) => setTimeout(r, interval));
+  }
+  return false;
+}
 
 function createQuestionPrompt(input = process.stdin, output = process.stdout) {
   return (question) => new Promise((resolve) => {
@@ -126,17 +208,23 @@ export function printUsage() {
 @awareness-sdk/setup - Set up Awareness Memory for your IDE
 
 Usage:
-  npx @awareness-sdk/setup                 Login, select memory, auto-detect IDE, sync rules + MCP
+  npx @awareness-sdk/setup                 Local mode (default): start daemon + sync rules + MCP
+  npx @awareness-sdk/setup --cloud         Cloud mode: login, select memory, sync rules + MCP
   npx @awareness-sdk/setup --ide cursor    Force specific IDE
   npx @awareness-sdk/setup --no-auth       Skip login (rules only, no MCP config)
   npx @awareness-sdk/setup --configure-mcp Prompt for MCP config values manually
   npx @awareness-sdk/setup --mcp-url <url> --api-key <key> --memory-id <id>
-                                           Provide MCP config values directly (skip auth)
+                                           Provide MCP config values directly (skip auth / cloud mode)
   npx @awareness-sdk/setup --dry-run       Preview without writing
   npx @awareness-sdk/setup --force         Allow overwrite for managed files without markers
   npx @awareness-sdk/setup --list          Show supported IDEs
   npx @awareness-sdk/setup --logout        Clear saved credentials
   npx @awareness-sdk/setup --api-base <url> Use custom API base URL
+
+Modes:
+  Default (local):  Runs a local Awareness daemon on port ${LOCAL_DAEMON_PORT}.
+                    Your data stays on your machine. No account needed.
+  --cloud:          Uses Awareness cloud service. Requires login + memory selection.
 
 Supported IDEs:
 ${getSupportedIdeIds()
@@ -442,6 +530,7 @@ export async function main(argv = process.argv.slice(2)) {
   const dryRun = argv.includes("--dry-run");
   const force = argv.includes("--force");
   const noAuth = argv.includes("--no-auth");
+  const cloudFlag = argv.includes("--cloud");
   const isInteractive = Boolean(process.stdin?.isTTY && process.stdout?.isTTY);
   const ask = isInteractive ? createQuestionPrompt() : null;
 
@@ -453,6 +542,24 @@ export async function main(argv = process.argv.slice(2)) {
   const apiBaseArg = readArg("--api-base") || "https://awareness.market/api/v1";
   const apiKeyArg = readArg("--api-key");
   const memoryIdArg = readArg("--memory-id");
+  const mcpUrlArg = readArg("--mcp-url");
+
+  // --- Determine mode: local (default) vs cloud ---
+  // Cloud mode if: --cloud flag, OR explicit --api-key/--mcp-url provided
+  const hasExplicitCloudArgs = Boolean(apiKeyArg || mcpUrlArg);
+  const isCloudMode = cloudFlag || hasExplicitCloudArgs;
+  const isLocalMode = !isCloudMode && !noAuth;
+
+  // =========================================================================
+  // LOCAL MODE (default): start daemon, sync rules + MCP with local URL
+  // =========================================================================
+  if (isLocalMode) {
+    return await runLocalMode({ argv, dryRun, force, ask, isInteractive });
+  }
+
+  // =========================================================================
+  // CLOUD MODE (--cloud or explicit credentials): existing auth flow
+  // =========================================================================
 
   // --- Auth + Memory selection (unless --no-auth or explicit args provided) ---
   let authApiKey = apiKeyArg;
@@ -481,56 +588,8 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   // --- Resolve which IDE(s) to configure ---
-  let ideTargets = [];
-
-  const ideIndex = argv.indexOf("--ide");
-  if (ideIndex !== -1 && argv[ideIndex + 1]) {
-    // Explicit --ide flag: use exactly that IDE
-    const normalized = normalizeIdeId(argv[ideIndex + 1]);
-    if (!normalized) {
-      console.error(`Unknown IDE: ${argv[ideIndex + 1]}`);
-      console.log(`Supported: ${getSupportedIdeIds().join(", ")}`);
-      return 1;
-    }
-    ideTargets = [normalized];
-  } else {
-    // Auto-detect all matching IDEs in the project directory
-    const detected = autoDetectAllIdes();
-
-    if (detected.length === 0) {
-      // Nothing detected — interactive selection or error
-      if (!ask) {
-        console.log("Could not auto-detect IDE. Use --ide <name> to specify.");
-        console.log(`Supported: ${getSupportedIdeIds().join(", ")}`);
-        console.log("\nHint: Run this from your project root directory.");
-        return 1;
-      }
-
-      console.log("Could not auto-detect IDE in this directory.");
-      console.log("Which IDE do you use?");
-      const allIdes = getSupportedIdeIds();
-      ideTargets = await promptIdeSelection(allIdes, ask);
-    } else if (detected.length === 1) {
-      // Single IDE detected — use it directly
-      ideTargets = detected;
-    } else {
-      // Multiple IDEs detected
-      if (!ask) {
-        // Non-interactive: configure all detected IDEs
-        ideTargets = detected;
-      } else {
-        const labels = detected.map((id) => getIdeConfig(id)?.label ?? id).join(", ");
-        console.log(`Found multiple IDEs: ${labels}`);
-        console.log("Which would you like to configure?");
-        ideTargets = await promptIdeSelection(detected, ask);
-      }
-    }
-  }
-
-  if (ideTargets.length === 0) {
-    console.log("No IDE selected.");
-    return 1;
-  }
+  const ideTargets = await resolveIdeTargets({ argv, ask });
+  if (ideTargets === null) return 1;
 
   // --- Build argv with auth-resolved values for syncOneIde ---
   const effectiveArgv = [...argv];
@@ -541,7 +600,6 @@ export async function main(argv = process.argv.slice(2)) {
     effectiveArgv.push("--memory-id", authMemoryId);
   }
   // If we have both api key and memory id from auth, auto-set MCP URL
-  const mcpUrlArg = readArg("--mcp-url");
   if (authApiKey && authMemoryId && !mcpUrlArg) {
     const mcpBase = authApiBase.replace(/\/api\/v1\/?$/, "");
     effectiveArgv.push("--mcp-url", `${mcpBase}/mcp`);
@@ -576,6 +634,325 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   return hasError ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Local mode implementation
+// ---------------------------------------------------------------------------
+
+async function runLocalMode({ argv, dryRun, force, ask, isInteractive }) {
+  console.log("\n🏠 Awareness Local Mode");
+  console.log("Your memories stay on your machine. No account needed.\n");
+
+  // Resolve IDEs early so we fail fast on bad --ide before starting the daemon
+  const ideTargets = await resolveIdeTargets({ argv, ask });
+  if (ideTargets === null) return 1;
+
+  // In dry-run mode, skip daemon start/check — just preview config files
+  if (!dryRun) {
+    // 1. Prompt for embedding language (interactive only)
+    let embeddingLang = "en"; // default: English only (smaller model)
+    if (ask) {
+      console.log("Embedding model language support:");
+      console.log("  1. English only  (~23 MB, faster)");
+      console.log("  2. All languages (~118 MB, multilingual)");
+      const langChoice = String(await ask("Select [1]: ")).trim();
+      if (langChoice === "2") {
+        embeddingLang = "multi";
+        console.log("→ Multilingual embedding model selected.\n");
+      } else {
+        console.log("→ English-only embedding model selected.\n");
+      }
+    }
+
+    // 2. Check if daemon is already running
+    console.log("Checking local daemon...");
+    let daemonReady = await checkDaemonHealth();
+
+    if (daemonReady) {
+      console.log("✓ Local daemon is already running.\n");
+    } else {
+      // 3. Try to start daemon
+      console.log("Starting local daemon...");
+      const started = await tryStartDaemon(embeddingLang);
+
+      if (!started) {
+        console.error("Could not start the local daemon.");
+        console.error("Install it first:  npm install -g @awareness-sdk/local");
+        console.error("Or start manually: npx @awareness-sdk/local start");
+        console.error("\nTo use cloud mode instead: npx @awareness-sdk/setup --cloud");
+        return 1;
+      }
+
+      // 4. Wait for daemon to be ready (up to 10 seconds)
+      process.stdout.write("Waiting for daemon to be ready");
+      const pollStart = Date.now();
+      const maxWait = 10000;
+      const pollInterval = 500;
+      while (Date.now() - pollStart < maxWait) {
+        if (await checkDaemonHealth()) {
+          daemonReady = true;
+          break;
+        }
+        process.stdout.write(".");
+        await new Promise((r) => setTimeout(r, pollInterval));
+      }
+      console.log("");
+
+      if (!daemonReady) {
+        console.error("Daemon did not become ready within 10 seconds.");
+        console.error("Check logs:  npx @awareness-sdk/local logs");
+        console.error("Or start manually:  npx @awareness-sdk/local start");
+        console.error("\nTo use cloud mode instead: npx @awareness-sdk/setup --cloud");
+        return 1;
+      }
+
+      console.log("✓ Local daemon started successfully.\n");
+    }
+  }
+
+  // 6. Sync rules + MCP config for each IDE (local mode: no auth headers)
+  let hasError = false;
+  try {
+    for (const ideId of ideTargets) {
+      const exitCode = await syncOneIdeLocal({ ideId, dryRun, force });
+      if (exitCode !== 0) {
+        hasError = true;
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(message);
+    return 1;
+  }
+
+  if (ideTargets.length > 1 && !hasError) {
+    console.log(`\n✓ Configured ${ideTargets.length} IDEs successfully.`);
+  }
+
+  if (!hasError && !dryRun) {
+    console.log("\n────────────────────────────────────────");
+    console.log("✓ Awareness is running locally on your machine.");
+    console.log(`  MCP endpoint: ${LOCAL_MCP_URL}`);
+    console.log("  Your data never leaves your computer.");
+    console.log("\n  Want cloud sync & collaboration?");
+    console.log("  → npx @awareness-sdk/setup --cloud");
+    console.log("────────────────────────────────────────");
+  }
+
+  return hasError ? 1 : 0;
+}
+
+/**
+ * Sync rules + MCP config for a single IDE in local mode.
+ * Similar to syncOneIde but uses local daemon URL without auth headers.
+ */
+async function syncOneIdeLocal({ ideId, dryRun, force }) {
+  const config = getIdeConfig(ideId);
+  console.log(`\nConfiguring ${config?.label ?? ideId}...`);
+
+  // OpenClaw is cloud-only (needs apiKey + memoryId for plugin config)
+  if (ideId === "openclaw") {
+    console.log("ℹ OpenClaw requires cloud mode. Run: npx @awareness-sdk/setup --cloud");
+    return 1;
+  }
+
+  // --- Sync workflow rules (same as cloud mode) ---
+  const result = syncIdeRules({ ideId, dryRun, force });
+
+  if (!result.ok) {
+    console.error(`Conflict while syncing ${result.filePath}: ${result.reason}`);
+    if (result.strategy === "managed_file" && !force) {
+      console.error("Re-run with --force only if you want Awareness to take ownership of that file.");
+    }
+    return 1;
+  }
+
+  const actionLabel = {
+    create: dryRun ? "Would create" : "Created",
+    append: dryRun ? "Would append" : "Appended",
+    replace: dryRun ? "Would replace" : "Replaced",
+    noop: "Already up to date",
+  }[result.action] ?? result.action;
+
+  if (result.action === "noop") {
+    console.log(`✓ ${result.filePath} ${actionLabel.toLowerCase()}.`);
+  } else {
+    console.log(`✓ ${actionLabel} ${result.filePath}`);
+    if (dryRun) {
+      console.log(result.content);
+    }
+  }
+
+  // --- Sync MCP config (local mode: no auth headers) ---
+  const mcpPath = getIdeMcpPath(ideId);
+  if (!mcpPath) {
+    // Handle IDEs that don't have a project-level MCP JSON path
+    await _handleUnsupportedMcpLocal({ ideId, config, dryRun });
+    return 0;
+  }
+
+  const mcpResult = syncIdeMcpConfig({
+    ideId,
+    dryRun,
+    mcpUrl: LOCAL_MCP_URL,
+    isLocal: true,
+  });
+
+  if (!mcpResult.ok) {
+    console.error(`Conflict while syncing ${mcpResult.filePath}: ${mcpResult.reason}`);
+    return 1;
+  }
+
+  const mcpActionLabel = {
+    create: dryRun ? "Would create" : "Created",
+    replace: dryRun ? "Would merge" : "Merged",
+    noop: "Already up to date",
+  }[mcpResult.action] ?? mcpResult.action;
+
+  if (mcpResult.action === "noop") {
+    console.log(`✓ ${mcpResult.filePath} already up to date.`);
+  } else {
+    console.log(`✓ ${mcpActionLabel} ${mcpResult.filePath}`);
+    if (dryRun) {
+      console.log(mcpResult.content);
+    }
+  }
+
+  return 0;
+}
+
+/**
+ * Handle MCP config for IDEs without project-level JSON in local mode.
+ */
+async function _handleUnsupportedMcpLocal({ ideId, config, dryRun }) {
+  // 1. Global file (Windsurf, Antigravity)
+  const globalPath = getIdeMcpGlobalPath(ideId);
+  if (globalPath) {
+    const mcpResult = syncIdeMcpGlobalConfig({
+      ideId,
+      dryRun,
+      mcpUrl: LOCAL_MCP_URL,
+      isLocal: true,
+    });
+    if (!mcpResult.ok) {
+      console.error(`Conflict while syncing ${mcpResult.filePath}: ${mcpResult.reason}`);
+      return;
+    }
+    const label = { create: dryRun ? "Would create" : "Created", replace: dryRun ? "Would merge" : "Merged", noop: "Already up to date" }[mcpResult.action] ?? mcpResult.action;
+    if (mcpResult.action === "noop") {
+      console.log(`✓ ${mcpResult.filePath} already up to date.`);
+    } else {
+      console.log(`✓ ${label} ${mcpResult.filePath}`);
+      if (dryRun) console.log(mcpResult.content);
+    }
+    return;
+  }
+
+  // 2. TOML project file (Codex) — local mode doesn't need auth headers in TOML either
+  const ideConfig = getIdeConfig(ideId);
+  if (ideConfig?.mcp_path_toml) {
+    // For TOML format, build a simplified local config block
+    const tomlBlock = [
+      `[mcp_servers.awareness-memory]`,
+      `url = "${LOCAL_MCP_URL}"`,
+      ``,
+    ].join("\n");
+    console.log(`ℹ Add the following to ${ideConfig.mcp_path_toml}:`);
+    console.log(tomlBlock);
+    return;
+  }
+
+  // 3. UI-based (Cline, Zed, Augment): print simplified local snippet
+  const stdJson = JSON.stringify(
+    { "awareness-memory": { url: LOCAL_MCP_URL } },
+    null,
+    2
+  );
+
+  if (normalizeIdeId(ideId) === "cline") {
+    console.log(`ℹ Cline manages MCP servers through its Settings UI:`);
+    console.log(`  1. Open VS Code → Cline sidebar → Settings (⚙) → MCP Servers → + Add Server`);
+    console.log(`  2. Select type: HTTP`);
+    console.log(`  3. Enter:`);
+    console.log(`       Name: awareness-memory`);
+    console.log(`       URL:  ${LOCAL_MCP_URL}`);
+    console.log(`  Or paste this JSON:`);
+    console.log(stdJson);
+  } else if (normalizeIdeId(ideId) === "zed") {
+    const zedEntry = JSON.stringify(
+      { "awareness-bridge": { command: "npx", args: ["-y", "mcp-remote", LOCAL_MCP_URL] } },
+      null,
+      2
+    );
+    console.log(`ℹ Zed: add to "context_servers" in ~/.config/zed/settings.json:`);
+    console.log(zedEntry);
+  } else {
+    console.log(`ℹ ${config?.label ?? ideId}: add this MCP server config:`);
+    console.log(stdJson);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared IDE resolution helper (used by both local and cloud mode)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve which IDE(s) to configure. Returns array of IDE ids, or null on error.
+ */
+async function resolveIdeTargets({ argv, ask }) {
+  let ideTargets = [];
+
+  const ideIndex = argv.indexOf("--ide");
+  if (ideIndex !== -1 && argv[ideIndex + 1]) {
+    // Explicit --ide flag: use exactly that IDE
+    const normalized = normalizeIdeId(argv[ideIndex + 1]);
+    if (!normalized) {
+      console.error(`Unknown IDE: ${argv[ideIndex + 1]}`);
+      console.log(`Supported: ${getSupportedIdeIds().join(", ")}`);
+      return null;
+    }
+    ideTargets = [normalized];
+  } else {
+    // Auto-detect all matching IDEs in the project directory
+    const detected = autoDetectAllIdes();
+
+    if (detected.length === 0) {
+      // Nothing detected — interactive selection or error
+      if (!ask) {
+        console.log("Could not auto-detect IDE. Use --ide <name> to specify.");
+        console.log(`Supported: ${getSupportedIdeIds().join(", ")}`);
+        console.log("\nHint: Run this from your project root directory.");
+        return null;
+      }
+
+      console.log("Could not auto-detect IDE in this directory.");
+      console.log("Which IDE do you use?");
+      const allIdes = getSupportedIdeIds();
+      ideTargets = await promptIdeSelection(allIdes, ask);
+    } else if (detected.length === 1) {
+      // Single IDE detected — use it directly
+      ideTargets = detected;
+    } else {
+      // Multiple IDEs detected
+      if (!ask) {
+        // Non-interactive: configure all detected IDEs
+        ideTargets = detected;
+      } else {
+        const labels = detected.map((id) => getIdeConfig(id)?.label ?? id).join(", ");
+        console.log(`Found multiple IDEs: ${labels}`);
+        console.log("Which would you like to configure?");
+        ideTargets = await promptIdeSelection(detected, ask);
+      }
+    }
+  }
+
+  if (ideTargets.length === 0) {
+    console.log("No IDE selected.");
+    return null;
+  }
+
+  return ideTargets;
 }
 
 

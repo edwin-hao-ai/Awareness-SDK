@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Awareness Local</title>
+<style>
+/* ======================================================================
+   Awareness Local — Dark Developer Dashboard
+   Single-file SPA, zero external dependencies
+   ====================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Awareness brand colors — matching frontend/app/globals.css dark mode */
+  --bg-primary: #121212;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #242424;
+  --bg-hover: #292929;
+  --border: #2e2e2e;
+  --border-active: #3b82f6;
+  --text-primary: #ebebeb;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #3b82f6;         /* Awareness primary blue */
+  --accent-hover: #60a5fa;
+  --accent-glow: #0ea5e9;    /* Logo deep blue */
+  --green: #22c55e;
+  --green-bg: rgba(34,197,94,0.12);
+  --yellow: #eab308;
+  --yellow-bg: rgba(234,179,8,0.12);
+  --red: #ef4444;
+  --red-bg: rgba(239,68,68,0.12);
+  --blue: #3b82f6;
+  --blue-bg: rgba(59,130,246,0.12);
+  --orange: #f97316;
+  --orange-bg: rgba(249,115,22,0.12);
+  --radius: 12px;            /* Matching frontend border-radius */
+  --radius-sm: 6px;
+  --transition: 150ms ease;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Layout ---- */
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px; border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.header h1 { font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.header .logo-svg { width: 28px; height: 28px; flex-shrink: 0; vertical-align: middle; margin-right: 4px; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.daemon-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.8rem; color: var(--text-secondary); background: var(--bg-tertiary);
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border);
+}
+.daemon-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+.daemon-badge .dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.daemon-badge .dot.err { background: var(--red); }
+
+.main { flex: 1; display: flex; flex-direction: column; }
+
+/* ---- Tab Navigation ---- */
+.tabs {
+  display: flex; gap: 0; border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary); padding: 0 24px; overflow-x: auto;
+}
+.tab-btn {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-secondary); font-size: 0.9rem; padding: 12px 16px;
+  cursor: pointer; white-space: nowrap; transition: color var(--transition), border-color var(--transition);
+}
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+
+/* ---- Content Area ---- */
+.content { flex: 1; padding: 24px; overflow-y: auto; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ---- Search Bar ---- */
+.search-bar {
+  display: flex; gap: 8px; margin-bottom: 20px;
+}
+.search-bar input {
+  flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px; color: var(--text-primary);
+  font-size: 0.9rem; outline: none; transition: border-color var(--transition);
+}
+.search-bar input::placeholder { color: var(--text-muted); }
+.search-bar input:focus { border-color: var(--accent); }
+.search-bar button {
+  background: var(--accent); color: #fff; border: none; border-radius: var(--radius);
+  padding: 10px 20px; font-size: 0.9rem; cursor: pointer; font-weight: 500;
+  transition: background var(--transition);
+}
+.search-bar button:hover { background: var(--accent-hover); }
+
+/* ---- Memory List ---- */
+.memory-list { display: flex; flex-direction: column; gap: 8px; }
+.memory-item {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 18px; cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+.memory-item:hover { border-color: var(--border-active); background: var(--bg-hover); }
+.memory-item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.memory-item-title { font-weight: 500; font-size: 0.95rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memory-item-date { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+.memory-item-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.memory-item-content {
+  display: none; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--border); font-size: 0.88rem;
+  color: var(--text-secondary); white-space: pre-wrap; word-break: break-word;
+  max-height: 400px; overflow-y: auto;
+}
+.memory-item.expanded .memory-item-content { display: block; }
+
+/* ---- Badges ---- */
+.badge {
+  display: inline-block; font-size: 0.72rem; padding: 2px 8px;
+  border-radius: 999px; font-weight: 500; white-space: nowrap;
+}
+.badge-type { background: var(--blue-bg); color: var(--blue); }
+.badge-tag { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border); }
+.badge-decision { background: var(--accent); color: #fff; }
+.badge-problem_solution { background: var(--green); color: #fff; }
+.badge-workflow { background: var(--blue); color: #fff; }
+.badge-key_point { background: var(--yellow); color: #000; }
+.badge-pitfall { background: var(--red); color: #fff; }
+.badge-insight { background: var(--orange); color: #fff; }
+.badge-confidence { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border); }
+.badge-confidence.high { border-color: var(--green); color: var(--green); }
+.badge-confidence.mid { border-color: var(--yellow); color: var(--yellow); }
+.badge-confidence.low { border-color: var(--red); color: var(--red); }
+
+/* ---- Knowledge Cards Grid ---- */
+.category-section { margin-bottom: 28px; }
+.category-title { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.kc-card {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; transition: border-color var(--transition);
+}
+.kc-card:hover { border-color: var(--border-active); }
+.kc-card-title { font-weight: 500; margin-bottom: 8px; font-size: 0.92rem; }
+.kc-card-summary { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.5; }
+.kc-card-footer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* ---- Tasks ---- */
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+.task-item {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px;
+  transition: border-color var(--transition);
+}
+.task-item:hover { border-color: var(--border-active); }
+.priority-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.priority-dot.high { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.priority-dot.medium { background: var(--yellow); }
+.priority-dot.low { background: var(--green); }
+.task-info { flex: 1; min-width: 0; }
+.task-title { font-weight: 500; font-size: 0.92rem; }
+.task-desc { font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-status-select {
+  background: var(--bg-tertiary); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 10px; font-size: 0.82rem; cursor: pointer; outline: none;
+}
+.task-status-select:focus { border-color: var(--accent); }
+
+/* ---- Sync Panel ---- */
+.sync-status-box {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+  display: flex; align-items: center; gap: 16px;
+}
+.sync-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.sync-icon.connected { background: var(--green-bg); }
+.sync-icon.disconnected { background: var(--bg-tertiary); }
+.sync-info h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+.sync-info p { font-size: 0.85rem; color: var(--text-secondary); }
+.connect-btn {
+  margin-left: auto; background: var(--accent); color: #fff; border: none;
+  border-radius: var(--radius); padding: 10px 20px; font-size: 0.9rem;
+  cursor: pointer; font-weight: 500; transition: background var(--transition);
+}
+.connect-btn:hover { background: var(--accent-hover); }
+.connect-instructions {
+  display: none; background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; margin-top: 16px;
+}
+.connect-instructions.visible { display: block; }
+.connect-instructions h4 { margin-bottom: 12px; }
+.connect-instructions ol { margin-left: 20px; color: var(--text-secondary); font-size: 0.88rem; }
+.connect-instructions ol li { margin-bottom: 8px; }
+.connect-instructions code {
+  background: var(--bg-primary); padding: 2px 6px; border-radius: var(--radius-sm);
+  font-family: "SF Mono", Monaco, "Cascadia Code", monospace; font-size: 0.84rem;
+}
+.sync-history { margin-top: 20px; }
+.sync-history h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 12px; color: var(--text-secondary); }
+.sync-history-empty { font-size: 0.85rem; color: var(--text-muted); padding: 16px; text-align: center; }
+
+/* ---- Settings ---- */
+.settings-section { margin-bottom: 28px; }
+.settings-section h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 14px; }
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-label { font-size: 0.9rem; }
+.setting-label small { display: block; color: var(--text-muted); font-size: 0.78rem; margin-top: 2px; }
+.setting-value { font-size: 0.88rem; color: var(--text-secondary); font-family: "SF Mono", Monaco, monospace; }
+.toggle {
+  width: 44px; height: 24px; border-radius: 12px; background: var(--bg-tertiary);
+  border: 1px solid var(--border); position: relative; cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.toggle.on { background: var(--accent); border-color: var(--accent); }
+.toggle .knob {
+  width: 18px; height: 18px; border-radius: 50%; background: #fff;
+  position: absolute; top: 2px; left: 2px; transition: left var(--transition);
+}
+.toggle.on .knob { left: 22px; }
+
+/* ---- Stats Bar ---- */
+.stats-bar {
+  display: flex; align-items: center; gap: 16px; padding: 10px 24px;
+  background: var(--bg-secondary); border-top: 1px solid var(--border);
+  font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap;
+}
+.stats-bar .stat { display: flex; align-items: center; gap: 4px; }
+.stats-bar .sep { color: var(--border); }
+
+/* ---- Empty State ---- */
+.empty-state {
+  text-align: center; padding: 60px 20px; color: var(--text-muted);
+}
+.empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.5; }
+.empty-state p { font-size: 0.92rem; }
+
+/* ---- Loading ---- */
+.loading { text-align: center; padding: 40px; color: var(--text-muted); }
+.spinner {
+  display: inline-block; width: 24px; height: 24px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.8s linear infinite; margin-bottom: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Responsive ---- */
+@media (max-width: 640px) {
+  .header { padding: 10px 16px; }
+  .tabs { padding: 0 12px; }
+  .content { padding: 16px; }
+  .stats-bar { padding: 8px 16px; gap: 10px; }
+  .cards-grid { grid-template-columns: 1fr; }
+  .sync-status-box { flex-direction: column; text-align: center; }
+  .connect-btn { margin-left: 0; width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <!-- Header -->
+  <header class="header">
+    <h1><svg class="logo-svg" width="28" height="28" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="os" x1="30" y1="50" x2="490" y2="500" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#E0F2FE"/><stop offset=".35" stop-color="#7DD3FC"/><stop offset=".7" stop-color="#38BDF8"/><stop offset="1" stop-color="#0EA5E9"/></linearGradient><linearGradient id="is" x1="120" y1="80" x2="300" y2="260" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F0F9FF"/><stop offset=".4" stop-color="#BAE6FD"/><stop offset="1" stop-color="#38BDF8"/></linearGradient><radialGradient id="df" cx="200" cy="168" r="20" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F0F9FF"/><stop offset=".5" stop-color="#7DD3FC"/><stop offset="1" stop-color="#0EA5E9"/></radialGradient></defs><circle cx="262" cy="275" r="218" stroke="url(#os)" stroke-width="16" fill="none"/><circle cx="198" cy="168" r="68" stroke="url(#is)" stroke-width="13" fill="none"/><circle cx="198" cy="168" r="15" fill="url(#df)"/></svg> Awareness Local</h1>
+    <div class="header-right">
+      <div class="daemon-badge">
+        <span class="dot" id="daemon-dot"></span>
+        <span id="daemon-label">Checking...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <nav class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="memories">All Memories</button>
+    <button class="tab-btn" data-tab="knowledge">Knowledge Cards</button>
+    <button class="tab-btn" data-tab="tasks">Tasks</button>
+    <button class="tab-btn" data-tab="sync">Sync</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main">
+    <div class="content">
+
+      <!-- Memories Panel -->
+      <div class="panel active" id="panel-memories">
+        <div class="search-bar">
+          <input type="text" id="memory-search" placeholder="Search memories..." />
+          <button onclick="searchMemories()">Search</button>
+        </div>
+        <div id="memory-list" class="memory-list">
+          <div class="loading"><div class="spinner"></div><p>Loading memories...</p></div>
+        </div>
+      </div>
+
+      <!-- Knowledge Panel -->
+      <div class="panel" id="panel-knowledge">
+        <div id="knowledge-list">
+          <div class="loading"><div class="spinner"></div><p>Loading knowledge cards...</p></div>
+        </div>
+      </div>
+
+      <!-- Tasks Panel -->
+      <div class="panel" id="panel-tasks">
+        <div class="search-bar">
+          <select id="task-filter" onchange="loadTasks()" style="background:var(--bg-tertiary);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-size:0.9rem;outline:none;">
+            <option value="">All Tasks</option>
+            <option value="open">Open</option>
+            <option value="in_progress">In Progress</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+        <div id="task-list" class="task-list">
+          <div class="loading"><div class="spinner"></div><p>Loading tasks...</p></div>
+        </div>
+      </div>
+
+      <!-- Sync Panel -->
+      <div class="panel" id="panel-sync">
+        <div class="sync-status-box" id="sync-status-box">
+          <div class="sync-icon disconnected" id="sync-icon">&#9729;</div>
+          <div class="sync-info">
+            <h3 id="sync-title">Checking sync status...</h3>
+            <p id="sync-desc">Loading...</p>
+          </div>
+          <button class="connect-btn" id="connect-btn" onclick="handleCloudConnect()">Connect to Cloud</button>
+        </div>
+        <div class="connect-instructions" id="connect-instructions">
+          <div id="auth-idle">
+            <p style="margin:0 0 12px 0;color:#94a3b8">One click to connect. No manual setup needed.</p>
+            <button class="connect-btn" style="width:100%" onclick="startDeviceAuth()">Start Connection</button>
+          </div>
+          <div id="auth-pending" style="display:none;text-align:center">
+            <p style="color:#94a3b8;margin:0 0 8px">Open this link in your browser and enter the code:</p>
+            <div style="font-size:2em;font-weight:700;letter-spacing:4px;color:#6366f1;margin:12px 0" id="auth-user-code">---</div>
+            <a id="auth-verify-link" href="#" target="_blank" style="color:#818cf8;word-break:break-all">Loading...</a>
+            <p style="color:#64748b;margin:12px 0 0;font-size:0.85em">Waiting for authorization... <span class="spinner" style="display:inline-block;width:14px;height:14px;vertical-align:middle"></span></p>
+          </div>
+          <div id="auth-select-memory" style="display:none">
+            <p style="color:#94a3b8;margin:0 0 8px">Select a memory to sync with:</p>
+            <select id="memory-select" style="width:100%;padding:8px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px;margin-bottom:12px"></select>
+            <button class="connect-btn" style="width:100%" onclick="confirmMemorySelection()">Connect</button>
+          </div>
+          <div id="auth-success" style="display:none;text-align:center">
+            <div style="font-size:2em;margin:8px 0">&#10003;</div>
+            <p style="color:#4ade80;margin:0">Connected! Sync will start automatically.</p>
+          </div>
+          <div id="auth-error" style="display:none;text-align:center">
+            <p style="color:#f87171;margin:0" id="auth-error-msg">Connection failed.</p>
+            <button class="connect-btn" style="margin-top:12px" onclick="startDeviceAuth()">Retry</button>
+          </div>
+        </div>
+        <div class="sync-history" id="sync-history">
+          <h4>Sync History</h4>
+          <div class="sync-history-empty">No sync history yet. Connect to cloud to enable sync.</div>
+        </div>
+      </div>
+
+      <!-- Settings Panel -->
+      <div class="panel" id="panel-settings">
+        <div id="settings-content">
+          <div class="loading"><div class="spinner"></div><p>Loading settings...</p></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Stats Bar -->
+  <footer class="stats-bar" id="stats-bar">
+    <span class="stat" id="stat-memories">-- memories</span>
+    <span class="sep">&middot;</span>
+    <span class="stat" id="stat-cards">-- cards</span>
+    <span class="sep">&middot;</span>
+    <span class="stat" id="stat-tasks">-- tasks</span>
+    <span class="sep">&middot;</span>
+    <span class="stat" id="stat-daemon">Daemon: checking</span>
+    <span class="sep">&middot;</span>
+    <span class="stat" id="stat-cloud">Cloud: checking</span>
+  </footer>
+</div>
+
+<script>
+/* ======================================================================
+   Awareness Local Dashboard — JavaScript Controller
+   ====================================================================== */
+
+const API = '/api/v1';
+let currentTab = 'memories';
+let memoriesData = [];
+let knowledgeData = [];
+let tasksData = [];
+let configData = {};
+let syncData = {};
+let statsData = { totalMemories: 0, totalKnowledge: 0, totalTasks: 0, totalSessions: 0 };
+
+// -------------------------------------------------------------------
+// API Helpers
+// -------------------------------------------------------------------
+
+async function api(path, options) {
+  try {
+    const resp = await fetch(API + path, options);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.json();
+  } catch (err) {
+    console.error('[dashboard] API error:', path, err);
+    return null;
+  }
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMs / 3600000);
+    const diffDay = Math.floor(diffMs / 86400000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return diffMin + 'm ago';
+    if (diffHr < 24) return diffHr + 'h ago';
+    if (diffDay < 7) return diffDay + 'd ago';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+  } catch { return iso; }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function parseTags(tags) {
+  if (Array.isArray(tags)) return tags;
+  if (typeof tags === 'string') {
+    try { const p = JSON.parse(tags); if (Array.isArray(p)) return p; } catch {}
+  }
+  return [];
+}
+
+function confidenceClass(c) {
+  if (c >= 0.8) return 'high';
+  if (c >= 0.5) return 'mid';
+  return 'low';
+}
+
+// -------------------------------------------------------------------
+// Tab Navigation
+// -------------------------------------------------------------------
+
+document.getElementById('tabs').addEventListener('click', function(e) {
+  if (!e.target.classList.contains('tab-btn')) return;
+  var tab = e.target.getAttribute('data-tab');
+  if (tab === currentTab) return;
+
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+  e.target.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+  currentTab = tab;
+
+  // Lazy load on tab switch
+  if (tab === 'memories' && memoriesData.length === 0) loadMemories();
+  if (tab === 'knowledge' && knowledgeData.length === 0) loadKnowledge();
+  if (tab === 'tasks' && tasksData.length === 0) loadTasks();
+  if (tab === 'sync') loadSync();
+  if (tab === 'settings') loadSettings();
+});
+
+// -------------------------------------------------------------------
+// Memories
+// -------------------------------------------------------------------
+
+async function loadMemories() {
+  var container = document.getElementById('memory-list');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading memories...</p></div>';
+
+  var data = await api('/memories?limit=50&offset=0');
+  if (!data) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#128466;</div><p>Could not load memories. Is the daemon running?</p></div>';
+    return;
+  }
+
+  memoriesData = data.items || [];
+  renderMemories(memoriesData);
+}
+
+async function searchMemories() {
+  var q = document.getElementById('memory-search').value.trim();
+  if (!q) { loadMemories(); return; }
+
+  var container = document.getElementById('memory-list');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Searching...</p></div>';
+
+  var data = await api('/memories/search?q=' + encodeURIComponent(q));
+  if (!data) {
+    container.innerHTML = '<div class="empty-state"><p>Search failed.</p></div>';
+    return;
+  }
+
+  renderMemories(data.items || []);
+}
+
+function renderMemories(items) {
+  var container = document.getElementById('memory-list');
+  if (items.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#128466;</div><p>No memories yet. Start a conversation with your AI agent to create memories.</p></div>';
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < items.length; i++) {
+    var m = items[i];
+    var tags = parseTags(m.tags);
+    var tagsHtml = tags.map(function(t) { return '<span class="badge badge-tag">' + escapeHtml(t) + '</span>'; }).join('');
+    // Title: prefer explicit title, then extract first sentence from content, lastly ID
+    var rawContent = m.content || m.fts_content || '';
+    var title = m.title;
+    if (!title || title === 'null') {
+      var firstSentence = rawContent.split(/[.\n!?。！？]/)[0].trim();
+      title = firstSentence.length > 80 ? firstSentence.substring(0, 77) + '...' : firstSentence;
+    }
+    title = escapeHtml(title || 'Untitled');
+    var contentPreview = escapeHtml(rawContent).substring(0, 500);
+
+    html += '<div class="memory-item" onclick="this.classList.toggle(\'expanded\')">'
+      + '<div class="memory-item-header">'
+      + '<span class="memory-item-title">' + title + '</span>'
+      + '<span class="memory-item-date">' + formatDate(m.created_at) + '</span>'
+      + '</div>'
+      + '<div class="memory-item-meta">'
+      + '<span class="badge badge-type">' + escapeHtml(m.type || 'memory') + '</span>'
+      + tagsHtml
+      + '</div>'
+      + '<div class="memory-item-content">' + contentPreview + '</div>'
+      + '</div>';
+  }
+  container.innerHTML = html;
+}
+
+// Search on Enter key
+document.getElementById('memory-search').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') searchMemories();
+});
+
+// -------------------------------------------------------------------
+// Knowledge Cards
+// -------------------------------------------------------------------
+
+async function loadKnowledge() {
+  var container = document.getElementById('knowledge-list');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading knowledge cards...</p></div>';
+
+  var data = await api('/knowledge');
+  if (!data) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#128218;</div><p>Could not load knowledge cards.</p></div>';
+    return;
+  }
+
+  knowledgeData = data.items || [];
+  renderKnowledge(knowledgeData);
+}
+
+function renderKnowledge(items) {
+  var container = document.getElementById('knowledge-list');
+  if (items.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#128218;</div><p>No knowledge cards yet. Cards are extracted automatically from your memories.</p></div>';
+    return;
+  }
+
+  // Group by category
+  var groups = {};
+  for (var i = 0; i < items.length; i++) {
+    var cat = items[i].category || 'other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(items[i]);
+  }
+
+  var categoryOrder = ['decision', 'problem_solution', 'workflow', 'key_point', 'pitfall', 'insight',
+    'personal_preference', 'important_detail', 'plan_intention', 'risk', 'other'];
+
+  var html = '';
+  for (var ci = 0; ci < categoryOrder.length; ci++) {
+    var catKey = categoryOrder[ci];
+    if (!groups[catKey]) continue;
+    var catItems = groups[catKey];
+    var catLabel = catKey.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+
+    html += '<div class="category-section">';
+    html += '<div class="category-title">' + escapeHtml(catLabel) + ' (' + catItems.length + ')</div>';
+    html += '<div class="cards-grid">';
+
+    for (var j = 0; j < catItems.length; j++) {
+      var c = catItems[j];
+      var tags = parseTags(c.tags);
+      var tagsHtml = tags.map(function(t) { return '<span class="badge badge-tag">' + escapeHtml(t) + '</span>'; }).join('');
+      var conf = c.confidence != null ? c.confidence : 0.8;
+      var confPct = Math.round(conf * 100);
+
+      html += '<div class="kc-card">'
+        + '<div class="kc-card-title">' + escapeHtml(c.title || 'Untitled') + '</div>'
+        + '<div class="kc-card-summary">' + escapeHtml(c.summary || '') + '</div>'
+        + '<div class="kc-card-footer">'
+        + '<span class="badge badge-' + escapeHtml(catKey) + '">' + escapeHtml(catLabel) + '</span>'
+        + '<span class="badge badge-confidence ' + confidenceClass(conf) + '">' + confPct + '%</span>'
+        + tagsHtml
+        + '</div></div>';
+    }
+
+    html += '</div></div>';
+  }
+
+  // Remaining categories not in order
+  var allCats = Object.keys(groups);
+  for (var k = 0; k < allCats.length; k++) {
+    if (categoryOrder.indexOf(allCats[k]) === -1) {
+      var catItems2 = groups[allCats[k]];
+      var catLabel2 = allCats[k].replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+      html += '<div class="category-section"><div class="category-title">' + escapeHtml(catLabel2) + ' (' + catItems2.length + ')</div><div class="cards-grid">';
+      for (var l = 0; l < catItems2.length; l++) {
+        var c2 = catItems2[l];
+        html += '<div class="kc-card"><div class="kc-card-title">' + escapeHtml(c2.title || 'Untitled') + '</div>'
+          + '<div class="kc-card-summary">' + escapeHtml(c2.summary || '') + '</div></div>';
+      }
+      html += '</div></div>';
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+// -------------------------------------------------------------------
+// Tasks
+// -------------------------------------------------------------------
+
+async function loadTasks() {
+  var container = document.getElementById('task-list');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading tasks...</p></div>';
+
+  var filter = document.getElementById('task-filter').value;
+  var url = '/tasks';
+  if (filter) url += '?status=' + encodeURIComponent(filter);
+
+  var data = await api(url);
+  if (!data) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9745;</div><p>Could not load tasks.</p></div>';
+    return;
+  }
+
+  tasksData = data.items || [];
+  renderTasks(tasksData);
+}
+
+function renderTasks(items) {
+  var container = document.getElementById('task-list');
+  if (items.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9745;</div><p>No tasks found. Tasks are extracted from your memories automatically.</p></div>';
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < items.length; i++) {
+    var t = items[i];
+    var priority = t.priority || 'medium';
+
+    html += '<div class="task-item">'
+      + '<div class="priority-dot ' + escapeHtml(priority) + '" title="Priority: ' + escapeHtml(priority) + '"></div>'
+      + '<div class="task-info">'
+      + '<div class="task-title">' + escapeHtml(t.title || 'Untitled') + '</div>'
+      + (t.description ? '<div class="task-desc">' + escapeHtml(t.description) + '</div>' : '')
+      + '</div>'
+      + '<select class="task-status-select" data-task-id="' + escapeHtml(t.id) + '" onchange="updateTaskStatus(this)">'
+      + '<option value="open"' + (t.status === 'open' ? ' selected' : '') + '>Open</option>'
+      + '<option value="in_progress"' + (t.status === 'in_progress' ? ' selected' : '') + '>In Progress</option>'
+      + '<option value="done"' + (t.status === 'done' ? ' selected' : '') + '>Done</option>'
+      + '</select>'
+      + '</div>';
+  }
+  container.innerHTML = html;
+}
+
+async function updateTaskStatus(select) {
+  var taskId = select.getAttribute('data-task-id');
+  var newStatus = select.value;
+
+  var result = await api('/tasks/' + encodeURIComponent(taskId), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: newStatus })
+  });
+
+  if (!result || result.error) {
+    alert('Failed to update task status');
+    loadTasks();
+    return;
+  }
+
+  // Refresh stats
+  loadStats();
+}
+
+// -------------------------------------------------------------------
+// Sync
+// -------------------------------------------------------------------
+
+async function loadSync() {
+  var data = await api('/sync/status');
+  var iconEl = document.getElementById('sync-icon');
+  var titleEl = document.getElementById('sync-title');
+  var descEl = document.getElementById('sync-desc');
+  var btnEl = document.getElementById('connect-btn');
+
+  if (!data) {
+    titleEl.textContent = 'Unable to check sync status';
+    descEl.textContent = 'Make sure the daemon is running.';
+    return;
+  }
+
+  syncData = data;
+
+  if (data.cloud_enabled) {
+    iconEl.className = 'sync-icon connected';
+    iconEl.innerHTML = '&#9889;';
+    titleEl.textContent = 'Connected to Cloud';
+    descEl.textContent = 'Memory ID: ' + (data.memory_id || 'N/A');
+    if (data.last_push_at) descEl.textContent += ' | Last sync: ' + formatDate(data.last_push_at);
+    btnEl.textContent = 'Disconnect';
+  } else {
+    iconEl.className = 'sync-icon disconnected';
+    iconEl.innerHTML = '&#9729;';
+    titleEl.textContent = 'Not Connected to Cloud';
+    descEl.textContent = 'Memories are stored locally only. Connect to cloud for backup and cross-device sync.';
+    btnEl.textContent = 'Connect to Cloud';
+  }
+}
+
+var _authApiKey = null;
+
+function handleCloudConnect() {
+  if (syncData && syncData.cloud_enabled) {
+    // Disconnect
+    if (confirm('Disconnect from cloud? Local memories will remain.')) {
+      api('/cloud/disconnect', { method: 'POST' }).then(function() { loadSync(); });
+    }
+    return;
+  }
+  var el = document.getElementById('connect-instructions');
+  el.classList.toggle('visible');
+}
+
+async function startDeviceAuth() {
+  document.getElementById('auth-idle').style.display = 'none';
+  document.getElementById('auth-pending').style.display = 'block';
+  document.getElementById('auth-error').style.display = 'none';
+
+  try {
+    var data = await api('/cloud/auth/start', { method: 'POST' });
+    if (!data || data.error || !data.user_code) {
+      throw new Error(data?.error || 'Failed to start device auth. Check your internet connection.');
+    }
+    document.getElementById('auth-user-code').textContent = data.user_code;
+    var link = document.getElementById('auth-verify-link');
+    link.href = data.verification_uri + '?code=' + data.user_code;
+    link.textContent = data.verification_uri;
+
+    // Open browser automatically
+    window.open(link.href, '_blank');
+
+    // Poll for authorization
+    var result = await api('/cloud/auth/poll', {
+      method: 'POST',
+      body: JSON.stringify({ device_code: data.device_code, interval: data.interval || 5 })
+    });
+
+    if (result.api_key) {
+      _authApiKey = result.api_key;
+      // Load memories for selection
+      document.getElementById('auth-pending').style.display = 'none';
+      document.getElementById('auth-select-memory').style.display = 'block';
+
+      var memories = await api('/cloud/memories?api_key=' + encodeURIComponent(result.api_key));
+      var select = document.getElementById('memory-select');
+      select.innerHTML = '';
+      (memories || []).forEach(function(m) {
+        var opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name || m.id;
+        select.appendChild(opt);
+      });
+      if (!memories || memories.length === 0) {
+        select.innerHTML = '<option value="">No memories found — one will be created</option>';
+      }
+    }
+  } catch (err) {
+    document.getElementById('auth-pending').style.display = 'none';
+    document.getElementById('auth-error').style.display = 'block';
+    document.getElementById('auth-error-msg').textContent = err.message || 'Connection failed';
+  }
+}
+
+async function confirmMemorySelection() {
+  var memoryId = document.getElementById('memory-select').value;
+  try {
+    await api('/cloud/connect', {
+      method: 'POST',
+      body: JSON.stringify({ api_key: _authApiKey, memory_id: memoryId })
+    });
+    document.getElementById('auth-select-memory').style.display = 'none';
+    document.getElementById('auth-success').style.display = 'block';
+    setTimeout(function() { loadSync(); }, 2000);
+  } catch (err) {
+    document.getElementById('auth-select-memory').style.display = 'none';
+    document.getElementById('auth-error').style.display = 'block';
+    document.getElementById('auth-error-msg').textContent = err.message || 'Failed to save config';
+  }
+}
+
+// -------------------------------------------------------------------
+// Settings
+// -------------------------------------------------------------------
+
+async function loadSettings() {
+  var container = document.getElementById('settings-content');
+  var data = await api('/config');
+  if (!data) {
+    container.innerHTML = '<div class="empty-state"><p>Could not load settings.</p></div>';
+    return;
+  }
+
+  configData = data;
+  var daemon = data.daemon || {};
+  var device = data.device || {};
+  var cloud = data.cloud || {};
+  var embedding = data.embedding || {};
+  var gitSync = data.git_sync || {};
+
+  var html = '';
+
+  // Daemon section
+  html += '<div class="settings-section"><h3>Daemon</h3>';
+  html += settingRow('Port', daemon.port || 37800);
+  html += settingRow('Log Level', daemon.log_level || 'info');
+  html += settingRow('Auto Start', daemon.auto_start ? 'Yes' : 'No');
+  html += '</div>';
+
+  // Device section
+  html += '<div class="settings-section"><h3>Device</h3>';
+  html += settingRow('Device ID', device.id || 'N/A');
+  html += settingRow('Device Name', device.name || 'N/A');
+  html += '</div>';
+
+  // Embedding section
+  html += '<div class="settings-section"><h3>Embedding</h3>';
+  html += settingRowToggle('Language', 'embedding_language',
+    embedding.language === 'multilingual',
+    'English', 'Multilingual',
+    'Switch between English-optimized and multilingual embedding model');
+  html += settingRow('Model', embedding.model_id || 'auto-detect');
+  html += '</div>';
+
+  // Cloud section
+  html += '<div class="settings-section"><h3>Cloud Sync</h3>';
+  html += settingRow('Status', cloud.enabled ? 'Connected' : 'Not connected');
+  html += settingRow('API Base', cloud.api_base || 'N/A');
+  html += settingRow('Memory ID', cloud.memory_id || 'N/A');
+  html += settingRow('Auto Sync', cloud.auto_sync ? 'Yes' : 'No');
+  html += settingRow('Sync Interval', (cloud.sync_interval_min || 5) + ' min');
+  html += '</div>';
+
+  // Git section
+  html += '<div class="settings-section"><h3>Git Sync</h3>';
+  html += settingRowToggle('Auto Commit', 'git_auto_commit',
+    gitSync.auto_commit === true,
+    'Off', 'On',
+    'Automatically commit .awareness/ changes to git');
+  html += settingRow('Branch', gitSync.branch || 'current branch');
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function settingRow(label, value) {
+  return '<div class="setting-row"><div class="setting-label">' + escapeHtml(label) + '</div>'
+    + '<div class="setting-value">' + escapeHtml(String(value)) + '</div></div>';
+}
+
+function settingRowToggle(label, id, isOn, offLabel, onLabel, desc) {
+  return '<div class="setting-row"><div class="setting-label">' + escapeHtml(label)
+    + (desc ? '<small>' + escapeHtml(desc) + '</small>' : '') + '</div>'
+    + '<div style="display:flex;align-items:center;gap:8px;">'
+    + '<span style="font-size:0.82rem;color:var(--text-muted)">' + escapeHtml(isOn ? onLabel : offLabel) + '</span>'
+    + '<div class="toggle' + (isOn ? ' on' : '') + '" data-setting="' + escapeHtml(id) + '" onclick="toggleSetting(this)">'
+    + '<div class="knob"></div></div></div></div>';
+}
+
+async function toggleSetting(el) {
+  var settingKey = el.getAttribute('data-setting');
+  var isOn = el.classList.contains('on');
+  var newVal = !isOn;
+
+  var payload = {};
+  if (settingKey === 'embedding_language') {
+    payload = { embedding: { language: newVal ? 'multilingual' : 'english' } };
+  } else if (settingKey === 'git_auto_commit') {
+    payload = { git_sync: { auto_commit: newVal } };
+  }
+
+  var result = await api('/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (result && !result.error) {
+    el.classList.toggle('on');
+    // Update label next to toggle
+    var labelSpan = el.previousElementSibling;
+    if (settingKey === 'embedding_language') {
+      labelSpan.textContent = newVal ? 'Multilingual' : 'English';
+    } else if (settingKey === 'git_auto_commit') {
+      labelSpan.textContent = newVal ? 'On' : 'Off';
+    }
+  }
+}
+
+// -------------------------------------------------------------------
+// Stats Bar
+// -------------------------------------------------------------------
+
+async function loadStats() {
+  var data = await api('/stats');
+  if (!data) return;
+  statsData = data;
+
+  document.getElementById('stat-memories').textContent = (data.totalMemories || 0) + ' memories';
+  document.getElementById('stat-cards').textContent = (data.totalKnowledge || 0) + ' cards';
+  document.getElementById('stat-tasks').textContent = (data.totalTasks || 0) + ' tasks';
+}
+
+async function checkDaemon() {
+  var dot = document.getElementById('daemon-dot');
+  var label = document.getElementById('daemon-label');
+  var statDaemon = document.getElementById('stat-daemon');
+
+  try {
+    var resp = await fetch('/healthz');
+    if (resp.ok) {
+      var d = await resp.json();
+      dot.className = 'dot ok';
+      label.textContent = 'Running (' + (d.uptime || 0) + 's)';
+      statDaemon.textContent = 'Daemon: running';
+
+      // Cloud status
+      var statCloud = document.getElementById('stat-cloud');
+      var cfg = await api('/config');
+      if (cfg && cfg.cloud && cfg.cloud.enabled) {
+        statCloud.textContent = 'Cloud: synced';
+      } else {
+        statCloud.textContent = 'Cloud: not synced';
+      }
+    } else {
+      throw new Error();
+    }
+  } catch (e) {
+    dot.className = 'dot err';
+    label.textContent = 'Offline';
+    document.getElementById('stat-daemon').textContent = 'Daemon: offline';
+    document.getElementById('stat-cloud').textContent = 'Cloud: N/A';
+  }
+}
+
+// -------------------------------------------------------------------
+// Init
+// -------------------------------------------------------------------
+
+async function init() {
+  await Promise.all([
+    checkDaemon(),
+    loadStats(),
+    loadMemories()
+  ]);
+
+  // Auto-refresh stats every 30 seconds
+  setInterval(function() {
+    loadStats();
+    checkDaemon();
+  }, 30000);
+}
+
+init();
+</script>
+</body>
+</html>

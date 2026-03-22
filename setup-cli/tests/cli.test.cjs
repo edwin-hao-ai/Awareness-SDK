@@ -756,3 +756,107 @@ test("CLI dry-run with --ide openclaw does not write files", async () => {
     process.env.USERPROFILE = originalUserProfile;
   }
 });
+
+// --- Local mode tests ---
+
+test("Default mode (no flags) enters local mode with dry-run", async () => {
+  const cwd = makeTempDir();
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(cwd);
+    // Default mode = local. With --dry-run, skips daemon check, just previews config.
+    const exitCode = await cliModule.main(["--ide", "codex", "--dry-run"]);
+    assert.equal(exitCode, 0);
+    // dry-run should NOT create files
+    assert.equal(fs.existsSync(path.join(cwd, "AGENTS.md")), false);
+  } finally {
+    process.chdir(originalCwd);
+  }
+});
+
+test("--cloud flag triggers cloud mode (with explicit args)", async () => {
+  const cwd = makeTempDir();
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(cwd);
+    const exitCode = await cliModule.main([
+      "--cloud",
+      "--ide", "codex",
+      "--api-key", "aw_cloud_key",
+      "--memory-id", "mem_cloud_id",
+      "--mcp-url", "https://awareness.market/mcp",
+      "--dry-run",
+    ]);
+    assert.equal(exitCode, 0);
+  } finally {
+    process.chdir(originalCwd);
+  }
+});
+
+test("buildMcpServerConfig local mode omits auth headers", () => {
+  const config = rulesModule.buildMcpServerConfig({
+    mcpUrl: "http://localhost:37800/mcp",
+    isLocal: true,
+  });
+  const entry = config.mcpServers["awareness-memory"];
+  assert.equal(entry.url, "http://localhost:37800/mcp");
+  assert.equal(entry.headers, undefined);
+});
+
+test("buildMcpServerConfig cloud mode requires apiKey and memoryId", () => {
+  assert.throws(
+    () => rulesModule.buildMcpServerConfig({ mcpUrl: "https://example.com/mcp" }),
+    /cloud mode/,
+  );
+});
+
+test("buildMcpServerConfig cloud mode includes auth headers", () => {
+  const config = rulesModule.buildMcpServerConfig({
+    mcpUrl: "https://example.com/mcp",
+    apiKey: "aw_key",
+    memoryId: "mem_id",
+  });
+  const entry = config.mcpServers["awareness-memory"];
+  assert.equal(entry.url, "https://example.com/mcp");
+  assert.ok(entry.headers);
+  assert.match(entry.headers.Authorization, /Bearer aw_key/);
+  assert.equal(entry.headers["X-Awareness-Memory-Id"], "mem_id");
+});
+
+test("syncIdeMcpConfig local mode creates config without auth headers", () => {
+  const cwd = makeTempDir();
+  const result = rulesModule.syncIdeMcpConfig({
+    cwd,
+    ideId: "copilot",
+    mcpUrl: "http://localhost:37800/mcp",
+    isLocal: true,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.action, "create");
+  const content = fs.readFileSync(path.join(cwd, ".vscode", "mcp.json"), "utf-8");
+  const parsed = JSON.parse(content);
+  const entry = parsed.servers["awareness-memory"];
+  assert.equal(entry.url, "http://localhost:37800/mcp");
+  // No headers in local mode
+  assert.equal(entry.headers, undefined);
+});
+
+test("Local mode dry-run with codex shows local MCP URL", async () => {
+  const cwd = makeTempDir();
+  const originalCwd = process.cwd();
+  const logs = [];
+  const originalLog = console.log;
+  try {
+    process.chdir(cwd);
+    console.log = (...args) => { logs.push(args.join(" ")); };
+    await cliModule.main(["--ide", "codex", "--dry-run"]);
+    const allOutput = logs.join("\n");
+    // Should mention local mode
+    assert.match(allOutput, /Local Mode/);
+    // Should show the local MCP URL in TOML snippet
+    assert.match(allOutput, /localhost:37800/);
+  } finally {
+    process.chdir(originalCwd);
+    console.log = originalLog;
+  }
+});
