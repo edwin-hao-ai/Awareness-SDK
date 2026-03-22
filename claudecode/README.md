@@ -1,6 +1,6 @@
-# @awareness/claudecode-memory
+# Awareness Memory — Claude Code Plugin
 
-Claude Code plugin for persistent cross-session memory via [Awareness Memory Cloud](https://awareness.market).
+Persistent cross-session memory for Claude Code via [Awareness](https://awareness.market). Local-first — works offline, no account needed.
 
 Gives Claude Code a long-term memory that survives across sessions — no more forgetting what was built, repeating architectural decisions, or losing track of open TODOs.
 

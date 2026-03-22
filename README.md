@@ -56,7 +56,7 @@ Want cloud features later? `npx @awareness-sdk/setup --cloud`
 
 **The fastest way to add memory to existing AI apps.** One line — zero code changes.
 
-#### Python — `wrap_openai()` / `wrap_anthropic()`
+#### Python — `AwarenessInterceptor.wrap_openai()` / `.wrap_anthropic()`
 
 ```bash
 pip install awareness-memory-cloud
@@ -64,22 +64,22 @@ pip install awareness-memory-cloud
 
 ```python
 from openai import OpenAI
-from memory_cloud import MemoryCloudClient
+from memory_cloud import AwarenessInterceptor
 
 client = OpenAI()
-memory = MemoryCloudClient(api_key="aw_...", memory_id="...")
+interceptor = AwarenessInterceptor(api_key="aw_...", memory_id="...")
 
 # One line — all conversations automatically remembered
-client = memory.wrap_openai(client)
+interceptor.wrap_openai(client)
 
-# Use OpenAI as normal — memory happens automatically
+# Use OpenAI as normal — memory happens in the background
 response = client.chat.completions.create(
     model="gpt-4",
     messages=[{"role": "user", "content": "Refactor the auth module"}]
 )
 ```
 
-#### TypeScript — `wrapOpenAI()` / `wrapAnthropic()`
+#### TypeScript — `AwarenessInterceptor.wrapOpenAI()` / `.wrapAnthropic()`
 
 ```bash
 npm install @awareness-sdk/memory-cloud
@@ -87,16 +87,16 @@ npm install @awareness-sdk/memory-cloud
 
 ```typescript
 import OpenAI from "openai";
-import { MemoryCloudClient } from "@awareness-sdk/memory-cloud";
+import { AwarenessInterceptor } from "@awareness-sdk/memory-cloud";
 
 const openai = new OpenAI();
-const memory = new MemoryCloudClient({ apiKey: "aw_...", memoryId: "..." });
+const interceptor = new AwarenessInterceptor({ apiKey: "aw_...", memoryId: "..." });
 
-// One line — zero code changes needed
-const client = memory.wrapOpenAI(openai);
+// One line — all conversations automatically remembered
+interceptor.wrapOpenAI(openai);
 
-// Use as normal — memory is automatic
-const response = await client.chat.completions.create({
+// Use as normal — memory happens in the background
+const response = await openai.chat.completions.create({
   model: "gpt-4",
   messages: [{ role: "user", content: "What did we decide about the database?" }],
 });
