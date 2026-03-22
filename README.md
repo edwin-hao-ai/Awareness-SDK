@@ -176,8 +176,8 @@ Your machine                          Cloud (optional)
 | [`@awareness-sdk/setup`](https://www.npmjs.com/package/@awareness-sdk/setup) | CLI setup for all 13+ IDEs | `npx @awareness-sdk/setup` |
 | [`awareness-memory-cloud`](https://pypi.org/project/awareness-memory-cloud/) | Python SDK with interceptors | `pip install awareness-memory-cloud` |
 | [`@awareness-sdk/memory-cloud`](https://www.npmjs.com/package/@awareness-sdk/memory-cloud) | TypeScript SDK with interceptors | `npm i @awareness-sdk/memory-cloud` |
-| [`@awareness-sdk/openclaw-memory`](https://www.npmjs.com/package/@awareness-sdk/openclaw-memory) | OpenClaw plugin | `openclaw plugins install` |
-| `claudecode/` | Claude Code plugin | `/plugin install` |
+| [`@awareness-sdk/openclaw-memory`](https://www.npmjs.com/package/@awareness-sdk/openclaw-memory) | OpenClaw plugin | `openclaw plugins install @awareness-sdk/openclaw-memory` |
+| [`claudecode/`](claudecode/README.md) | Claude Code plugin | `/plugin marketplace add edwin-hao-ai/Awareness-SDK` then `/plugin install awareness-memory@awareness` |
 
 ---
 
