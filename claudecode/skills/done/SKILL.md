@@ -14,10 +14,11 @@ Steps:
    - knowledge_cards: key facts, decisions, patterns learned (each with category, title, summary)
    - action_items: pending tasks, TODOs, blockers (each with title, description, priority)
    - risks: potential issues, concerns discovered (each with title, description, severity)
+   - completed_tasks: if awareness_init returned open_tasks, check which ones were completed in this session (each with task_id, reason)
 
 2. Save session progress by calling MCP tool `awareness_record` with:
    - content: array summarizing what was done (same format as /awareness-memory:save)
-   - insights: the structured object from step 1, with knowledge_cards, action_items, risks
+   - insights: the structured object from step 1, with knowledge_cards, action_items, risks, completed_tasks
    - memory_id: value of env var AWARENESS_MEMORY_ID
    - session_id: the session_id from awareness_init (if available)
 

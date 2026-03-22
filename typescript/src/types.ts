@@ -315,6 +315,19 @@ export interface ExistingCardRef {
   category?: string;
 }
 
+export interface ExistingTaskRef {
+  id?: string;
+  title?: string;
+  detail?: string;
+  status?: string;
+  priority?: string;
+}
+
+export interface CompletedTask {
+  task_id?: string;
+  reason?: string;
+}
+
 /**
  * Returned by the server when it triggers client-side extraction.
  *
@@ -326,6 +339,7 @@ export interface ExtractionRequest {
   session_id?: string;
   events?: ExtractionEvent[];
   existing_cards?: ExistingCardRef[];
+  existing_tasks?: ExistingTaskRef[];
   system_prompt?: string;
 }
 
@@ -337,6 +351,7 @@ export interface SubmitInsightsResult {
   cards_updated?: number;
   risks_created?: number;
   action_items_created?: number;
+  tasks_auto_completed?: number;
 }
 
 export interface AgentProfile {
@@ -376,6 +391,7 @@ export interface RecordInput {
     risks?: Array<Record<string, any>>;
     entities?: Array<Record<string, any>>;
     relations?: Array<Record<string, any>>;
+    completed_tasks?: CompletedTask[];
     turn_brief?: string;
   };
   scope?: "timeline" | "knowledge";

@@ -268,6 +268,15 @@ class ExistingCardRef(TypedDict, total=False):
     category: str
 
 
+class ExistingTaskRef(TypedDict, total=False):
+    """Open task reference included in extraction requests for auto-completion detection."""
+    id: str
+    title: str
+    detail: str
+    status: str
+    priority: str
+
+
 class ExtractionRequest(TypedDict, total=False):
     """Returned by remember_step/remember_batch when server triggers extraction.
 
@@ -278,7 +287,14 @@ class ExtractionRequest(TypedDict, total=False):
     session_id: str
     events: List[ExtractionEvent]
     existing_cards: List[ExistingCardRef]
+    existing_tasks: List[ExistingTaskRef]
     system_prompt: str
+
+
+class CompletedTask(TypedDict, total=False):
+    """A task identified as completed by the LLM during insight extraction."""
+    task_id: str
+    reason: str
 
 
 class SubmitInsightsResult(TypedDict, total=False):
@@ -289,6 +305,7 @@ class SubmitInsightsResult(TypedDict, total=False):
     cards_updated: int
     risks_created: int
     action_items_created: int
+    tasks_auto_completed: int
 
 
 class AgentProfile(TypedDict, total=False):

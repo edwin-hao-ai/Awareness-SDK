@@ -634,13 +634,21 @@ export class Indexer {
    *
    * @param {number} [limit=5]
    */
-  getOpenTasks(limit = 5) {
+  getOpenTasks(limit = 0) {
+    if (limit > 0) {
+      return this.db
+        .prepare(
+          `SELECT * FROM tasks WHERE status = 'open'
+           ORDER BY created_at DESC LIMIT ?`
+        )
+        .all(limit);
+    }
     return this.db
       .prepare(
         `SELECT * FROM tasks WHERE status = 'open'
-         ORDER BY created_at DESC LIMIT ?`
+         ORDER BY created_at DESC`
       )
-      .all(limit);
+      .all();
   }
 
   /**

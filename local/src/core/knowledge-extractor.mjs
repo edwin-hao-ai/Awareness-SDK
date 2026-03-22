@@ -154,7 +154,18 @@ export class KnowledgeExtractor {
       }
     }
 
-    return { cards, tasks, risks };
+    // Collect completed_tasks for auto-completion processing
+    const completedTasks = [];
+    if (insights.completed_tasks) {
+      for (const ct of insights.completed_tasks) {
+        const taskId = (ct.task_id || '').trim();
+        if (taskId) {
+          completedTasks.push({ task_id: taskId, reason: ct.reason || '' });
+        }
+      }
+    }
+
+    return { cards, tasks, risks, completedTasks };
   }
 
   // -------------------------------------------------------------------------
@@ -480,6 +491,26 @@ export class KnowledgeExtractor {
     }
 
     await Promise.all(promises);
+
+    // Auto-complete tasks identified by the LLM
+    if (result.completedTasks && this.indexer) {
+      for (const ct of result.completedTasks) {
+        try {
+          const existing = this.indexer.db
+            .prepare('SELECT * FROM tasks WHERE id = ?')
+            .get(ct.task_id);
+          if (existing && existing.status !== 'done') {
+            this.indexer.indexTask({
+              ...existing,
+              status: 'done',
+              updated_at: new Date().toISOString(),
+            });
+          }
+        } catch (err) {
+          console.warn(`[KnowledgeExtractor] Failed to auto-complete task ${ct.task_id}:`, err.message);
+        }
+      }
+    }
   }
 
   /**

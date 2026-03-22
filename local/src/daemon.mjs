@@ -643,7 +643,7 @@ export class AwarenessLocalDaemon {
         const session = this._createSession(args.source);
         const stats = this.indexer.getStats();
         const recentCards = this.indexer.getRecentKnowledge(args.max_cards ?? 5);
-        const openTasks = this.indexer.getOpenTasks(args.max_tasks ?? 5);
+        const openTasks = this.indexer.getOpenTasks(args.max_tasks ?? 0);
         const recentSessions = this.indexer.getRecentSessions(args.days ?? 7);
         const spec = this._loadSpec();
 
@@ -944,7 +944,8 @@ export class AwarenessLocalDaemon {
    */
   _apiListTasks(_req, res, url) {
     const status = url.searchParams.get('status') || null;
-    const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : 0;
 
     if (!this.indexer) {
       return jsonResponse(res, { items: [], total: 0 });
@@ -963,8 +964,11 @@ export class AwarenessLocalDaemon {
       sql += ' WHERE ' + conditions.join(' AND ');
     }
 
-    sql += ` ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END, created_at DESC LIMIT ?`;
-    params.push(limit);
+    sql += ` ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END, created_at DESC`;
+    if (limit > 0) {
+      sql += ` LIMIT ?`;
+      params.push(limit);
+    }
 
     const rows = this.indexer.db.prepare(sql).all(...params);
     return jsonResponse(res, { items: rows, total: rows.length });
@@ -1483,10 +1487,35 @@ ${item.description || item.title || ''}
       }
     }
 
+    // Auto-complete tasks identified by the LLM
+    let tasksAutoCompleted = 0;
+    if (Array.isArray(insights.completed_tasks)) {
+      for (const completed of insights.completed_tasks) {
+        const taskId = (completed.task_id || '').trim();
+        if (!taskId) continue;
+        try {
+          const existing = this.indexer.db
+            .prepare('SELECT * FROM tasks WHERE id = ?')
+            .get(taskId);
+          if (existing && existing.status !== 'done') {
+            this.indexer.indexTask({
+              ...existing,
+              status: 'done',
+              updated_at: nowISO(),
+            });
+            tasksAutoCompleted++;
+          }
+        } catch (err) {
+          console.warn(`[AwarenessDaemon] Failed to auto-complete task '${taskId}':`, err.message);
+        }
+      }
+    }
+
     return {
       status: 'ok',
       cards_created: cardsCreated,
       tasks_created: tasksCreated,
+      tasks_auto_completed: tasksAutoCompleted,
       mode: 'local',
     };
   }
@@ -1500,7 +1529,7 @@ ${item.description || item.title || ''}
         // Full context dump
         const stats = this.indexer.getStats();
         const knowledge = this.indexer.getRecentKnowledge(limit);
-        const tasks = this.indexer.getOpenTasks(limit);
+        const tasks = this.indexer.getOpenTasks(0);
         const sessions = this.indexer.getRecentSessions(7);
         return { stats, knowledge_cards: knowledge, open_tasks: tasks, recent_sessions: sessions, mode: 'local' };
       }
@@ -1526,8 +1555,11 @@ ${item.description || item.title || ''}
         }
 
         if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
-        sql += ' ORDER BY created_at DESC LIMIT ?';
-        sqlParams.push(limit);
+        sql += ' ORDER BY created_at DESC';
+        if (limit > 0) {
+          sql += ' LIMIT ?';
+          sqlParams.push(limit);
+        }
 
         const tasks = this.indexer.db.prepare(sql).all(...sqlParams);
         return { tasks, total: tasks.length, mode: 'local' };

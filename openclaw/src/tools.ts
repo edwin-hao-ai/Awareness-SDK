@@ -309,7 +309,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         },
         insights: {
           type: "object",
-          description: "Pre-extracted structured insights to store with this event. Include knowledge_cards, action_items, risks. When provided, skips the _extraction_instruction round-trip.",
+          description: "Pre-extracted structured insights to store with this event. Include knowledge_cards, action_items, risks, completed_tasks. When provided, skips the _extraction_instruction round-trip.",
         },
       },
       required: ["action"],
