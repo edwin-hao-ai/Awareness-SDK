@@ -1,8 +1,6 @@
 {
   "env": {
-    "AWARENESS_MCP_URL": "https://awareness.market/mcp",
-    "AWARENESS_MEMORY_ID": "your-memory-id-here",
-    "AWARENESS_API_KEY": "aw_your-api-key-here",
+    "AWARENESS_MCP_URL": "http://localhost:37800/mcp",
     "AWARENESS_AGENT_ROLE": "builder_agent"
   }
 }

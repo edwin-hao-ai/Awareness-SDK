@@ -12,11 +12,19 @@
       "agentRole": { "type": "string", "default": "builder_agent" },
       "autoRecall": { "type": "boolean", "default": true },
       "autoCapture": { "type": "boolean", "default": true },
-      "recallLimit": { "type": "integer", "default": 8 }
+      "recallLimit": { "type": "integer", "default": 8 },
+      "localUrl": { "type": "string", "default": "http://localhost:37800" },
+      "embeddingLanguage": {
+        "type": "string",
+        "enum": ["english", "multilingual"],
+        "default": "english"
+      }
     }
   },
   "uiHints": {
     "apiKey": { "label": "Awareness API Key", "sensitive": true },
-    "memoryId": { "label": "Memory ID" }
+    "memoryId": { "label": "Memory ID" },
+    "localUrl": { "label": "Local Daemon URL" },
+    "embeddingLanguage": { "label": "Embedding Language" }
   }
 }

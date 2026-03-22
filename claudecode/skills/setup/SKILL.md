@@ -1,29 +1,59 @@
 ---
 name: setup
-description: One-command setup — authenticate via browser and configure Awareness Memory credentials.
+description: Setup Awareness Memory — check local daemon, authenticate via browser, and configure credentials.
 user-invocable: true
 disable-model-invocation: false
 ---
 
-One-command Awareness Memory setup: authenticate via browser, select a memory, and write credentials to settings.json.
+Setup Awareness Memory: check local daemon status, optionally authenticate via browser, select a memory, and write credentials to settings.json.
 
-API base URL: https://awareness.market/api/v1
+Cloud API base URL: https://awareness.market/api/v1
+Local daemon URL: http://localhost:37800
 
-## Step 1 — Check existing credentials
+## Step 1 — Check local daemon
 
-First determine if the user already has working credentials. Check **two** sources:
+First check if the local Awareness daemon is running:
 
-### 1a. Check environment variables (from settings.json)
+```bash
+curl -sf http://localhost:37800/healthz 2>/dev/null && echo "DAEMON:RUNNING" || echo "DAEMON:NOT_RUNNING"
+```
+
+### If daemon is running (DAEMON:RUNNING):
+
+Get daemon status:
+```bash
+curl -sf http://localhost:37800/api/v1/status 2>/dev/null || echo "{}"
+```
+
+Tell the user:
+```
+Awareness local daemon is running!
+
+Status: [show memory_id, mode, etc. from status response]
+MCP URL: http://localhost:37800/mcp
+
+Your local memory is ready to use.
+```
+
+Then ask: "Want to connect to Awareness Cloud for sync and sharing? (yes/no)"
+- If no → jump to Step 5 (write local-only settings) and finish.
+- If yes → continue to Step 2 (cloud auth).
+
+### If daemon is NOT running:
+
+Check if user has existing cloud credentials (same logic as before):
+
+#### 1a. Check environment variables (from settings.json)
 
 Read the current environment variables `AWARENESS_API_KEY` and `AWARENESS_MEMORY_ID`.
 If both exist AND `AWARENESS_API_KEY` starts with `aw_` AND is NOT the placeholder `aw_your-api-key-here`,
 and `AWARENESS_MEMORY_ID` is NOT `your-memory-id-here`:
-  - Tell the user credentials are already configured.
+  - Tell the user cloud credentials are already configured.
   - Ask: "Do you want to re-configure? (yes/no)"
   - If no → stop here. Suggest running `/awareness-memory:session-start` instead.
   - If yes → continue to Step 2.
 
-### 1b. Check ~/.awareness/credentials.json (left by npx @awareness-sdk/setup)
+#### 1b. Check ~/.awareness/credentials.json (left by npx @awareness-sdk/setup)
 
 Run:
 ```bash
@@ -35,7 +65,20 @@ If the file exists and contains a valid `api_key` (starts with `aw_`):
   - Extract the `api_key` and `api_base` values.
   - Skip Step 2 and Step 3 — jump directly to Step 4 (Memory selection) using this api_key.
 
-If neither source has valid credentials → proceed to Step 2.
+If no credentials found at all:
+  - Tell the user:
+    ```
+    Awareness Memory is not configured. You have two options:
+
+    1. Start local daemon: npx @awareness-sdk/local start
+       (Run this in a separate terminal, then re-run /awareness-memory:setup)
+
+    2. Connect to cloud: Continue with browser authentication below
+
+    Which option? (local/cloud) [cloud]:
+    ```
+  - If "local" → tell user to run `npx @awareness-sdk/local start` in another terminal and re-run setup. Stop here.
+  - If "cloud" or empty → proceed to Step 2.
 
 ---
 
@@ -280,6 +323,21 @@ Verify it exists:
 
 ### 5b. Write credentials
 
+**If local daemon mode (from Step 1, user chose not to connect cloud):**
+
+Use the Write tool (NOT Bash) to write the settings.json file. Content:
+
+```json
+{
+  "env": {
+    "AWARENESS_MCP_URL": "http://localhost:37800/mcp",
+    "AWARENESS_AGENT_ROLE": "builder_agent"
+  }
+}
+```
+
+**If cloud mode (completed Steps 2-4):**
+
 Use the Write tool (NOT Bash) to write the settings.json file. Content:
 
 ```json
@@ -297,10 +355,23 @@ Use the Write tool (NOT Bash) to write the settings.json file. Content:
 
 ## Step 6 — Final summary
 
-Tell the user:
+**For local daemon mode:**
 
 ```
-Setup complete!
+Setup complete! (Local mode)
+
+  MCP URL:   http://localhost:37800/mcp
+  Mode:      Local-first
+
+Your memory is stored locally. To sync with cloud later, run /awareness-memory:setup again.
+To activate, restart Claude Code and then run:
+  /awareness-memory:session-start
+```
+
+**For cloud mode:**
+
+```
+Setup complete! (Cloud mode)
 
   API Key:   {first 10 chars of api_key}...
   Memory:    {memory_name} ({memory_id})
@@ -318,6 +389,8 @@ Clearly explain: a restart is needed because MCP connections are established at 
 
 | Scenario | Action |
 |----------|--------|
+| Local daemon running | Show status, offer cloud connection |
+| Local daemon not running, no credentials | Offer local start or cloud auth |
 | Network unreachable (init fails) | Stop with clear message, suggest checking connection |
 | Browser won't open | Show manual URL from `BROWSER:FAILED` output |
 | User never authorizes (TIMEOUT) | Ask: keep waiting (re-run script) or cancel |

@@ -27,16 +27,22 @@ function registerSetupMode(api: PluginApi): void {
     },
     execute: async () => ({
       status: "not_configured",
-      message: "Awareness Memory plugin needs an API key and Memory ID to work.",
+      message: "Awareness Memory plugin needs either a local daemon or cloud credentials to work.",
       setup_options: [
         {
-          method: "One-command setup (recommended)",
+          method: "Local daemon (recommended for privacy)",
+          command: "npx @awareness-sdk/local start",
+          description:
+            "Start a local Awareness daemon. Memory stays on your machine. No account needed.",
+        },
+        {
+          method: "One-command cloud setup",
           command: "npx @awareness-sdk/setup --ide openclaw",
           description:
             "Opens browser for login, lets you pick a memory, and writes config automatically.",
         },
         {
-          method: "Manual configuration",
+          method: "Manual cloud configuration",
           steps: [
             "1. Sign up or log in at https://awareness.market",
             "2. Copy your API key (starts with aw_) from Settings",
@@ -55,15 +61,16 @@ function registerSetupMode(api: PluginApi): void {
     async (_context: HookContext): Promise<HookResult | void> => ({
       prependSystemContext:
         "[Awareness Memory] Not configured yet. " +
-        "Run `npx @awareness-sdk/setup --ide openclaw` in a terminal to connect your memory in one step, " +
-        "or call the awareness_setup tool for detailed instructions.",
+        "Start a local daemon with `npx @awareness-sdk/local start`, " +
+        "or run `npx @awareness-sdk/setup --ide openclaw` for cloud setup. " +
+        "Call the awareness_setup tool for detailed instructions.",
     }),
     { priority: 10 },
   );
 
   api.logger.warn(
-    "Awareness memory plugin loaded in setup mode — apiKey or memoryId not configured. " +
-      "Run `npx @awareness-sdk/setup --ide openclaw` to complete setup.",
+    "Awareness memory plugin loaded in setup mode — no local daemon and no cloud credentials. " +
+      "Run `npx @awareness-sdk/local start` or `npx @awareness-sdk/setup --ide openclaw` to complete setup.",
   );
 }
 
@@ -71,7 +78,7 @@ function registerSetupMode(api: PluginApi): void {
 // Plugin entry point — called by the OpenClaw host to initialize the plugin
 // ---------------------------------------------------------------------------
 
-export default function register(api: PluginApi): void {
+export default async function register(api: PluginApi): Promise<void> {
   // OpenClaw host may expose plugin-specific config as `pluginConfig`
   // while `config` can be the entire openclaw.json. Try pluginConfig first.
   const raw: Record<string, unknown> = api.pluginConfig ?? api.config ?? {};
@@ -85,31 +92,105 @@ export default function register(api: PluginApi): void {
     autoRecall: raw.autoRecall !== undefined ? Boolean(raw.autoRecall) : true,
     autoCapture: raw.autoCapture !== undefined ? Boolean(raw.autoCapture) : true,
     recallLimit: raw.recallLimit !== undefined ? Number(raw.recallLimit) : 8,
+    localUrl: String(raw.localUrl ?? "http://localhost:37800"),
+    embeddingLanguage: (raw.embeddingLanguage === "multilingual" ? "multilingual" : "english") as PluginConfig["embeddingLanguage"],
   };
 
-  // Graceful degradation: missing credentials → setup mode instead of crash
-  if (!config.apiKey || !config.memoryId) {
-    registerSetupMode(api);
+  const localUrl = config.localUrl;
+
+  // ---------------------------------------------------------------------------
+  // Priority 1: Check local daemon (auto-start if not running)
+  // ---------------------------------------------------------------------------
+  let localDaemonRunning = false;
+  try {
+    const healthResp = await fetch(`${localUrl}/healthz`, {
+      method: "GET",
+      signal: AbortSignal.timeout(2000),
+    });
+    localDaemonRunning = healthResp.ok;
+  } catch {
+    // Daemon not reachable — try to auto-start it
+    api.logger.info("Local daemon not running, attempting auto-start...");
+    try {
+      // AUDIT FIX: Use spawn+detached instead of exec (exec kills daemon after timeout)
+      const { spawn } = await import("child_process");
+      const child = spawn("npx", ["-y", "@awareness-sdk/local", "start"], {
+        cwd: process.cwd(),
+        detached: true,
+        stdio: "ignore",
+      });
+      child.unref();
+      // Wait for daemon to be ready (poll healthz for up to 8 seconds)
+      for (let i = 0; i < 16; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        try {
+          const retry = await fetch(`${localUrl}/healthz`, {
+            method: "GET",
+            signal: AbortSignal.timeout(1000),
+          });
+          if (retry.ok) {
+            localDaemonRunning = true;
+            api.logger.info("Local daemon auto-started successfully");
+            break;
+          }
+        } catch {
+          // Keep polling
+        }
+      }
+      if (!localDaemonRunning) {
+        api.logger.warn("Auto-start timed out — falling back to cloud or setup mode");
+      }
+    } catch {
+      // npx/spawn not available or other error — fall through silently
+    }
+  }
+
+  if (localDaemonRunning) {
+    // Local daemon is running — use it without auth headers
+    const client = new AwarenessClient(
+      `${localUrl}/api/v1`,
+      "", // No API key needed for local daemon
+      config.memoryId || "local", // memoryId may be empty for local
+      config.agentRole,
+    );
+
+    registerTools(api, client);
+    registerHooks(api, client, config);
+
+    api.logger.info(
+      `Awareness memory plugin initialized (local daemon) — ` +
+        `url=${localUrl}, role=${config.agentRole}, ` +
+        `autoRecall=${config.autoRecall}, autoCapture=${config.autoCapture}`,
+    );
     return;
   }
 
-  // Create the HTTP client
-  const client = new AwarenessClient(
-    config.baseUrl,
-    config.apiKey,
-    config.memoryId,
-    config.agentRole,
-  );
+  // ---------------------------------------------------------------------------
+  // Priority 2: Cloud mode — requires apiKey and memoryId
+  // ---------------------------------------------------------------------------
+  if (config.apiKey && config.memoryId) {
+    const client = new AwarenessClient(
+      config.baseUrl,
+      config.apiKey,
+      config.memoryId,
+      config.agentRole,
+    );
 
-  // Register tools and hooks
-  registerTools(api, client);
-  registerHooks(api, client, config);
+    registerTools(api, client);
+    registerHooks(api, client, config);
 
-  api.logger.info(
-    `Awareness memory plugin initialized — ` +
-      `memory=${config.memoryId}, role=${config.agentRole}, ` +
-      `autoRecall=${config.autoRecall}, autoCapture=${config.autoCapture}`,
-  );
+    api.logger.info(
+      `Awareness memory plugin initialized (cloud) — ` +
+        `memory=${config.memoryId}, role=${config.agentRole}, ` +
+        `autoRecall=${config.autoRecall}, autoCapture=${config.autoCapture}`,
+    );
+    return;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Priority 3: No daemon, no cloud credentials → setup mode
+  // ---------------------------------------------------------------------------
+  registerSetupMode(api);
 }
 
 // Re-export types and client for programmatic usage

@@ -577,11 +577,15 @@ export class AwarenessClient {
   // -----------------------------------------------------------------------
 
   private headers(): Record<string, string> {
-    return {
+    const h: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json",
-      Authorization: `Bearer ${this.apiKey}`,
     };
+    // Skip Authorization header for local daemon (empty apiKey + localhost)
+    if (this.apiKey) {
+      h.Authorization = `Bearer ${this.apiKey}`;
+    }
+    return h;
   }
 
   async get<T>(path: string, params?: URLSearchParams): Promise<T> {

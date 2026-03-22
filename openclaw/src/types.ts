@@ -10,6 +10,8 @@ export interface PluginConfig {
   autoRecall: boolean;
   autoCapture: boolean;
   recallLimit: number;
+  localUrl: string;
+  embeddingLanguage: "english" | "multilingual";
 }
 
 // ---------------------------------------------------------------------------

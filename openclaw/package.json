@@ -1,6 +1,6 @@
 {
   "name": "@awareness-sdk/openclaw-memory",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "OpenClaw memory plugin backed by Awareness Memory Cloud",
   "license": "Apache-2.0",
   "repository": {
@@ -22,7 +22,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "openclaw": {
-    "extensions": ["./dist/index.js"]
+    "extensions": [
+      "./dist/index.js"
+    ]
   },
   "exports": {
     ".": {
