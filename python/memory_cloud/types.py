@@ -127,6 +127,15 @@ class CardAttribution(TypedDict, total=False):
     evolution: str          # "update" | "reversal" | null — if card replaced another
 
 
+class AttentionSummary(TypedDict, total=False):
+    """Summary of items requiring LLM-side attention at session start."""
+    stale_tasks: int        # tasks pending/in_progress for > 3 days
+    high_risks: int         # active high-risk/pitfall knowledge cards
+    total_open_tasks: int   # total open tasks (pending + in_progress)
+    total_knowledge_cards: int  # total knowledge cards returned in context
+    needs_attention: bool   # True when stale_tasks > 0 or high_risks > 0
+
+
 class ProactiveAlert(TypedDict, total=False):
     """Actionable alert surfaced at session start."""
     type: str               # "stale_task" | "last_session_handoff" | "recent_contradiction"
@@ -150,6 +159,7 @@ class SessionContextResult(TypedDict, total=False):
     knowledge_cards: List[KnowledgeCard]
     active_skills: List[ActiveSkill]  # reusable skill prompts, pre-loaded at session start
     proactive_alerts: List[ProactiveAlert]  # actionable alerts (stale tasks, handoff, contradictions)
+    attention_summary: AttentionSummary  # LLM-side attention summary
     trace_id: str
 
 

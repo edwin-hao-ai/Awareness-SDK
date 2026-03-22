@@ -183,6 +183,20 @@ export interface CardAttribution {
   evolution?: string | null;
 }
 
+/** Summary of items requiring LLM-side attention at session start. */
+export interface AttentionSummary {
+  /** Number of tasks pending/in_progress for > 3 days */
+  stale_tasks?: number;
+  /** Number of active high-risk/pitfall knowledge cards */
+  high_risks?: number;
+  /** Total open tasks (pending + in_progress) */
+  total_open_tasks?: number;
+  /** Total knowledge cards returned in context */
+  total_knowledge_cards?: number;
+  /** True when stale_tasks > 0 or high_risks > 0 — signals the LLM should review and act */
+  needs_attention?: boolean;
+}
+
 /** Actionable alert surfaced at session start. */
 export interface ProactiveAlert {
   /** "stale_task" | "last_session_handoff" | "recent_contradiction" */
@@ -216,6 +230,8 @@ export interface SessionContextResponse extends JsonObject {
   active_skills?: ActiveSkill[];
   /** Actionable alerts: stale tasks, session handoff, recent contradictions */
   proactive_alerts?: ProactiveAlert[];
+  /** LLM-side attention summary — when needs_attention is true, review and act on stale tasks / high risks */
+  attention_summary?: AttentionSummary;
   trace_id?: string;
 }
 

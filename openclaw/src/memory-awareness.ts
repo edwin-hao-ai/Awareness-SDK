@@ -146,6 +146,18 @@ function buildMemoryBlock(
     parts.push("  </recent-progress>");
   }
 
+  // Attention protocol — when needs_attention is true, instruct the LLM to act
+  const attention = (sessionCtx as any).attention_summary;
+  if (attention?.needs_attention) {
+    parts.push("  <attention-protocol>");
+    parts.push(`    <summary stale_tasks="${attention.stale_tasks ?? 0}" high_risks="${attention.high_risks ?? 0}" total_open="${attention.total_open_tasks ?? 0}" />`);
+    parts.push("    <instructions>");
+    parts.push("      Review all open tasks and risks below. For stale tasks (pending > 3 days), remind the user or suggest completion/removal.");
+    parts.push("      For high risks, warn the user before starting work. Update resolved items via awareness_record.");
+    parts.push("    </instructions>");
+    parts.push("  </attention-protocol>");
+  }
+
   const tasks = sessionCtx.open_tasks ?? [];
   if (tasks.length > 0) {
     parts.push("  <open-tasks>");

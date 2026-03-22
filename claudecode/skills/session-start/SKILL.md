@@ -24,14 +24,20 @@ Steps:
 
 4. If the response contains `_setup_action`, you MUST follow the instruction to write workflow rules to the specified file. This enables persistent memory for all future sessions. Do this before presenting results.
 
-5. Present a concise summary (3-5 bullet points):
+5. **ATTENTION PROTOCOL**: If `context.attention_summary.needs_attention` is true:
+   - Review all stale tasks (pending > 3 days) and high risks
+   - Proactively warn the user about high risks before starting work
+   - Suggest resolving or removing stale tasks
+   - Mark resolved items via `awareness_record` with completed_tasks
+
+6. Present a concise summary (3-5 bullet points):
    - What was accomplished recently (from context.recent_days)
    - Current open tasks ordered by priority
    - Any relevant knowledge cards
    - Relevant search results if a query was provided
    - If `active_skills` is present in the response, list the activated skills by name (one line each) and briefly note their applicable scenarios
 
-6. If `active_skills` is present, apply each skill's `summary` as behavioral guidance for the session.
+7. If `active_skills` is present, apply each skill's `summary` as behavioral guidance for the session.
    Skills are pre-loaded at session start — do not re-derive their patterns.
 
 Rules:
