@@ -1,6 +1,6 @@
-# Awareness Memory Cloud Python SDK
+# Awareness Memory SDK — Python
 
-Python SDK for Awareness Memory Cloud APIs and MCP-style memory workflows.
+Python SDK for adding persistent memory to AI agents and apps.
 
 Online docs: <https://awareness.market/docs?doc=python>
 
@@ -10,32 +10,63 @@ Online docs: <https://awareness.market/docs?doc=python>
 pip install awareness-memory-cloud
 ```
 
-Local development:
-
-```bash
-cd python
-pip install -e .
-```
-
 Framework extras:
 
 ```bash
-# LangChain adapter
-pip install -e ".[langchain]"
-
-# CrewAI adapter
-pip install -e ".[crewai]"
-
-# AutoGen adapter
-pip install -e ".[autogen]"
-
-# Common framework bundle
-pip install -e ".[frameworks]"
+pip install -e ".[langchain]"   # LangChain adapter
+pip install -e ".[crewai]"      # CrewAI adapter
+pip install -e ".[autogen]"     # AutoGen adapter
+pip install -e ".[frameworks]"  # All frameworks
 ```
 
-## Quickstart
+---
 
-### Local mode (no API key or memory ID needed)
+## Zero-Code Interceptor
+
+**The fastest way to add memory.** One line — no changes to your AI logic.
+
+### Local mode (no API key needed)
+
+```python
+from openai import OpenAI
+from memory_cloud import MemoryCloudClient, AwarenessInterceptor
+
+client = MemoryCloudClient(mode="local")  # data stays on your machine
+interceptor = AwarenessInterceptor(client=client, memory_id="my-project")
+
+openai_client = OpenAI()
+interceptor.wrap_openai(openai_client)  # one line — all conversations remembered
+
+response = openai_client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Refactor the auth module"}],
+)
+```
+
+### Cloud mode (team collaboration, semantic search, sync)
+
+```python
+from openai import OpenAI
+from anthropic import Anthropic
+from memory_cloud import MemoryCloudClient, AwarenessInterceptor
+
+client = MemoryCloudClient(api_key="aw_...")
+interceptor = AwarenessInterceptor(client=client, memory_id="memory_123")
+
+# Wrap OpenAI
+openai_client = OpenAI()
+interceptor.wrap_openai(openai_client)
+
+# Or wrap Anthropic
+anthropic_client = Anthropic()
+interceptor.wrap_anthropic(anthropic_client)
+```
+
+---
+
+## Direct API Quickstart
+
+### Local mode
 
 ```python
 from memory_cloud import MemoryCloudClient
@@ -54,7 +85,7 @@ import os
 from memory_cloud import MemoryCloudClient
 
 client = MemoryCloudClient(
-    base_url=os.getenv("AWARENESS_API_BASE_URL", os.getenv("AWARENESS_BASE_URL", "https://awareness.market/api/v1")),
+    base_url=os.getenv("AWARENESS_API_BASE_URL", "https://awareness.market/api/v1"),
     api_key="YOUR_API_KEY",
 )
 
@@ -72,52 +103,11 @@ result = client.retrieve(
 print(result["results"])
 ```
 
-### Prompt-Only Injection Quickstart
+---
 
-```python
-import os
-from memory_cloud import bootstrap_openai_injected_session
+## MCP-style Helpers
 
-owner_id = os.getenv("AWARENESS_OWNER_ID", os.getenv("SDK_DEMO_USER_ID", "test-user"))
-user_id = os.getenv("SDK_DEMO_USER_ID", owner_id)
-
-session = bootstrap_openai_injected_session(
-    owner_id=owner_id,
-    user_id=user_id,
-    agent_role="assistant",
-)
-
-resp = session.openai_client.chat.completions.create(
-    model=os.getenv("AI_GATEWAY_MODEL", "alibaba/qwen-3-14b"),
-    messages=[{"role": "user", "content": "Summarize decisions, todos, and risks."}],
-)
-print(session.memory_id)
-print(resp.choices[0].message.content)
-```
-
-## API Coverage (SDK/API aligned)
-
-`MemoryCloudClient` now includes:
-
-- Memory: `create_memory`, `list_memories`, `get_memory`, `update_memory`, `delete_memory`
-- Content: `write`, `list_memory_content`, `delete_memory_content`
-- Retrieval/Chat: `retrieve`, `chat`, `chat_stream`, `memory_timeline`
-- MCP ingest: `ingest_events`, `record`
-- Export: `export_memory_package`, `save_export_memory_package`
-- Async jobs & upload: `get_async_job_status`, `upload_file`, `get_upload_job_status`
-- Insights/API keys/wizard: `insights`, `create_api_key`, `list_api_keys`, `revoke_api_key`, `memory_wizard`
-
-## MCP-style Helpers (SDK/MCP aligned, v2.0)
-
-These helpers mirror MCP tool semantics:
-
-- `record` — unified write method (replaces `remember_step`, `remember_batch`, `ingest_content`, `backfill_conversation_history`)
-- `recall_for_task`
-- `_begin_memory_session` — session auto-managed internally; call directly only for advanced use
-
-Example:
-
-**Local mode** (no API key or memory ID needed):
+### Local mode
 
 ```python
 client = MemoryCloudClient(mode="local")
@@ -126,7 +116,7 @@ ctx = client.recall_for_task(task="summarize auth changes", limit=8)
 print(ctx["results"])
 ```
 
-**Cloud mode** (team collaboration, semantic search, multi-device sync):
+### Cloud mode
 
 ```python
 client = MemoryCloudClient(
@@ -153,58 +143,11 @@ ctx = client.recall_for_task(memory_id="memory_123", task="summarize latest auth
 print(ctx["results"])
 ```
 
-## Read Exported Packages
+---
 
-SDK includes export readers:
+## Framework Integrations
 
-- `read_export_package(path)`
-- `read_export_package_bytes(bytes)`
-- `parse_jsonl_bytes(bytes)`
-
-```python
-from memory_cloud import read_export_package
-
-parsed = read_export_package("memory_export.zip")
-print(parsed["manifest"])
-print(len(parsed["chunks"]))
-print(bool(parsed["safetensors"]))
-print(parsed.get("kv_summary"))
-```
-
-## Examples
-
-- Basic flow: `examples/basic_flow.py`
-- Export + read package: `examples/export_and_read.py`
-- Prompt-only injected quickstart: `examples/quickstart_injected_minimal.py`
-- Injected conversation demo: `examples/injected_conversation_demo.py`
-- LangChain e2e (real cloud API): `examples/e2e_langchain_cloud.py`
-- CrewAI e2e (real cloud API): `examples/e2e_crewai_cloud.py`
-- PraisonAI e2e (real cloud API): `examples/e2e_praisonai_cloud.py`
-- AutoGen e2e (real cloud API): `examples/e2e_autogen_cloud.py`
-
-## End-to-End (Real Cloud API)
-
-Set environment variables:
-
-```bash
-export AWARENESS_API_BASE_URL="https://awareness.market/api/v1"
-# Legacy alias is still supported:
-# export AWARENESS_BASE_URL="https://awareness.market/api/v1"
-export AWARENESS_API_KEY="aw_xxx"
-export AWARENESS_OWNER_ID="your-owner-id"   # only used when auto-creating memory
-# export AWARENESS_MEMORY_ID="existing-memory-id"   # optional
-```
-
-Run:
-
-```bash
-python examples/e2e_langchain_cloud.py
-python examples/e2e_crewai_cloud.py
-python examples/e2e_praisonai_cloud.py
-python examples/e2e_autogen_cloud.py
-```
-
-## LangChain
+### LangChain
 
 ```python
 from memory_cloud import MemoryCloudClient
@@ -224,7 +167,7 @@ retriever = mc.as_retriever()
 docs = retriever._get_relevant_documents("What did we decide yesterday?")
 ```
 
-## CrewAI
+### CrewAI
 
 ```python
 from memory_cloud import MemoryCloudClient
@@ -243,7 +186,7 @@ mc.wrap_llm(openai.OpenAI())
 result = mc.memory_search("What happened?")
 ```
 
-## PraisonAI
+### PraisonAI
 
 ```python
 from memory_cloud import MemoryCloudClient
@@ -262,7 +205,7 @@ mc.wrap_llm(openai.OpenAI())
 tools = mc.build_tools()
 ```
 
-## AutoGen / AG2
+### AutoGen / AG2
 
 ```python
 from memory_cloud import MemoryCloudClient
@@ -278,4 +221,55 @@ mc = MemoryCloudAutoGen(client=client, memory_id="memory_123")
 
 mc.inject_into_agent(assistant)
 mc.register_tools(caller=assistant, executor=user_proxy)
+```
+
+---
+
+## API Coverage
+
+`MemoryCloudClient` includes:
+
+- Memory: `create_memory`, `list_memories`, `get_memory`, `update_memory`, `delete_memory`
+- Content: `write`, `list_memory_content`, `delete_memory_content`
+- Retrieval/Chat: `retrieve`, `chat`, `chat_stream`, `memory_timeline`
+- MCP ingest: `ingest_events`, `record`
+- Export: `export_memory_package`, `save_export_memory_package`
+- Async jobs & upload: `get_async_job_status`, `upload_file`, `get_upload_job_status`
+- Insights/API keys/wizard: `insights`, `create_api_key`, `list_api_keys`, `revoke_api_key`, `memory_wizard`
+
+---
+
+## Read Exported Packages
+
+```python
+from memory_cloud import read_export_package
+
+parsed = read_export_package("memory_export.zip")
+print(parsed["manifest"])
+print(len(parsed["chunks"]))
+print(bool(parsed["safetensors"]))
+print(parsed.get("kv_summary"))
+```
+
+Readers: `read_export_package(path)`, `read_export_package_bytes(bytes)`, `parse_jsonl_bytes(bytes)`
+
+---
+
+## Examples
+
+- Basic flow: `examples/basic_flow.py`
+- Export + read package: `examples/export_and_read.py`
+- LangChain e2e (real cloud API): `examples/e2e_langchain_cloud.py`
+- CrewAI e2e (real cloud API): `examples/e2e_crewai_cloud.py`
+- PraisonAI e2e (real cloud API): `examples/e2e_praisonai_cloud.py`
+- AutoGen e2e (real cloud API): `examples/e2e_autogen_cloud.py`
+
+## End-to-End (Real Cloud API)
+
+```bash
+export AWARENESS_API_BASE_URL="https://awareness.market/api/v1"
+export AWARENESS_API_KEY="aw_xxx"
+export AWARENESS_OWNER_ID="your-owner-id"
+
+python examples/e2e_langchain_cloud.py
 ```

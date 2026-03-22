@@ -1,6 +1,6 @@
-# Awareness Memory Cloud TypeScript SDK
+# Awareness Memory SDK — TypeScript
 
-TypeScript SDK for Awareness Memory Cloud APIs and MCP-style memory workflows.
+TypeScript SDK for adding persistent memory to AI agents and apps.
 
 Online docs: <https://awareness.market/docs?doc=typescript>
 
@@ -10,19 +10,56 @@ Online docs: <https://awareness.market/docs?doc=typescript>
 npm install @awareness-sdk/memory-cloud
 ```
 
-Local development:
+---
 
-```bash
-cd typescript
-npm install
-npm run build
+## Zero-Code Interceptor
+
+**The fastest way to add memory.** One line — no changes to your AI logic.
+
+### Local mode (no API key needed)
+
+```typescript
+import OpenAI from "openai";
+import { MemoryCloudClient, AwarenessInterceptor } from "@awareness-sdk/memory-cloud";
+
+const client = new MemoryCloudClient({ mode: "local" }); // data stays on your machine
+const interceptor = await AwarenessInterceptor.create({ client, memoryId: "my-project" });
+
+const openai = new OpenAI();
+interceptor.wrapOpenAI(openai); // one line — all conversations remembered
+
+const response = await openai.chat.completions.create({
+  model: "gpt-4",
+  messages: [{ role: "user", content: "Refactor the auth module" }],
+});
 ```
 
-## Quickstart
+### Cloud mode (team collaboration, semantic search, sync)
 
-### Local mode (no API key or memory ID needed)
+```typescript
+import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import { MemoryCloudClient, AwarenessInterceptor } from "@awareness-sdk/memory-cloud";
 
-```ts
+const client = new MemoryCloudClient({ apiKey: "aw_..." });
+const interceptor = await AwarenessInterceptor.create({ client, memoryId: "memory_123" });
+
+// Wrap OpenAI
+const openai = new OpenAI();
+interceptor.wrapOpenAI(openai);
+
+// Or wrap Anthropic
+const anthropic = new Anthropic();
+interceptor.wrapAnthropic(anthropic);
+```
+
+---
+
+## Direct API Quickstart
+
+### Local mode
+
+```typescript
 import { MemoryCloudClient } from "@awareness-sdk/memory-cloud";
 
 const client = new MemoryCloudClient({ mode: "local" }); // connects to localhost:8765
@@ -34,7 +71,7 @@ console.log(result.results);
 
 ### Cloud mode
 
-```ts
+```typescript
 import { MemoryCloudClient } from "@awareness-sdk/memory-cloud";
 
 const client = new MemoryCloudClient({
@@ -57,26 +94,13 @@ const result = await client.retrieve({
 console.log(result.results);
 ```
 
-## API Coverage (SDK/API aligned)
+---
 
-`MemoryCloudClient` includes:
+## MCP-style Helpers
 
-- Memory: `createMemory`, `listMemories`, `getMemory`, `updateMemory`, `deleteMemory`
-- Content: `write`, `listMemoryContent`, `deleteMemoryContent`
-- Retrieval/Chat: `retrieve`, `chat`, `chatStream`, `memoryTimeline`
-- MCP ingest: `ingestEvents`, `record` (use `record({ scope: "knowledge" })` instead of `ingestContent`)
-- Export: `exportMemoryPackage`
-- Async jobs & upload: `getAsyncJobStatus`, `uploadFile`, `getUploadJobStatus`
-- Insights/API keys/wizard: `insights`, `createApiKey`, `listApiKeys`, `revokeApiKey`, `memoryWizard`
+### Local mode
 
-## MCP-style Helpers (SDK/MCP aligned)
-
-- `recallForTask`
-- `record` — unified write (single event, batch, or insights)
-
-**Local mode** (no API key or memory ID needed):
-
-```ts
+```typescript
 const client = new MemoryCloudClient({ mode: "local" });
 
 await client.record({ content: "Completed JWT migration." });
@@ -84,9 +108,9 @@ const ctx = await client.recallForTask({ task: "summarize auth changes", limit: 
 console.log(ctx.results);
 ```
 
-**Cloud mode** (team collaboration, semantic search, multi-device sync):
+### Cloud mode
 
-```ts
+```typescript
 const client = new MemoryCloudClient({
   baseUrl: "https://awareness.market/api/v1",
   apiKey: "YOUR_API_KEY",
@@ -116,14 +140,25 @@ const ctx = await client.recallForTask({
 console.log(ctx.results);
 ```
 
+---
+
+## API Coverage
+
+`MemoryCloudClient` includes:
+
+- Memory: `createMemory`, `listMemories`, `getMemory`, `updateMemory`, `deleteMemory`
+- Content: `write`, `listMemoryContent`, `deleteMemoryContent`
+- Retrieval/Chat: `retrieve`, `chat`, `chatStream`, `memoryTimeline`
+- MCP ingest: `ingestEvents`, `record` (use `record({ scope: "knowledge" })` instead of `ingestContent`)
+- Export: `exportMemoryPackage`
+- Async jobs & upload: `getAsyncJobStatus`, `uploadFile`, `getUploadJobStatus`
+- Insights/API keys/wizard: `insights`, `createApiKey`, `listApiKeys`, `revokeApiKey`, `memoryWizard`
+
+---
+
 ## Read Exported Packages
 
-SDK includes export readers:
-
-- `readExportPackage(input)`
-- `parseJsonlText(text)`
-
-```ts
+```typescript
 import { readExportPackage } from "@awareness-sdk/memory-cloud";
 
 const parsed = await readExportPackage(zipBytes);
@@ -132,6 +167,10 @@ console.log(parsed.chunks.length);
 console.log(Boolean(parsed.safetensors));
 console.log(parsed.kvSummary);
 ```
+
+Readers: `readExportPackage(input)`, `parseJsonlText(text)`
+
+---
 
 ## Examples
 
