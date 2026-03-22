@@ -67,6 +67,11 @@ from openai import OpenAI
 from memory_cloud import AwarenessInterceptor
 
 client = OpenAI()
+
+# Local mode (no API key needed — data stays on your machine)
+interceptor = AwarenessInterceptor(mode="local")
+
+# Cloud mode (team collaboration, semantic search, multi-device sync)
 interceptor = AwarenessInterceptor(api_key="aw_...", memory_id="...")
 
 # One line — all conversations automatically remembered
@@ -90,6 +95,11 @@ import OpenAI from "openai";
 import { AwarenessInterceptor } from "@awareness-sdk/memory-cloud";
 
 const openai = new OpenAI();
+
+// Local mode (no API key needed — data stays on your machine)
+const interceptor = new AwarenessInterceptor({ mode: "local" });
+
+// Cloud mode (team collaboration, semantic search, multi-device sync)
 const interceptor = new AwarenessInterceptor({ apiKey: "aw_...", memoryId: "..." });
 
 // One line — all conversations automatically remembered

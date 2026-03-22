@@ -35,6 +35,20 @@ pip install -e ".[frameworks]"
 
 ## Quickstart
 
+### Local mode (no API key or memory ID needed)
+
+```python
+from memory_cloud import MemoryCloudClient
+
+client = MemoryCloudClient(mode="local")  # connects to local daemon at localhost:8765
+
+client.record(content="Refactored auth middleware.")
+result = client.retrieve(query="What did we refactor?")
+print(result["results"])
+```
+
+### Cloud mode
+
 ```python
 import os
 from memory_cloud import MemoryCloudClient
@@ -103,7 +117,23 @@ These helpers mirror MCP tool semantics:
 
 Example:
 
+**Local mode** (no API key or memory ID needed):
+
 ```python
+client = MemoryCloudClient(mode="local")
+client.record(content="Refactored auth middleware.")
+ctx = client.recall_for_task(task="summarize auth changes", limit=8)
+print(ctx["results"])
+```
+
+**Cloud mode** (team collaboration, semantic search, multi-device sync):
+
+```python
+client = MemoryCloudClient(
+    base_url="https://awareness.market/api/v1",
+    api_key="YOUR_API_KEY",
+)
+
 # Record a single step
 client.record(memory_id="memory_123", content="Refactored auth middleware and added tests.")
 
@@ -118,13 +148,6 @@ client.record(
 
 # Record knowledge-scoped content
 client.record(memory_id="memory_123", content="JWT decision doc", scope="knowledge")
-
-# Record timeline history (backfill)
-client.record(
-    memory_id="memory_123",
-    content=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}],
-    scope="timeline",
-)
 
 ctx = client.recall_for_task(memory_id="memory_123", task="summarize latest auth changes", limit=8)
 print(ctx["results"])
@@ -186,15 +209,17 @@ python examples/e2e_autogen_cloud.py
 ```python
 from memory_cloud import MemoryCloudClient
 from memory_cloud.integrations.langchain import MemoryCloudLangChain
+import openai
 
+# Local mode (no API key needed)
+client = MemoryCloudClient(mode="local")
+mc = MemoryCloudLangChain(client=client)
+
+# Cloud mode (team collaboration, semantic search, multi-device sync)
 client = MemoryCloudClient(base_url="https://awareness.market/api/v1", api_key="YOUR_API_KEY")
 mc = MemoryCloudLangChain(client=client, memory_id="memory_123")
 
-# Injection: wrap the LLM client
-import openai
 mc.wrap_llm(openai.OpenAI())
-
-# Or use as a LangChain Retriever
 retriever = mc.as_retriever()
 docs = retriever._get_relevant_documents("What did we decide yesterday?")
 ```
@@ -204,15 +229,17 @@ docs = retriever._get_relevant_documents("What did we decide yesterday?")
 ```python
 from memory_cloud import MemoryCloudClient
 from memory_cloud.integrations.crewai import MemoryCloudCrewAI
+import openai
 
+# Local mode (no API key needed)
+client = MemoryCloudClient(mode="local")
+mc = MemoryCloudCrewAI(client=client)
+
+# Cloud mode (team collaboration, semantic search, multi-device sync)
 client = MemoryCloudClient(base_url="https://awareness.market/api/v1", api_key="YOUR_API_KEY")
 mc = MemoryCloudCrewAI(client=client, memory_id="memory_123")
 
-# Injection: wrap the LLM client
-import openai
 mc.wrap_llm(openai.OpenAI())
-
-# Or use explicit tools
 result = mc.memory_search("What happened?")
 ```
 
@@ -221,15 +248,17 @@ result = mc.memory_search("What happened?")
 ```python
 from memory_cloud import MemoryCloudClient
 from memory_cloud.integrations.praisonai import MemoryCloudPraisonAI
+import openai
 
+# Local mode (no API key needed)
+client = MemoryCloudClient(mode="local")
+mc = MemoryCloudPraisonAI(client=client)
+
+# Cloud mode (team collaboration, semantic search, multi-device sync)
 client = MemoryCloudClient(base_url="https://awareness.market/api/v1", api_key="YOUR_API_KEY")
 mc = MemoryCloudPraisonAI(client=client, memory_id="memory_123")
 
-# Injection: wrap the LLM client
-import openai
 mc.wrap_llm(openai.OpenAI())
-
-# Or get tool dicts for PraisonAI agent config
 tools = mc.build_tools()
 ```
 
@@ -239,12 +268,14 @@ tools = mc.build_tools()
 from memory_cloud import MemoryCloudClient
 from memory_cloud.integrations.autogen import MemoryCloudAutoGen
 
+# Local mode (no API key needed)
+client = MemoryCloudClient(mode="local")
+mc = MemoryCloudAutoGen(client=client)
+
+# Cloud mode (team collaboration, semantic search, multi-device sync)
 client = MemoryCloudClient(base_url="https://awareness.market/api/v1", api_key="YOUR_API_KEY")
 mc = MemoryCloudAutoGen(client=client, memory_id="memory_123")
 
-# Injection: hook into agent message processing
 mc.inject_into_agent(assistant)
-
-# Or register explicit tools
 mc.register_tools(caller=assistant, executor=user_proxy)
 ```

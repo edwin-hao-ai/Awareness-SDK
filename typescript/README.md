@@ -20,6 +20,20 @@ npm run build
 
 ## Quickstart
 
+### Local mode (no API key or memory ID needed)
+
+```ts
+import { MemoryCloudClient } from "@awareness-sdk/memory-cloud";
+
+const client = new MemoryCloudClient({ mode: "local" }); // connects to localhost:8765
+
+await client.record({ content: "Refactored auth middleware." });
+const result = await client.retrieve({ query: "What did we refactor?" });
+console.log(result.results);
+```
+
+### Cloud mode
+
 ```ts
 import { MemoryCloudClient } from "@awareness-sdk/memory-cloud";
 
@@ -60,7 +74,24 @@ console.log(result.results);
 - `recallForTask`
 - `record` — unified write (single event, batch, or insights)
 
+**Local mode** (no API key or memory ID needed):
+
 ```ts
+const client = new MemoryCloudClient({ mode: "local" });
+
+await client.record({ content: "Completed JWT migration." });
+const ctx = await client.recallForTask({ task: "summarize auth changes", limit: 8 });
+console.log(ctx.results);
+```
+
+**Cloud mode** (team collaboration, semantic search, multi-device sync):
+
+```ts
+const client = new MemoryCloudClient({
+  baseUrl: "https://awareness.market/api/v1",
+  apiKey: "YOUR_API_KEY",
+});
+
 // Record a single event
 await client.record({
   memoryId: "memory_123",
