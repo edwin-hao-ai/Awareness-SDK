@@ -18,6 +18,28 @@ Public docs hub: [https://awareness.market/docs](https://awareness.market/docs)
 
 ---
 
+## Why Awareness?
+
+<p align="center">
+  <img src="assets/problems-solved.svg" alt="Problems Awareness Solves" width="100%"/>
+</p>
+
+AI agents today have a fundamental limitation: **they forget everything when a session ends**.
+
+Your agent spent 2 hours refactoring the auth system, made 5 architectural decisions, identified 3 risks, and left 4 TODOs. Next session? It starts from scratch. You re-explain the codebase, re-justify the same decisions, and watch it redo work it already completed.
+
+This isn't a minor inconvenience — it's a fundamental blocker for any serious multi-session AI workflow:
+
+- **Session amnesia**: Every new conversation starts from zero. The agent has no idea what it built yesterday, what architecture decisions were made, or what risks were identified. You end up spending the first 10 minutes of every session re-explaining context.
+
+- **Repeated work and contradictions**: Without memory, an agent might implement a feature using a completely different approach than what was decided 3 sessions ago. Worse, it might rebuild something that was already completed — wasting tokens and creating inconsistencies.
+
+- **Lost tasks and risks**: Your agent identifies a critical security vulnerability during session 5. By session 6, that knowledge is gone. Nobody follows up. Action items, blockers, and risks disappear when the context window scrolls past them.
+
+**Awareness solves all three.** It gives your agent a persistent, structured memory that survives across sessions. Every session starts with full context from the past. Decisions are tracked. Tasks are persistent. Risks don't get forgotten. Your agent picks up exactly where it left off.
+
+---
+
 ## How It Works
 
 <p align="center">
@@ -37,6 +59,117 @@ No manual tagging. No prompt engineering for memory. Just plug in and your agent
 <p align="center">
   <img src="assets/use-cases.svg" alt="Use Cases" width="100%"/>
 </p>
+
+---
+
+## Structured Memory — What Awareness Actually Stores
+
+<p align="center">
+  <img src="assets/structured-memory.svg" alt="Structured Memory Types" width="100%"/>
+</p>
+
+When you call `remember_step()` or `submit_insights()`, Awareness doesn't just dump raw text into a vector database. It extracts and organizes your agent's output into 4 structured types, each designed for a specific purpose:
+
+### Knowledge Cards — Your Agent's Long-Term Brain
+
+Knowledge Cards are the core unit of Awareness memory. Every meaningful piece of information — a decision, a solution, a preference, a pitfall — is captured as a typed, tagged, scored card that can be queried months later.
+
+**What gets captured as a card:**
+- "We chose RS256 over HS256 for JWT signing because it supports key rotation" → `decision` card
+- "Fixed the N+1 query in /api/users by adding a JOIN" → `problem_solution` card
+- "Always run migrations in a transaction on this project" → `workflow` card
+- "The /payments endpoint has a 5-second timeout — don't chain calls" → `pitfall` card
+- "User prefers TypeScript over Python for backend services" → `personal_preference` card
+
+**Every card has:**
+- `category` — what type of knowledge this is (decision, problem_solution, workflow, pitfall, insight, key_point, personal_preference, etc.)
+- `title` — concise one-line summary
+- `summary` — detailed explanation
+- `tags` — for filtering and grouping
+- `confidence` (0-1) — how well-evidenced this card is. Higher confidence = more likely to appear in search results
+- `salience_score` (0.5-2.0) — intrinsic importance. A high salience card (like a critical architecture decision) resists memory decay even if it hasn't been accessed recently
+- `status` — open → in_progress → resolved → noted → superseded
+
+Cards aren't static. When your agent makes a new decision that contradicts an old one, Awareness marks the old card as `superseded` and tracks the evolution — so you can see the full history of how a decision evolved over time.
+
+### Action Items — Persistent TODOs That Survive Sessions
+
+The biggest pain point of multi-session AI work: TODOs disappear. Your agent identifies 5 next steps at the end of session 3. By session 4, they're gone.
+
+Awareness solves this by extracting every TODO, next step, and follow-up as a persistent **Action Item**:
+
+- Each task has a `priority` (high/medium/low) and `estimated_effort` (small/medium/large)
+- Tasks flow through statuses: `pending` → `in_progress` → `completed`
+- When you start a new session, `get_pending_tasks()` returns everything that's still open
+- Your agent can update task status with `update_task_status(task_id, "completed")` as it finishes work
+
+This means your agent always knows what's left to do, regardless of how many sessions have passed.
+
+### Risks — Tracked Threats That Don't Get Forgotten
+
+When your agent identifies a potential problem — security vulnerability, performance bottleneck, data integrity issue — it becomes a tracked **Risk** with:
+
+- `title` — what the risk is
+- `level` — high/medium/low severity
+- `detail` — what could go wrong
+- `mitigation` — how to prevent it
+- `status` — active → mitigated → resolved
+
+Risks persist across sessions. Next time your agent works on related code, `recall_for_task()` surfaces relevant risks automatically. A risk identified in session 2 about "webhook retries causing duplicate charges" will appear when your agent works on the payment system in session 15.
+
+### Day Narratives — Auto-Generated Daily Summaries
+
+At the end of each day, Awareness auto-generates a concise narrative summarizing everything that happened across all sessions. When you start a new session, `get_session_context(days=7)` returns the last 7 days of narratives — giving your agent a quick "previously on..." briefing without needing to replay every event.
+
+---
+
+## How Awareness Returns the Right Context
+
+<p align="center">
+  <img src="assets/retrieval-pipeline.svg" alt="Retrieval Pipeline" width="100%"/>
+</p>
+
+Storing memory is only half the problem. The harder challenge is **returning exactly the right context** — not too much (wastes tokens), not too little (misses critical info), and not the wrong stuff (leads to bad decisions).
+
+Awareness uses a 5-stage hybrid retrieval pipeline:
+
+### Stage 1: Query Analysis
+
+When you call `recall_for_task(task="continue auth implementation")`, Awareness first analyzes the intent of your query. Is this a debug question? Architecture review? Planning task? Personal preference lookup? The detected intent (`debug`, `architecture`, `planning`, `personal`, `general`) determines which types of knowledge cards get boosted in results.
+
+### Stage 2: Dual Search (Vector + BM25)
+
+Two searches run in parallel:
+- **Vector search** — embeds your query and finds semantically similar content using cosine similarity. Great for finding conceptually related content even when wording differs ("auth tokens" matches "JWT signing").
+- **BM25 keyword search** — traditional keyword matching. Great for exact terms, error codes, function names, and specific identifiers that vector search might miss.
+
+### Stage 3: Reciprocal Rank Fusion (RRF)
+
+Results from both searches are merged using RRF — a scoring method that combines the rankings from both search methods. A result that appears in both vector and BM25 results gets a higher combined score. This eliminates the weakness of either search method alone.
+
+Adjacent chunks are then stitched back together (**chunk reconstruction**) to return coherent, complete passages instead of fragmented snippets.
+
+### Stage 4: Structured Data Merge
+
+This is what makes Awareness different from a plain vector database. On top of the vector results, the system adds relevant **structured data** directly from the database:
+- **Knowledge cards** — filtered by query intent (architecture questions boost `decision` cards, debug questions boost `problem_solution` cards)
+- **Day narratives** — recent session summaries for timeline context
+- **Open tasks** — so your agent knows what's still pending
+- **Risks** — so nothing gets overlooked
+
+Cards with higher `salience_score` resist decay and stay relevant longer. Cards that haven't been accessed recently have lower `decay_score` and may drop out — mimicking how human memory naturally prioritizes frequently-used knowledge.
+
+### Stage 5: Response (~2-4k tokens)
+
+The final response is a compact, precisely targeted context package ready to inject into your LLM prompt. Every result includes **attribution metadata** so you can see exactly why it was returned:
+
+- `matched_by` — was this found by vector, BM25, or both?
+- `vector_score` / `rrf_score` — numerical relevance scores
+- `source_session` / `source_date` — when and where this knowledge came from
+- `decay_score` — how "fresh" this memory is
+- `intent_boost` — was this card boosted because of query intent matching?
+
+This explainability means you can debug and tune retrieval quality — not just trust a black-box relevance score.
 
 ---
 

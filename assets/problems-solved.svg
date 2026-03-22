@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 540">
+  <defs>
+    <linearGradient id="pbg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e1a"/>
+      <stop offset="100%" style="stop-color:#0f1628"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="540" fill="url(#pbg)" rx="16"/>
+  <text x="600" y="45" text-anchor="middle" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#e2e8f0" letter-spacing="1">THE PROBLEMS AWARENESS SOLVES</text>
+  <!-- Problem 1 -->
+  <g transform="translate(40, 70)">
+    <rect width="360" height="200" rx="12" fill="#111827" stroke="#ef4444" stroke-width="1" opacity="0.9"/>
+    <rect x="16" y="16" width="32" height="32" rx="6" fill="#2d1215"/>
+    <text x="32" y="38" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" fill="#ef4444">&#x2717;</text>
+    <text x="60" y="38" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#fca5a5">Amnesia Between Sessions</text>
+    <line x1="16" y1="54" x2="344" y2="54" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">"We already decided to use JWT last week,</text>
+    <text x="16" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">but the agent suggested OAuth again today."</text>
+    <text x="16" y="124" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Every new session starts from zero.</text>
+    <text x="16" y="142" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Context window = short-term memory only.</text>
+    <rect x="16" y="162" width="328" height="24" rx="4" fill="#1a0a0a"/>
+    <text x="180" y="178" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#fca5a5">Agent forgets everything after session ends</text>
+  </g>
+  <!-- Problem 2 -->
+  <g transform="translate(420, 70)">
+    <rect width="360" height="200" rx="12" fill="#111827" stroke="#ef4444" stroke-width="1" opacity="0.9"/>
+    <rect x="16" y="16" width="32" height="32" rx="6" fill="#2d1215"/>
+    <text x="32" y="38" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" fill="#ef4444">&#x2717;</text>
+    <text x="60" y="38" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#fca5a5">Repeated Work &amp; Contradictions</text>
+    <line x1="16" y1="54" x2="344" y2="54" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">"The agent rebuilt a feature that was</text>
+    <text x="16" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">already completed 3 sessions ago."</text>
+    <text x="16" y="124" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">Wastes tokens re-explaining the same</text>
+    <text x="16" y="142" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">architecture decisions every time.</text>
+    <rect x="16" y="162" width="328" height="24" rx="4" fill="#1a0a0a"/>
+    <text x="180" y="178" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#fca5a5">No way to check "did we already do this?"</text>
+  </g>
+  <!-- Problem 3 -->
+  <g transform="translate(800, 70)">
+    <rect width="360" height="200" rx="12" fill="#111827" stroke="#ef4444" stroke-width="1" opacity="0.9"/>
+    <rect x="16" y="16" width="32" height="32" rx="6" fill="#2d1215"/>
+    <text x="32" y="38" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" fill="#ef4444">&#x2717;</text>
+    <text x="60" y="38" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#fca5a5">Lost Tasks &amp; Risks</text>
+    <line x1="16" y1="54" x2="344" y2="54" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">"We identified a critical security risk</text>
+    <text x="16" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">last session — nobody followed up."</text>
+    <text x="16" y="124" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">TODOs, risks, and blockers disappear</text>
+    <text x="16" y="142" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">when the context window scrolls past.</text>
+    <rect x="16" y="162" width="328" height="24" rx="4" fill="#1a0a0a"/>
+    <text x="180" y="178" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#fca5a5">Action items evaporate between sessions</text>
+  </g>
+  <!-- Arrow -->
+  <g transform="translate(560, 290)">
+    <line x1="0" y1="0" x2="0" y2="30" stroke="#4ade80" stroke-width="2"/>
+    <polygon points="-6,30 0,42 6,30" fill="#4ade80"/>
+    <text x="40" y="24" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#4ade80">Awareness solves all three</text>
+  </g>
+  <!-- Solution 1 -->
+  <g transform="translate(40, 340)">
+    <rect width="360" height="170" rx="12" fill="#111827" stroke="#4ade80" stroke-width="1.5"/>
+    <rect x="16" y="16" width="32" height="32" rx="6" fill="#0a2d1a"/>
+    <text x="32" y="38" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" fill="#4ade80">&#x2713;</text>
+    <text x="60" y="38" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#86efac">Persistent Cross-Session Memory</text>
+    <line x1="16" y1="54" x2="344" y2="54" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">Every session starts with full context</text>
+    <text x="16" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">from all past sessions loaded.</text>
+    <rect x="16" y="112" width="328" height="40" rx="6" fill="#0d1b2a"/>
+    <text x="180" y="128" text-anchor="middle" font-family="monospace" font-size="10" fill="#5ce0d2">get_session_context(days=7)</text>
+    <text x="180" y="144" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#94a3b8">Narratives + tasks + cards in &lt; 2000 tokens</text>
+  </g>
+  <!-- Solution 2 -->
+  <g transform="translate(420, 340)">
+    <rect width="360" height="170" rx="12" fill="#111827" stroke="#4ade80" stroke-width="1.5"/>
+    <rect x="16" y="16" width="32" height="32" rx="6" fill="#0a2d1a"/>
+    <text x="32" y="38" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" fill="#4ade80">&#x2713;</text>
+    <text x="60" y="38" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#86efac">Smart Recall Before Action</text>
+    <line x1="16" y1="54" x2="344" y2="54" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">Hybrid search finds past decisions</text>
+    <text x="16" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">before the agent starts working.</text>
+    <rect x="16" y="112" width="328" height="40" rx="6" fill="#0d1b2a"/>
+    <text x="180" y="128" text-anchor="middle" font-family="monospace" font-size="10" fill="#5ce0d2">recall_for_task(task="auth approach")</text>
+    <text x="180" y="144" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#94a3b8">Vector + keyword + structured hybrid</text>
+  </g>
+  <!-- Solution 3 -->
+  <g transform="translate(800, 340)">
+    <rect width="360" height="170" rx="12" fill="#111827" stroke="#4ade80" stroke-width="1.5"/>
+    <rect x="16" y="16" width="32" height="32" rx="6" fill="#0a2d1a"/>
+    <text x="32" y="38" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" fill="#4ade80">&#x2713;</text>
+    <text x="60" y="38" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#86efac">Structured Knowledge Tracking</text>
+    <line x1="16" y1="54" x2="344" y2="54" stroke="#1e293b" stroke-width="1"/>
+    <text x="16" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">Auto-extracts tasks, risks, decisions</text>
+    <text x="16" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">into queryable structured data.</text>
+    <rect x="16" y="112" width="328" height="40" rx="6" fill="#0d1b2a"/>
+    <text x="180" y="128" text-anchor="middle" font-family="monospace" font-size="10" fill="#5ce0d2">submit_insights(cards, risks, actions)</text>
+    <text x="180" y="144" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#94a3b8">Nothing gets lost between sessions</text>
+  </g>
+</svg>

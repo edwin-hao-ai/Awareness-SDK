@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680">
+  <defs>
+    <linearGradient id="sbg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e1a"/>
+      <stop offset="100%" style="stop-color:#0f1628"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="680" fill="url(#sbg)" rx="16"/>
+  <text x="600" y="42" text-anchor="middle" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#e2e8f0" letter-spacing="1">STRUCTURED MEMORY TYPES</text>
+  <text x="600" y="66" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#64748b">Awareness auto-extracts 4 types of structured data from every session</text>
+
+  <!-- ==================== Knowledge Cards ==================== -->
+  <g transform="translate(40, 90)">
+    <rect width="555" height="270" rx="14" fill="#111827" stroke="#60a5fa" stroke-width="1.5"/>
+    <!-- Header -->
+    <rect x="0" y="0" width="555" height="48" rx="14" fill="#0d2847"/>
+    <rect x="0" y="30" width="555" height="18" fill="#0d2847"/>
+    <text x="20" y="32" font-family="system-ui, sans-serif" font-size="17" font-weight="700" fill="#93c5fd">Knowledge Cards</text>
+    <text x="280" y="32" font-family="system-ui, sans-serif" font-size="12" fill="#64748b">— The core unit of structured memory</text>
+    <!-- Description -->
+    <text x="20" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">Every meaningful piece of information your agent produces is captured as a</text>
+    <text x="20" y="88" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">Knowledge Card — typed, tagged, scored, and queryable.</text>
+    <!-- Categories -->
+    <text x="20" y="115" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#93c5fd">ENGINEERING CATEGORIES</text>
+    <g transform="translate(20, 125)">
+      <rect width="80" height="20" rx="4" fill="#1e3a5f"/><text x="40" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">decision</text>
+      <rect x="86" width="110" height="20" rx="4" fill="#1e3a5f"/><text x="141" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">problem_solution</text>
+      <rect x="202" width="75" height="20" rx="4" fill="#1e3a5f"/><text x="240" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">workflow</text>
+      <rect x="283" width="75" height="20" rx="4" fill="#1e3a5f"/><text x="321" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">key_point</text>
+      <rect x="364" width="60" height="20" rx="4" fill="#1e3a5f"/><text x="394" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">pitfall</text>
+      <rect x="430" width="60" height="20" rx="4" fill="#1e3a5f"/><text x="460" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">insight</text>
+    </g>
+    <text x="20" y="165" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#93c5fd">PERSONAL CATEGORIES</text>
+    <g transform="translate(20, 175)">
+      <rect width="130" height="20" rx="4" fill="#1e3a5f"/><text x="65" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">personal_preference</text>
+      <rect x="136" width="115" height="20" rx="4" fill="#1e3a5f"/><text x="194" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">important_detail</text>
+      <rect x="257" width="105" height="20" rx="4" fill="#1e3a5f"/><text x="310" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">plan_intention</text>
+      <rect x="368" width="90" height="20" rx="4" fill="#1e3a5f"/><text x="413" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#93c5fd">career_info</text>
+    </g>
+    <!-- Card anatomy -->
+    <rect x="20" y="210" width="515" height="44" rx="6" fill="#0d1b2a"/>
+    <text x="30" y="226" font-family="monospace" font-size="9" fill="#64748b">card:</text>
+    <text x="68" y="226" font-family="monospace" font-size="9" fill="#fbbf24">category</text>
+    <text x="128" y="226" font-family="monospace" font-size="9" fill="#64748b">|</text>
+    <text x="136" y="226" font-family="monospace" font-size="9" fill="#5ce0d2">title</text>
+    <text x="168" y="226" font-family="monospace" font-size="9" fill="#64748b">|</text>
+    <text x="176" y="226" font-family="monospace" font-size="9" fill="#c4b5fd">summary</text>
+    <text x="224" y="226" font-family="monospace" font-size="9" fill="#64748b">|</text>
+    <text x="232" y="226" font-family="monospace" font-size="9" fill="#f9a8d4">tags[]</text>
+    <text x="272" y="226" font-family="monospace" font-size="9" fill="#64748b">|</text>
+    <text x="280" y="226" font-family="monospace" font-size="9" fill="#86efac">confidence</text>
+    <text x="344" y="226" font-family="monospace" font-size="9" fill="#64748b">|</text>
+    <text x="352" y="226" font-family="monospace" font-size="9" fill="#fca5a5">status</text>
+    <text x="30" y="244" font-family="monospace" font-size="9" fill="#64748b">attrs:</text>
+    <text x="68" y="244" font-family="monospace" font-size="9" fill="#94a3b8">salience_score [0.5-2.0]  |  decay_score  |  access_count  |  evolution</text>
+  </g>
+
+  <!-- ==================== Action Items ==================== -->
+  <g transform="translate(615, 90)">
+    <rect width="545" height="270" rx="14" fill="#111827" stroke="#4ade80" stroke-width="1.5"/>
+    <rect x="0" y="0" width="545" height="48" rx="14" fill="#0a2d1a"/>
+    <rect x="0" y="30" width="545" height="18" fill="#0a2d1a"/>
+    <text x="20" y="32" font-family="system-ui, sans-serif" font-size="17" font-weight="700" fill="#86efac">Action Items (Tasks)</text>
+    <text x="250" y="32" font-family="system-ui, sans-serif" font-size="12" fill="#64748b">— Persistent cross-session TODOs</text>
+    <text x="20" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">Every TODO, next step, and follow-up identified during a session is</text>
+    <text x="20" y="88" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">persisted as an Action Item. Survives sessions. Trackable by priority.</text>
+    <!-- Fields -->
+    <text x="20" y="115" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#86efac">FIELDS</text>
+    <g transform="translate(20, 125)">
+      <rect width="50" height="20" rx="4" fill="#0d2a0d"/><text x="25" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">title</text>
+      <rect x="56" width="65" height="20" rx="4" fill="#0d2a0d"/><text x="89" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">priority</text>
+      <rect x="127" width="60" height="20" rx="4" fill="#0d2a0d"/><text x="157" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">status</text>
+      <rect x="193" width="55" height="20" rx="4" fill="#0d2a0d"/><text x="221" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">detail</text>
+      <rect x="254" width="120" height="20" rx="4" fill="#0d2a0d"/><text x="314" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">estimated_effort</text>
+    </g>
+    <!-- Priority levels -->
+    <text x="20" y="168" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#86efac">PRIORITY</text>
+    <g transform="translate(90, 156)">
+      <rect width="55" height="20" rx="4" fill="#7f1d1d"/><text x="28" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#fca5a5">high</text>
+      <rect x="60" width="65" height="20" rx="4" fill="#78350f"/><text x="93" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#fbbf24">medium</text>
+      <rect x="130" width="50" height="20" rx="4" fill="#14532d"/><text x="155" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">low</text>
+    </g>
+    <!-- Status -->
+    <text x="20" y="200" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#86efac">STATUS FLOW</text>
+    <g transform="translate(20, 210)">
+      <rect width="70" height="22" rx="4" fill="#0d1b2a" stroke="#fbbf24" stroke-width="1"/>
+      <text x="35" y="15" text-anchor="middle" font-family="monospace" font-size="9" fill="#fbbf24">pending</text>
+      <text x="82" y="15" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2192;</text>
+      <rect x="96" width="90" height="22" rx="4" fill="#0d1b2a" stroke="#60a5fa" stroke-width="1"/>
+      <text x="141" y="15" text-anchor="middle" font-family="monospace" font-size="9" fill="#60a5fa">in_progress</text>
+      <text x="198" y="15" font-family="system-ui, sans-serif" font-size="12" fill="#4ade80">&#x2192;</text>
+      <rect x="212" width="85" height="22" rx="4" fill="#0d1b2a" stroke="#4ade80" stroke-width="1"/>
+      <text x="255" y="15" text-anchor="middle" font-family="monospace" font-size="9" fill="#4ade80">completed</text>
+    </g>
+    <!-- Example -->
+    <rect x="20" y="245" width="505" height="14" rx="3" fill="#0d1b2a"/>
+    <text x="273" y="255" text-anchor="middle" font-family="monospace" font-size="9" fill="#5ce0d2">get_pending_tasks() → update_task_status(id, "completed")</text>
+  </g>
+
+  <!-- ==================== Risks ==================== -->
+  <g transform="translate(40, 380)">
+    <rect width="555" height="270" rx="14" fill="#111827" stroke="#f59e0b" stroke-width="1.5"/>
+    <rect x="0" y="0" width="555" height="48" rx="14" fill="#2a1a0a"/>
+    <rect x="0" y="30" width="555" height="18" fill="#2a1a0a"/>
+    <text x="20" y="32" font-family="system-ui, sans-serif" font-size="17" font-weight="700" fill="#fbbf24">Risks</text>
+    <text x="80" y="32" font-family="system-ui, sans-serif" font-size="12" fill="#64748b">— Track threats and mitigations across sessions</text>
+    <text x="20" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">When your agent identifies a potential problem — security vulnerability,</text>
+    <text x="20" y="88" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">performance bottleneck, data integrity risk — it becomes a tracked Risk.</text>
+    <!-- Fields -->
+    <text x="20" y="115" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#fbbf24">ANATOMY OF A RISK</text>
+    <rect x="20" y="125" width="515" height="80" rx="6" fill="#0d1b2a"/>
+    <text x="30" y="143" font-family="monospace" font-size="10" fill="#fbbf24">title</text>
+    <text x="75" y="143" font-family="system-ui, sans-serif" font-size="10" fill="#94a3b8">→  "Webhook retry may cause duplicate charges"</text>
+    <text x="30" y="161" font-family="monospace" font-size="10" fill="#fbbf24">level</text>
+    <text x="75" y="161" font-family="system-ui, sans-serif" font-size="10" fill="#94a3b8">→  high | medium | low</text>
+    <text x="30" y="179" font-family="monospace" font-size="10" fill="#fbbf24">detail</text>
+    <text x="80" y="179" font-family="system-ui, sans-serif" font-size="10" fill="#94a3b8">→ what could go wrong</text>
+    <text x="260" y="179" font-family="monospace" font-size="10" fill="#fbbf24">mitigation</text>
+    <text x="330" y="179" font-family="system-ui, sans-serif" font-size="10" fill="#94a3b8">→ how to prevent it</text>
+    <!-- Status -->
+    <text x="20" y="225" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#fbbf24">STATUS</text>
+    <g transform="translate(20, 235)">
+      <rect width="60" height="20" rx="4" fill="#7f1d1d"/><text x="30" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#fca5a5">active</text>
+      <text x="72" y="14" font-family="system-ui, sans-serif" font-size="12" fill="#fbbf24">&#x2192;</text>
+      <rect x="86" width="75" height="20" rx="4" fill="#78350f"/><text x="124" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#fbbf24">mitigated</text>
+      <text x="173" y="14" font-family="system-ui, sans-serif" font-size="12" fill="#fbbf24">&#x2192;</text>
+      <rect x="186" width="70" height="20" rx="4" fill="#14532d"/><text x="221" y="14" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">resolved</text>
+    </g>
+  </g>
+
+  <!-- ==================== Decisions ==================== -->
+  <g transform="translate(615, 380)">
+    <rect width="545" height="270" rx="14" fill="#111827" stroke="#c4b5fd" stroke-width="1.5"/>
+    <rect x="0" y="0" width="545" height="48" rx="14" fill="#1a1040"/>
+    <rect x="0" y="30" width="545" height="18" fill="#1a1040"/>
+    <text x="20" y="32" font-family="system-ui, sans-serif" font-size="17" font-weight="700" fill="#c4b5fd">Decisions &amp; Day Narratives</text>
+    <text x="290" y="32" font-family="system-ui, sans-serif" font-size="12" fill="#64748b">— Architecture rationale + daily logs</text>
+    <text x="20" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">Decisions are Knowledge Cards with category="decision" — the most critical</text>
+    <text x="20" y="88" font-family="system-ui, sans-serif" font-size="12" fill="#d1d5db">type. Day Narratives are auto-generated daily summaries of all sessions.</text>
+    <!-- Decision example -->
+    <text x="20" y="115" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#c4b5fd">DECISION CARD EXAMPLE</text>
+    <rect x="20" y="125" width="505" height="64" rx="6" fill="#0d1b2a"/>
+    <text x="30" y="143" font-family="monospace" font-size="10" fill="#c4b5fd">category: decision</text>
+    <text x="200" y="143" font-family="monospace" font-size="10" fill="#c4b5fd">confidence: 0.95</text>
+    <text x="30" y="161" font-family="monospace" font-size="10" fill="#5ce0d2">title: "Use RS256 over HS256 for JWT signing"</text>
+    <text x="30" y="179" font-family="monospace" font-size="10" fill="#94a3b8">summary: "RS256 enables key rotation without redeploying all services..."</text>
+    <!-- Narrative example -->
+    <text x="20" y="210" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#c4b5fd">DAY NARRATIVE EXAMPLE</text>
+    <rect x="20" y="220" width="505" height="34" rx="6" fill="#0d1b2a"/>
+    <text x="30" y="238" font-family="monospace" font-size="10" fill="#c4b5fd">2025-03-20</text>
+    <text x="120" y="238" font-family="monospace" font-size="10" fill="#94a3b8">"Implemented JWT auth, chose RS256, added refresh token rotation"</text>
+  </g>
+</svg>
