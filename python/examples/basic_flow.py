@@ -10,17 +10,15 @@ def main():
         api_key="YOUR_API_KEY",
     )
 
-    # 2) Start a session and persist one meaningful step.
-    session = client.begin_memory_session(memory_id="your-memory-id", source="python-sdk")
-    print("session:", session)
-
-    write_result = client.remember_step(
+    # 2) Record a meaningful step using the unified record() interface.
+    # Sessions are managed automatically — no need to call _begin_memory_session explicitly.
+    write_result = client.record(
         memory_id="your-memory-id",
-        text="Implemented export package parser and added SDK docs.",
+        content="Implemented export package parser and added SDK docs.",
         source="python-sdk",
         metadata={"stage": "implementation", "tool_name": "python"},
     )
-    print("remember_step:", write_result)
+    print("record:", write_result)
 
     # 3) Recall task context and run generic retrieve.
     recall_result = client.recall_for_task(

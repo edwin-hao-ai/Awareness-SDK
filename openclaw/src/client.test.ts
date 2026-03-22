@@ -478,7 +478,7 @@ describe("AwarenessClient", () => {
     });
 
     it("action=write with insights also submits insights", async () => {
-      // First call: rememberStep to /mcp/events
+      // First call: record() to /mcp/events
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
 
       const insights = {
@@ -495,9 +495,9 @@ describe("AwarenessClient", () => {
     });
 
     it("action=write with array content + insights submits both", async () => {
-      // First call: rememberBatch
+      // First call: rememberBatch (internal)
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 2, written: 2 }));
-      // Second call: submitInsights
+      // Second call: submitInsights (internal)
       mockFetch.mockReturnValueOnce(jsonResponse({ status: "ok" }));
 
       const insights = {
@@ -632,7 +632,7 @@ describe("AwarenessClient", () => {
     it("falls back to sentinel event on error", async () => {
       // First call fails (batch endpoint)
       mockFetch.mockReturnValueOnce(jsonResponse({ error: "not found" }, 404));
-      // Fallback call succeeds (rememberStep)
+      // Fallback call succeeds (record)
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
 
       const client = makeClient();

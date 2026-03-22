@@ -50,25 +50,33 @@ console.log(result.results);
 - Memory: `createMemory`, `listMemories`, `getMemory`, `updateMemory`, `deleteMemory`
 - Content: `write`, `listMemoryContent`, `deleteMemoryContent`
 - Retrieval/Chat: `retrieve`, `chat`, `chatStream`, `memoryTimeline`
-- MCP ingest: `ingestEvents`, `ingestContent`
+- MCP ingest: `ingestEvents`, `record` (use `record({ scope: "knowledge" })` instead of `ingestContent`)
 - Export: `exportMemoryPackage`
 - Async jobs & upload: `getAsyncJobStatus`, `uploadFile`, `getUploadJobStatus`
 - Insights/API keys/wizard: `insights`, `createApiKey`, `listApiKeys`, `revokeApiKey`, `memoryWizard`
 
 ## MCP-style Helpers (SDK/MCP aligned)
 
-- `beginMemorySession`
 - `recallForTask`
-- `rememberStep`
-- `rememberBatch`
-- `backfillConversationHistory`
+- `record` — unified write (single event, batch, or insights)
 
 ```ts
-const session = client.beginMemorySession({ memoryId: "memory_123", source: "ts-sdk" });
-await client.rememberStep({
+// Record a single event
+await client.record({
   memoryId: "memory_123",
-  text: "Refactored auth middleware and added tests.",
+  content: "Refactored auth middleware and added tests.",
 });
+
+// Record a batch of events
+await client.record({
+  memoryId: "memory_123",
+  content: [
+    { content: "Step 1: refactored middleware" },
+    { content: "Step 2: added integration tests" },
+  ],
+});
+
+// Recall task context
 const ctx = await client.recallForTask({
   memoryId: "memory_123",
   task: "summarize latest auth changes",

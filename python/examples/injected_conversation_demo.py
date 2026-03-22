@@ -365,7 +365,7 @@ def explicit_extract_and_submit(
             ensure_ascii=False,
         )
     )
-    submit_result = client.submit_insights(
+    submit_result = client.record(
         memory_id=memory_id,
         insights=normalized,
         session_id=session_id,

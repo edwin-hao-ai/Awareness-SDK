@@ -1,14 +1,14 @@
 export type JsonObject = Record<string, unknown>;
 
 export interface MemoryCloudClientConfig {
-  baseUrl: string;
+  baseUrl?: string;
   apiKey?: string;
   timeoutMs?: number;
   maxRetries?: number;
   backoffMs?: number;
   sessionPrefix?: string;
   defaultSource?: string;
-  /** Pass an OpenAI/Anthropic client to auto-extract insights from rememberStep/rememberBatch. */
+  /** Pass an OpenAI/Anthropic client to auto-extract insights from record(). */
   extractionLlm?: any;
   /** Model for extraction (default: "gpt-4o-mini" for OpenAI, "claude-haiku-4-5-20251001" for Anthropic). */
   extractionModel?: string;
@@ -18,6 +18,10 @@ export interface MemoryCloudClientConfig {
   userId?: string;
   /** Agent role identifier. */
   agentRole?: string;
+  /** Deployment mode: "cloud" (default) | "local" | "auto". */
+  mode?: "cloud" | "local" | "auto";
+  /** Local server URL for "local" or "auto" mode. Default: "http://localhost:8765". */
+  localUrl?: string;
 }
 
 export interface RetrieveResponse extends JsonObject {
@@ -312,7 +316,7 @@ export interface ExistingCardRef {
 }
 
 /**
- * Returned by rememberStep/rememberBatch when server triggers extraction.
+ * Returned by the server when it triggers client-side extraction.
  *
  * The SDK interceptor processes this automatically using the user's LLM.
  * MCP Agents should process _extraction_instruction in the tool response.

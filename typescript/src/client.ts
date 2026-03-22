@@ -37,6 +37,8 @@ export class MemoryCloudClient {
   private readonly sessionPrefix: string;
   private readonly defaultSource: string;
   private readonly sessionCache = new Map<string, string>();
+  private _localUrl?: string;
+  private _cloudUrl?: string;
 
   // Auto-extraction config
   private readonly enableExtraction: boolean;
@@ -48,7 +50,7 @@ export class MemoryCloudClient {
   private readonly llmType?: "openai" | "anthropic";
 
   constructor(config: MemoryCloudClientConfig) {
-    this.baseUrl = config.baseUrl.replace(/\/$/, "");
+    this.baseUrl = this.resolveBaseUrl(config);
     this.apiKey = config.apiKey;
     this.timeoutMs = config.timeoutMs ?? 30000;
     this.maxRetries = Math.max(0, config.maxRetries ?? 2);
@@ -537,7 +539,7 @@ export class MemoryCloudClient {
     // Submit insights if provided
     if (input.insights && Object.keys(input.insights).length > 0) {
       const insightsPayload: JsonObject = { ...input.insights };
-      const insightsResult = await this.submitInsights({
+      const insightsResult = await this._submitInsights({
         memoryId: input.memoryId,
         insights: insightsPayload,
         sessionId: activeSession,
@@ -554,34 +556,7 @@ export class MemoryCloudClient {
     return results;
   }
 
-  /**
-   * @deprecated Use `record({ content: ..., scope: 'knowledge' })` instead.
-   */
-  async ingestContent(input: {
-    memoryId: string;
-    content: unknown;
-    agentRole?: string;
-    source?: string;
-    metadataDefaults?: JsonObject;
-    asyncVectorize?: boolean;
-    traceId?: string;
-  }): Promise<IngestEventsResponse> {
-    return this.requestJson<IngestEventsResponse>({
-      method: "POST",
-      path: "/mcp/events",
-      jsonBody: {
-        memory_id: input.memoryId,
-        content: input.content,
-        agent_role: input.agentRole ?? null,
-        default_source: input.source ?? null,
-        metadata_defaults: input.metadataDefaults ?? {},
-        async_vectorize: input.asyncVectorize ?? true,
-      },
-      traceId: input.traceId,
-    });
-  }
-
-  beginMemorySession(input: { memoryId: string; source?: string; sessionId?: string }): JsonObject {
+  private _beginMemorySession(input: { memoryId: string; source?: string; sessionId?: string }): JsonObject {
     const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
     const activeSession = this.resolveSession({
       memoryId: input.memoryId,
@@ -690,143 +665,12 @@ export class MemoryCloudClient {
   }
 
   /**
-   * @deprecated Use `record()` instead.
-   */
-  async rememberStep(input: {
-    memoryId: string;
-    text: string;
-    source?: string;
-    sessionId?: string;
-    actor?: string;
-    eventType?: string;
-    metadata?: JsonObject;
-    metadataDefaults?: JsonObject;
-    userId?: string;
-    insights?: JsonObject;
-    traceId?: string;
-  }): Promise<JsonObject> {
-    const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
-    const activeSession = this.resolveSession({
-      memoryId: input.memoryId,
-      source: sourceLabel,
-      sessionId: input.sessionId,
-      rotate: false,
-    });
-
-    const body = (input.text ?? "").trim();
-    if (!body) {
-      throw new MemoryCloudError("INVALID_ARGUMENT", "text is required");
-    }
-
-    const event: JsonObject = {
-      content: body,
-      source: sourceLabel,
-      session_id: activeSession,
-      actor: this.inferActor(body, input.actor),
-      event_type: this.inferEventType(body, input.eventType),
-      timestamp: this.nowIso(),
-    };
-    if (input.metadata) {
-      event.metadata = input.metadata;
-    }
-
-    const result = await this.ingestEvents({
-      memoryId: input.memoryId,
-      events: [event],
-      defaultSource: sourceLabel,
-      metadataDefaults: input.metadataDefaults,
-      skipDuplicates: true,
-      generateSummary: false,
-      userId: input.userId,
-      insights: input.insights,
-      traceId: input.traceId,
-    });
-
-    const response: JsonObject = {
-      memory_id: input.memoryId,
-      source: sourceLabel,
-      session_id: activeSession,
-      event,
-      result,
-      extraction_request:
-        result && typeof result === "object" && "extraction_request" in result
-          ? (result as any).extraction_request
-          : undefined,
-      trace_id: result.trace_id,
-    };
-    this.maybeAutoExtract(response, input.memoryId);
-    return response;
-  }
-
-  /**
-   * @deprecated Use `record()` instead.
-   */
-  async rememberBatch(input: {
-    memoryId: string;
-    steps: Array<string | JsonObject>;
-    source?: string;
-    sessionId?: string;
-    metadataDefaults?: JsonObject;
-    userId?: string;
-    insights?: JsonObject;
-    traceId?: string;
-  }): Promise<JsonObject> {
-    const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
-    const activeSession = this.resolveSession({
-      memoryId: input.memoryId,
-      source: sourceLabel,
-      sessionId: input.sessionId,
-      rotate: false,
-    });
-
-    const events: JsonObject[] = [];
-    for (const step of input.steps) {
-      const normalized = this.normalizeStep(step, sourceLabel, activeSession);
-      if (normalized) {
-        events.push(normalized);
-      }
-    }
-    if (events.length === 0) {
-      throw new MemoryCloudError("INVALID_ARGUMENT", "no valid steps provided");
-    }
-
-    const result = await this.ingestEvents({
-      memoryId: input.memoryId,
-      events,
-      defaultSource: sourceLabel,
-      metadataDefaults: input.metadataDefaults,
-      skipDuplicates: true,
-      generateSummary: true,
-      userId: input.userId,
-      insights: input.insights,
-      traceId: input.traceId,
-    });
-
-    const response: JsonObject = {
-      memory_id: input.memoryId,
-      source: sourceLabel,
-      session_id: activeSession,
-      accepted_steps: events.length,
-      result,
-      extraction_request:
-        result && typeof result === "object" && "extraction_request" in result
-          ? (result as any).extraction_request
-          : undefined,
-      trace_id: result.trace_id,
-    };
-    this.maybeAutoExtract(response, input.memoryId);
-    return response;
-  }
-
-  /**
    * Submit pre-extracted insights from client-side LLM processing (no server-side LLM needed).
    *
-   * Called after processing an extraction_request returned from rememberStep/rememberBatch.
    * The server stores insights with server-side deduplication (zero LLM calls).
-   *
-   * @deprecated Use `record({ insights: {...} })` instead.
+   * Use `record({ insights: {...} })` as the public API instead.
    */
-  async submitInsights(input: {
+  private async _submitInsights(input: {
     memoryId: string;
     insights: JsonObject;
     sessionId?: string;
@@ -845,64 +689,6 @@ export class MemoryCloudClient {
       jsonBody: payload,
       traceId: input.traceId,
     });
-  }
-
-  /**
-   * @deprecated Use `record()` instead.
-   */
-  async backfillConversationHistory(input: {
-    memoryId: string;
-    history: string | string[] | JsonObject | JsonObject[];
-    source?: string;
-    sessionId?: string;
-    agentRole?: string;
-    metadataDefaults?: JsonObject;
-    generateSummary?: boolean;
-    summaryMinNewEvents?: number;
-    maxEvents?: number;
-    traceId?: string;
-  }): Promise<JsonObject> {
-    const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
-    const activeSession = this.resolveSession({
-      memoryId: input.memoryId,
-      source: sourceLabel,
-      sessionId: input.sessionId,
-      rotate: false,
-    });
-
-    const events = this.coerceHistoryToEvents(input.history, sourceLabel, activeSession);
-    if (events.length === 0) {
-      throw new MemoryCloudError("INVALID_ARGUMENT", "no parseable history found");
-    }
-
-    const maxEvents = Math.max(1, Math.min(input.maxEvents ?? 800, 5000));
-    const cappedEvents = events.slice(0, maxEvents);
-    const metadataDefaults: JsonObject = { ...(input.metadataDefaults ?? {}) };
-    if ((input.agentRole ?? "").trim() && metadataDefaults.agent_role === undefined) {
-      metadataDefaults.agent_role = input.agentRole?.trim();
-    }
-
-    const result = await this.ingestEvents({
-      memoryId: input.memoryId,
-      events: cappedEvents,
-      defaultSource: sourceLabel,
-      metadataDefaults,
-      skipDuplicates: true,
-      generateSummary: input.generateSummary ?? true,
-      summaryMinNewEvents: Math.max(1, input.summaryMinNewEvents ?? 10),
-      traceId: input.traceId,
-    });
-
-    return {
-      memory_id: input.memoryId,
-      source: sourceLabel,
-      session_id: activeSession,
-      parsed_events: events.length,
-      ingested_events: cappedEvents.length,
-      truncated: cappedEvents.length < events.length,
-      result,
-      trace_id: result.trace_id,
-    };
   }
 
   // ----------------------------
@@ -1199,7 +985,7 @@ export class MemoryCloudClient {
    * Update an action item's status.
    *
    * Call after completing a task found via getPendingTasks or getSessionContext.
-   * Always call rememberStep first to record what you did, then updateTaskStatus.
+   * Always call record() first to log what you did, then updateTaskStatus.
    *
    * status: "completed" | "in_progress" | "pending"
    * taskId: from getPendingTasks result tasks[i].id or getSessionContext open_tasks[i].id
@@ -1460,6 +1246,24 @@ export class MemoryCloudClient {
       },
       traceId: input.traceId,
     });
+  }
+
+  private resolveBaseUrl(config: MemoryCloudClientConfig): string {
+    const localUrl = (config.localUrl || "http://localhost:8765").replace(/\/$/, "");
+    const cloudUrl = (config.baseUrl || "").replace(/\/$/, "");
+
+    if (config.mode === "local") {
+      return localUrl;
+    }
+    if (config.mode === "auto") {
+      // Note: auto mode health check happens lazily on first request failure
+      // Store both for fallback logic
+      this._localUrl = localUrl;
+      this._cloudUrl = cloudUrl;
+      return localUrl; // start with local, _request will fallback on error
+    }
+    // Default "cloud" mode
+    return cloudUrl || localUrl;
   }
 
   private async requestJson<T>(input: {
@@ -1877,7 +1681,7 @@ export class MemoryCloudClient {
     delete insights.turn_brief;
     insights = normalizeInsights(insights);
 
-    await this.submitInsights({
+    await this._submitInsights({
       memoryId,
       insights,
       sessionId,
@@ -1894,12 +1698,19 @@ export class MemoryCloudClient {
 
     if (turnBrief && typeof turnBrief === "string" && turnBrief.trim()) {
       try {
-        await this.rememberStep({
+        await this.ingestEvents({
           memoryId,
-          text: turnBrief.trim(),
-          sessionId,
-          actor: "system",
-          eventType: "turn_brief",
+          events: [{
+            content: turnBrief.trim(),
+            source: this.defaultSource,
+            session_id: sessionId,
+            actor: "system",
+            event_type: "turn_brief",
+            timestamp: this.nowIso(),
+          }],
+          defaultSource: this.defaultSource,
+          skipDuplicates: true,
+          generateSummary: false,
           userId: this.userId,
         });
       } catch (err: any) {

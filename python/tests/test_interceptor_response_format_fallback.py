@@ -21,7 +21,7 @@ def _fake_openai_response(content: str):
 
 def test_openai_extraction_fallback_when_response_format_not_supported():
     client = MagicMock()
-    client.begin_memory_session.return_value = {"session_id": "sess-1"}
+    client._begin_memory_session.return_value = {"session_id": "sess-1"}
 
     interceptor = AwarenessInterceptor(client=client, memory_id="m1")
 

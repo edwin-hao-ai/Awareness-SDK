@@ -7,7 +7,7 @@ def _build_client() -> MemoryCloudClient:
     return MemoryCloudClient(base_url="http://localhost:8000/api/v1", api_key="test-key")
 
 
-def test_remember_step_passthrough_extraction_request():
+def test_record_single_content_passthrough_extraction_request():
     client = _build_client()
     client.ingest_events = MagicMock(  # type: ignore[method-assign]
         return_value={
@@ -18,14 +18,14 @@ def test_remember_step_passthrough_extraction_request():
         }
     )
 
-    result = client.remember_step(memory_id="m1", text="Implemented auth guard for admin API.")
+    result = client.record(memory_id="m1", content="Implemented auth guard for admin API.")
 
     assert result.get("extraction_request") is not None
     assert result["extraction_request"]["session_id"] == "s1"
     assert result.get("trace_id") == "trace-step"
 
 
-def test_remember_batch_passthrough_extraction_request():
+def test_record_batch_content_passthrough_extraction_request():
     client = _build_client()
     client.ingest_events = MagicMock(  # type: ignore[method-assign]
         return_value={
@@ -36,9 +36,9 @@ def test_remember_batch_passthrough_extraction_request():
         }
     )
 
-    result = client.remember_batch(
+    result = client.record(
         memory_id="m2",
-        steps=[
+        content=[
             "Completed migration patch for user aliases.",
             "Risk: API key owner mismatch can cause tenant leakage if unchecked.",
         ],

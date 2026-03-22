@@ -12,9 +12,9 @@ API_BASE_URL = os.getenv("AWARENESS_API_BASE_URL", os.getenv("AWARENESS_BASE_URL
 def _mock_client(**overrides):
     """Create a mock MemoryCloudClient with sensible defaults."""
     defaults = {
-        "begin_memory_session": MagicMock(return_value={"session_id": "sess-1"}),
+        "_begin_memory_session": MagicMock(return_value={"session_id": "sess-1"}),
         "retrieve": MagicMock(return_value={"results": [{"content": "test-doc"}]}),
-        "remember_step": MagicMock(return_value={"status": "ok", "event_id": "e1"}),
+        "record": MagicMock(return_value={"status": "ok", "events_sent": 1}),
         "insights": MagicMock(return_value={"knowledge_cards": [], "risks": [], "action_items": []}),
         "base_url": API_BASE_URL,
         "api_key": "k1",

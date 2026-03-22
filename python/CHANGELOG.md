@@ -1,5 +1,50 @@
 # Changelog
 
+## [2.0.0] - 2026-03-22
+
+### Breaking Changes
+
+The following deprecated methods have been **removed**. Update your code before upgrading:
+
+| Removed | Replace with |
+|---------|-------------|
+| `remember_step(memory_id, text, ...)` | `record(memory_id, content=text, ...)` |
+| `remember_batch(memory_id, steps, ...)` | `record(memory_id, content=steps, ...)` |
+| `ingest_content(memory_id, content, ...)` | `record(memory_id, content=content, scope="knowledge")` |
+| `backfill_conversation_history(memory_id, messages, ...)` | `record(memory_id, content=messages, scope="timeline")` |
+
+The following methods are now **private** (prefixed with `_`). Use `record()` instead for new code:
+
+| Now private | Replacement |
+|------------|-------------|
+| `submit_insights()` → `_submit_insights()` | `record(memory_id, insights={...})` |
+| `begin_memory_session()` → `_begin_memory_session()` | Session is now managed automatically by `record()` |
+
+### Added
+
+- `mode` parameter on `MemoryCloudClient.__init__`: `"cloud"` (default) | `"local"` | `"auto"`
+  - `mode="local"` — connect to a local Awareness daemon instead of the cloud API
+  - `mode="auto"` — try local daemon first, fall back to cloud if unavailable
+- `local_url` parameter on `MemoryCloudClient.__init__`: local daemon URL (default: `http://localhost:8765`)
+
+```python
+# Connect to local daemon
+client = MemoryCloudClient(mode="local")
+
+# Auto-detect (local first, cloud fallback)
+client = MemoryCloudClient(
+    mode="auto",
+    local_url="http://localhost:8765",
+    base_url="https://api.awareness.market",
+    api_key="sk-...",
+)
+```
+
+## [0.2.8] - 2026-03-22
+
+### Added
+- `detail` and `ids` parameters on `retrieve()` and `recall_for_task()` for progressive disclosure
+
 ## [0.2.2] - 2026-03-16
 
 ### Added

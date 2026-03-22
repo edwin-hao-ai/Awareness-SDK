@@ -88,29 +88,44 @@ print(resp.choices[0].message.content)
 - Memory: `create_memory`, `list_memories`, `get_memory`, `update_memory`, `delete_memory`
 - Content: `write`, `list_memory_content`, `delete_memory_content`
 - Retrieval/Chat: `retrieve`, `chat`, `chat_stream`, `memory_timeline`
-- MCP ingest: `ingest_events`, `ingest_content`
+- MCP ingest: `ingest_events`, `record`
 - Export: `export_memory_package`, `save_export_memory_package`
 - Async jobs & upload: `get_async_job_status`, `upload_file`, `get_upload_job_status`
 - Insights/API keys/wizard: `insights`, `create_api_key`, `list_api_keys`, `revoke_api_key`, `memory_wizard`
 
-## MCP-style Helpers (SDK/MCP aligned)
+## MCP-style Helpers (SDK/MCP aligned, v2.0)
 
 These helpers mirror MCP tool semantics:
 
-- `begin_memory_session`
+- `record` — unified write method (replaces `remember_step`, `remember_batch`, `ingest_content`, `backfill_conversation_history`)
 - `recall_for_task`
-- `remember_step`
-- `remember_batch`
-- `backfill_conversation_history`
+- `_begin_memory_session` — session auto-managed internally; call directly only for advanced use
 
 Example:
 
 ```python
-session = client.begin_memory_session(memory_id="memory_123", source="python-sdk")
-client.remember_step(
+# Record a single step
+client.record(memory_id="memory_123", content="Refactored auth middleware and added tests.")
+
+# Record multiple steps at once
+client.record(
     memory_id="memory_123",
-    text="Refactored auth middleware and added tests.",
+    content=[
+        "Completed migration patch for user aliases.",
+        "Risk: API key owner mismatch can cause tenant leakage.",
+    ],
 )
+
+# Record knowledge-scoped content
+client.record(memory_id="memory_123", content="JWT decision doc", scope="knowledge")
+
+# Record timeline history (backfill)
+client.record(
+    memory_id="memory_123",
+    content=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}],
+    scope="timeline",
+)
+
 ctx = client.recall_for_task(memory_id="memory_123", task="summarize latest auth changes", limit=8)
 print(ctx["results"])
 ```

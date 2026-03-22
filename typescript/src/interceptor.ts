@@ -548,28 +548,32 @@ export class AwarenessInterceptor {
     const doStore = async () => {
       let extractionReq: ExtractionRequest | null = null;
       try {
+        const events: Array<{ content: string; event_type?: string; source?: string }> = [];
         if (userText.trim()) {
-          const result = await this.client.rememberStep({
-            memoryId: this.memoryId,
-            text: `[user] ${userText}`,
+          events.push({
+            content: `[user] ${userText}`,
+            event_type: "message",
             source: this.source,
-            sessionId: this._sessionId,
-            actor: "user",
-            eventType: "message",
-            userId: this.userId,
           });
-          if (result && typeof result === "object" && "extraction_request" in result) {
-            extractionReq = (result as any).extraction_request;
-          }
         }
         if (assistantText.trim()) {
-          const result = await this.client.rememberStep({
-            memoryId: this.memoryId,
-            text: `[assistant] ${assistantText}`,
+          events.push({
+            content: `[assistant] ${assistantText}`,
+            event_type: "message",
             source: this.source,
+          });
+        }
+        if (events.length > 0) {
+          const result = await this.client.record({
+            memoryId: this.memoryId,
+            content: events.map((e) => ({
+              content: e.content,
+              event_type: e.event_type,
+              source: e.source,
+              session_id: this._sessionId,
+            })),
             sessionId: this._sessionId,
-            actor: "assistant",
-            eventType: "message",
+            source: this.source,
             userId: this.userId,
           });
           if (result && typeof result === "object" && "extraction_request" in result) {
@@ -624,7 +628,7 @@ export class AwarenessInterceptor {
       const insights = normalizeInsightsPayload(parsed);
 
       // Submit to server (server-side dedup)
-      await this.client.submitInsights({
+      await (this.client as any)._submitInsights({
         memoryId: this.memoryId,
         insights,
         sessionId: extractionRequest.session_id ?? this._sessionId,
@@ -644,13 +648,17 @@ export class AwarenessInterceptor {
       // Store turn_brief as a special event for DAILY_NARRATIVE write-through
       if (turnBrief) {
         try {
-          await this.client.rememberStep({
+          await this.client.record({
             memoryId: this.memoryId,
-            text: turnBrief,
-            source: this.source,
+            content: [{
+              content: turnBrief,
+              actor: "system",
+              event_type: "turn_brief",
+              source: this.source,
+              session_id: extractionRequest.session_id ?? this._sessionId,
+            }],
             sessionId: extractionRequest.session_id ?? this._sessionId,
-            actor: "system",
-            eventType: "turn_brief",
+            source: this.source,
             userId: this.userId ?? undefined,
           });
           console.log(`Turn brief stored: ${turnBrief.slice(0, 80)}`);

@@ -228,7 +228,7 @@ export class AwarenessClient {
           }
           return result;
         }
-        const result = await this.rememberStep(
+        const result = await this.record(
           String(content),
           params.metadata as Record<string, unknown> | undefined,
           userId,
@@ -439,7 +439,7 @@ export class AwarenessClient {
   // Internal — Write operations
   // -----------------------------------------------------------------------
 
-  async rememberStep(
+  async record(
     text: string,
     metadata?: Record<string, unknown>,
     userId?: string,
@@ -515,7 +515,7 @@ export class AwarenessClient {
       );
     } catch {
       // Fallback: trigger summary via a lightweight sentinel event
-      await this.rememberStep("[session-end]", {
+      await this.record("[session-end]", {
         event_type: "session_end",
         source: "openclaw-plugin",
       });

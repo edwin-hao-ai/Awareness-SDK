@@ -8,20 +8,14 @@ async function main() {
     apiKey: "YOUR_API_KEY",
   });
 
-  // 2) Start a session and persist one meaningful step.
-  const session = client.beginMemorySession({
+  // 2) Record a meaningful step (session is managed automatically).
+  const step = await client.record({
     memoryId: "your-memory-id",
-    source: "ts-sdk",
-  });
-  console.log("session:", session);
-
-  const step = await client.rememberStep({
-    memoryId: "your-memory-id",
-    text: "Added SDK export parser and MCP-aligned helpers.",
+    content: "Added SDK export parser and MCP-aligned helpers.",
     source: "ts-sdk",
     metadata: { stage: "implementation", tool_name: "typescript" },
   });
-  console.log("rememberStep:", step);
+  console.log("record:", step);
 
   // 3) Recall task context and run generic retrieve.
   const recall = await client.recallForTask({

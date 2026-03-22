@@ -330,7 +330,7 @@ describe("registerHooks", () => {
     });
 
     it("captures turn brief with first user + last assistant content", async () => {
-      // rememberStep call
+      // record() call
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
       // closeSession call
       mockFetch.mockReturnValueOnce(
@@ -355,7 +355,7 @@ describe("registerHooks", () => {
         ],
       });
 
-      // Should have called rememberStep
+      // Should have called record()
       expect(mockFetch).toHaveBeenCalled();
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(body.content).toContain("Request:");
@@ -399,7 +399,7 @@ describe("registerHooks", () => {
       expect(body.content).toContain("Build the auth module");
     });
 
-    it("calls closeSession after rememberStep", async () => {
+    it("calls closeSession after record()", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1 }));
       mockFetch.mockReturnValueOnce(
         jsonResponse({ session_id: "s1", events_processed: 5 }),
@@ -416,7 +416,7 @@ describe("registerHooks", () => {
         ],
       });
 
-      // Two calls: rememberStep + closeSession
+      // Two calls: record() + closeSession
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 

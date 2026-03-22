@@ -181,10 +181,10 @@ class AwarenessInterceptor:
       3. Inject memory context into system prompt
 
     POST-call (background, non-blocking):
-      1. Store user message via client.remember_step()
-      2. Store assistant response via client.remember_step()
+      1. Store user message via client.record()
+      2. Store assistant response via client.record()
       3. If extraction_request is returned, use original LLM to extract insights
-      4. Submit extracted insights via client.submit_insights()
+      4. Submit extracted insights via client._submit_insights()
     """
 
     def __init__(
@@ -247,7 +247,7 @@ class AwarenessInterceptor:
         if session_id:
             self._session_id = session_id
         else:
-            result = client.begin_memory_session(
+            result = client._begin_memory_session(
                 memory_id=memory_id,
                 source=source,
             )
@@ -391,30 +391,34 @@ class AwarenessInterceptor:
             extraction_req = None
             try:
                 if user_text.strip():
-                    result = self.client.remember_step(
-                        memory_id=self.memory_id,
-                        text=f"[user] {user_text}",
-                        source=self.source,
+                    result = self.client.record(
+                        self.memory_id,
+                        content=f"[user] {user_text}",
+                        scope="timeline",
                         session_id=self._session_id,
-                        actor="user",
-                        event_type="message",
-                        user_id=self.user_id,
+                        source=self.source,
+                        user_id=self.user_id or "",
+                        agent_role=self.agent_role or "",
+                        generate_summary=False,
                     )
-                    if isinstance(result, dict) and "extraction_request" in result:
-                        extraction_req = result["extraction_request"]
+                    ingest = result.get("ingest") or {}
+                    if isinstance(ingest, dict) and "extraction_request" in ingest:
+                        extraction_req = ingest["extraction_request"]
 
                 if assistant_text.strip():
-                    result = self.client.remember_step(
-                        memory_id=self.memory_id,
-                        text=f"[assistant] {assistant_text}",
-                        source=self.source,
+                    result = self.client.record(
+                        self.memory_id,
+                        content=f"[assistant] {assistant_text}",
+                        scope="timeline",
                         session_id=self._session_id,
-                        actor="assistant",
-                        event_type="message",
-                        user_id=self.user_id,
+                        source=self.source,
+                        user_id=self.user_id or "",
+                        agent_role=self.agent_role or "",
+                        generate_summary=False,
                     )
-                    if isinstance(result, dict) and "extraction_request" in result:
-                        extraction_req = result["extraction_request"]
+                    ingest = result.get("ingest") or {}
+                    if isinstance(ingest, dict) and "extraction_request" in ingest:
+                        extraction_req = ingest["extraction_request"]
             except Exception as e:
                 logger.warning(f"Background memory storage failed: {e}")
 
@@ -475,7 +479,7 @@ class AwarenessInterceptor:
             insights = _normalize_insights_payload(insights)
 
             # Submit to server (server-side dedup)
-            self.client.submit_insights(
+            self.client._submit_insights(
                 memory_id=self.memory_id,
                 insights=insights,
                 session_id=extraction_request.get("session_id", self._session_id),
@@ -492,14 +496,14 @@ class AwarenessInterceptor:
             # Store turn_brief as a special event for DAILY_NARRATIVE write-through
             if turn_brief and isinstance(turn_brief, str) and turn_brief.strip():
                 try:
-                    self.client.remember_step(
-                        memory_id=self.memory_id,
-                        text=turn_brief.strip(),
-                        source=self.source,
+                    self.client.record(
+                        self.memory_id,
+                        content=turn_brief.strip(),
+                        scope="timeline",
                         session_id=extraction_request.get("session_id", self._session_id),
-                        actor="system",
-                        event_type="turn_brief",
-                        user_id=self.user_id,
+                        source=self.source,
+                        user_id=self.user_id or "",
+                        generate_summary=False,
                     )
                     logger.info("Turn brief stored: %s", turn_brief[:80])
                 except Exception as tb_exc:

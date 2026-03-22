@@ -321,9 +321,9 @@ class TestIngestEvents:
 
 class TestSessionManagement:
     def test_begin_memory_session_returns_local_session(self):
-        # begin_memory_session is local — does NOT make HTTP calls
+        # _begin_memory_session is local — does NOT make HTTP calls
         client = _make_client()
-        result = client.begin_memory_session("mem-1", source="test")
+        result = client._begin_memory_session("mem-1", source="test")
         assert result["memory_id"] == "mem-1"
         assert result["source"] == "test"
         assert "session_id" in result
@@ -331,12 +331,12 @@ class TestSessionManagement:
 
     def test_begin_memory_session_uses_provided_id(self):
         client = _make_client()
-        result = client.begin_memory_session("mem-1", session_id="my-sess")
+        result = client._begin_memory_session("mem-1", session_id="my-sess")
         assert result["session_id"] == "my-sess"
 
     def test_session_caching(self):
         client = _make_client()
-        client.begin_memory_session("mem-1", source="test")
+        client._begin_memory_session("mem-1", source="test")
         assert "mem-1" in client._session_cache
 
 
@@ -375,7 +375,7 @@ class TestInsights:
             "risks": [],
             "action_items": [],
         }
-        result = client.submit_insights("mem-1", insights, user_id="u-1", agent_role="builder")
+        result = client._submit_insights("mem-1", insights, user_id="u-1", agent_role="builder")
         body = captured["json_payload"]
         assert body["user_id"] == "u-1"
         assert body["agent_role"] == "builder"

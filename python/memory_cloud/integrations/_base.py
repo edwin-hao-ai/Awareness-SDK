@@ -181,7 +181,7 @@ class MemoryCloudBaseAdapter:
         if session_id:
             self._session_id = session_id
         else:
-            result = client.begin_memory_session(
+            result = client._begin_memory_session(
                 memory_id=memory_id,
                 source=self.source,
             )
@@ -300,21 +300,23 @@ class MemoryCloudBaseAdapter:
 
         def _store():
             try:
-                result = self.client.remember_step(
-                    memory_id=self.memory_id,
-                    text=text,
-                    source=self.source,
+                result = self.client.record(
+                    self.memory_id,
+                    content=text,
+                    scope="timeline",
                     session_id=self._session_id,
-                    actor=actor,
-                    event_type=event_type,
-                    user_id=self.user_id,
+                    source=self.source,
+                    user_id=self.user_id or "",
+                    agent_role=self.agent_role or "",
+                    generate_summary=False,
                 )
+                ingest = result.get("ingest") or {}
                 if (
                     self.enable_extraction
-                    and isinstance(result, dict)
-                    and "extraction_request" in result
+                    and isinstance(ingest, dict)
+                    and "extraction_request" in ingest
                 ):
-                    self._run_extraction(result["extraction_request"])
+                    self._run_extraction(ingest["extraction_request"])
             except Exception as e:
                 logger.warning(f"Background memory storage failed: {e}")
 
@@ -366,7 +368,7 @@ class MemoryCloudBaseAdapter:
             turn_brief = parsed.pop("turn_brief", None)
 
             insights = _normalize_insights_payload(parsed)
-            self.client.submit_insights(
+            self.client._submit_insights(
                 memory_id=self.memory_id,
                 insights=insights,
                 session_id=extraction_request.get("session_id", self._session_id),
@@ -383,14 +385,14 @@ class MemoryCloudBaseAdapter:
             # Store turn_brief as a special event for DAILY_NARRATIVE write-through
             if turn_brief and isinstance(turn_brief, str) and turn_brief.strip():
                 try:
-                    self.client.remember_step(
-                        memory_id=self.memory_id,
-                        text=turn_brief.strip(),
-                        source=self.source,
+                    self.client.record(
+                        self.memory_id,
+                        content=turn_brief.strip(),
+                        scope="timeline",
                         session_id=extraction_request.get("session_id", self._session_id),
-                        actor="system",
-                        event_type="turn_brief",
-                        user_id=self.user_id,
+                        source=self.source,
+                        user_id=self.user_id or "",
+                        generate_summary=False,
                     )
                     logger.info("Turn brief stored: %s", turn_brief[:80])
                 except Exception as tb_exc:
@@ -493,13 +495,15 @@ class MemoryCloudBaseAdapter:
             JSON string with write result.
         """
         try:
-            data = self.client.remember_step(
-                memory_id=self.memory_id,
-                text=content,
-                source=self.source,
+            data = self.client.record(
+                self.memory_id,
+                content=content,
+                scope="timeline",
                 session_id=self._session_id,
-                event_type=event_type,
-                user_id=self.user_id,
+                source=self.source,
+                user_id=self.user_id or "",
+                agent_role=self.agent_role or "",
+                generate_summary=False,
             )
             return json.dumps(data, ensure_ascii=False, default=str)
         except Exception as exc:

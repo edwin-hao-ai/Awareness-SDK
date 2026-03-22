@@ -242,12 +242,11 @@ class TestRecord:
         assert ingest_captured["events"][0]["content"] == "decision made"
 
     def test_record_with_insights(self):
-        """When insights are provided, submit_insights should be called."""
+        """When insights are provided, _submit_insights should be called."""
         client = _make_client()
 
         # Mock ingest_events to no-op (no content provided)
         submit_captured = {}
-        original_submit = client.submit_insights
 
         def mock_submit(memory_id, insights, **kwargs):
             submit_captured["memory_id"] = memory_id
@@ -255,7 +254,7 @@ class TestRecord:
             submit_captured["kwargs"] = kwargs
             return {"stored": 1}
 
-        client.submit_insights = mock_submit
+        client._submit_insights = mock_submit
 
         insights_data = {
             "knowledge_cards": [{"title": "Auth pattern", "summary": "JWT used"}],

@@ -263,7 +263,7 @@ export function registerHooks(
           parts.push(`Turns: ${messageCount} messages`);
           const summary = parts.join("\n");
 
-          await client.rememberStep(summary, {
+          await client.record(summary, {
             event_type: "turn_brief",
             source: "openclaw-plugin",
           });

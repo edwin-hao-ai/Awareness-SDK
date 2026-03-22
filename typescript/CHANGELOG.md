@@ -1,5 +1,51 @@
 # Changelog
 
+## [2.0.0] - 2026-03-22
+
+### Breaking Changes
+
+The following deprecated methods have been **removed**. Update your code before upgrading:
+
+| Removed | Replace with |
+|---------|-------------|
+| `rememberStep({ memoryId, content, ... })` | `record({ memoryId, content, ... })` |
+| `rememberBatch({ memoryId, steps, ... })` | `record({ memoryId, content: steps, ... })` |
+| `ingestContent({ memoryId, content, ... })` | `record({ memoryId, content, scope: "knowledge" })` |
+| `backfillConversationHistory({ memoryId, messages, ... })` | `record({ memoryId, content: messages, scope: "timeline" })` |
+
+The following methods are now **private**. Use `record()` instead for new code:
+
+| Now private | Replacement |
+|------------|-------------|
+| `submitInsights()` → `_submitInsights()` | `record({ memoryId, insights: {...} })` |
+| `beginMemorySession()` → `_beginMemorySession()` | Session is now managed automatically by `record()` |
+
+### Added
+
+- `mode` field on `MemoryCloudClientConfig`: `"cloud"` (default) | `"local"` | `"auto"`
+  - `mode: "local"` — connect to a local Awareness daemon instead of the cloud API
+  - `mode: "auto"` — try local daemon first, fall back to cloud if unavailable
+- `localUrl` field on `MemoryCloudClientConfig`: local daemon URL (default: `"http://localhost:8765"`)
+- `baseUrl` is now optional (not required when using `mode: "local"`)
+
+```typescript
+// Connect to local daemon
+const client = new MemoryCloudClient({ mode: "local" });
+
+// Auto-detect (local first, cloud fallback)
+const client = new MemoryCloudClient({
+  mode: "auto",
+  localUrl: "http://localhost:8765",
+  baseUrl: "https://api.awareness.market",
+  apiKey: "sk-...",
+});
+```
+
+## [0.2.6] - 2026-03-22
+
+### Added
+- `detail` and `ids` parameters on `retrieve()` and `recallForTask()` for progressive disclosure
+
 ## [0.2.2] - 2026-03-16
 
 ### Added

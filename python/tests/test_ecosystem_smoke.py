@@ -22,14 +22,14 @@ def _mock_memory_client():
     client = MagicMock()
     client.base_url = "http://localhost:8000/api/v1"
     client.api_key = "test-key"
-    client.begin_memory_session.return_value = {"session_id": "sess-smoke"}
+    client._begin_memory_session.return_value = {"session_id": "sess-smoke"}
     client.retrieve.return_value = {
         "results": [
             {"content": "We decided to use JWT for auth.", "id": "v1", "score": 0.92},
             {"content": "Redis is the session store.", "id": "v2", "score": 0.85},
         ]
     }
-    client.remember_step.return_value = {"status": "ok", "event_id": "e1"}
+    client.record.return_value = {"status": "ok", "events_sent": 1}
     client.insights.return_value = {
         "knowledge_cards": [
             {"category": "decision", "title": "JWT Auth", "summary": "Use JWT tokens", "status": "noted"},
@@ -131,7 +131,7 @@ class TestLangChainEcosystem:
         mc = MemoryCloudLangChain(client=client, memory_id="m1", auto_remember=False)
         mc.memory_write("Important decision: use PostgreSQL")
 
-        client.remember_step.assert_called_once()
+        client.record.assert_called_once()
 
     def test_wrap_llm_openai(self):
         """Test that wrap_llm works with a mock OpenAI client."""

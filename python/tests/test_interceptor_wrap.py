@@ -19,9 +19,9 @@ def _make_client():
     client = MagicMock(spec=MemoryCloudClient)
     client.base_url = "http://localhost:8000/api/v1"
     client.api_key = "test-key"
-    client.begin_memory_session.return_value = {"session_id": "sess-1"}
+    client._begin_memory_session.return_value = {"session_id": "sess-1"}
     client.retrieve.return_value = {"results": [{"content": "recalled context"}]}
-    client.remember_step.return_value = {"status": "ok", "event_id": "e1"}
+    client.record.return_value = {"status": "ok", "events_sent": 1}
     client.get_agent_prompt.return_value = {"prompt": "You are a helpful assistant."}
     return client
 

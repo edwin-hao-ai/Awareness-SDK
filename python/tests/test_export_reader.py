@@ -36,8 +36,8 @@ def test_mcp_helper_session_and_history_parse():
     api_base = os.getenv("AWARENESS_API_BASE_URL", os.getenv("AWARENESS_BASE_URL", "http://localhost:8000/api/v1"))
     client = MemoryCloudClient(base_url=api_base, api_key="k")
 
-    first = client.begin_memory_session(memory_id="m1", source="python-sdk")
-    second = client.begin_memory_session(memory_id="m1", source="python-sdk")
+    first = client._begin_memory_session(memory_id="m1", source="python-sdk")
+    second = client._begin_memory_session(memory_id="m1", source="python-sdk")
     assert first["session_id"] != second["session_id"]
 
     backfilled = client._coerce_history_to_events(

@@ -435,7 +435,7 @@ const awarenessPlugin = {
           if (lastAssistantContent) parts.push(`Result: ${lastAssistantContent.slice(0, 400)}`);
           parts.push(`Turns: ${messageCount} messages`);
 
-          await client.rememberStep(parts.join("\n"), {
+          await client.record(parts.join("\n"), {
             event_type: "turn_brief",
             source: "openclaw-plugin",
           });

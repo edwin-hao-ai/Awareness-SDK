@@ -38,8 +38,10 @@ class MemoryCloudClient:
         extraction_max_tokens: Optional[int] = None,
         user_id: Optional[str] = None,
         agent_role: Optional[str] = None,
+        mode: str = "cloud",          # "cloud" | "local" | "auto"
+        local_url: str = "http://localhost:8765",
     ):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = self._resolve_base_url(base_url, mode, local_url)
         self.api_key = api_key
         self.timeout = timeout
         self.max_retries = max(0, max_retries)
@@ -64,6 +66,23 @@ class MemoryCloudClient:
 
         if self._extraction_llm is not None:
             self._llm_type = _detect_llm_type(self._extraction_llm)
+
+    def _resolve_base_url(self, base_url: str, mode: str, local_url: str) -> str:
+        """Resolve the effective base URL based on mode."""
+        if base_url and mode == "cloud":
+            return base_url.rstrip("/")
+        if mode == "local":
+            return local_url.rstrip("/")
+        if mode == "auto":
+            # Try local first, fallback to cloud
+            import urllib.request
+            try:
+                urllib.request.urlopen(f"{local_url.rstrip('/')}/health", timeout=1)
+                return local_url.rstrip("/")
+            except Exception:
+                return base_url.rstrip("/") if base_url else local_url.rstrip("/")
+        # Default: use base_url if provided, else local_url
+        return (base_url or local_url).rstrip("/")
 
     # ----------------------------
     # Memory CRUD
@@ -469,7 +488,7 @@ class MemoryCloudClient:
 
         # --- Submit insights directly ---
         if insights is not None:
-            insights_result = self.submit_insights(
+            insights_result = self._submit_insights(
                 memory_id=memory_id,
                 insights=insights,
                 session_id=active_session,
@@ -567,37 +586,7 @@ class MemoryCloudClient:
         )
         return self._attach_trace(data, resolved_trace_id)
 
-    def ingest_content(
-        self,
-        memory_id: str,
-        content: Any,
-        agent_role: Optional[str] = None,
-        source: Optional[str] = None,
-        metadata_defaults: Optional[Dict[str, Any]] = None,
-        async_vectorize: bool = True,
-        trace_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Deprecated: use record(scope='knowledge') instead."""
-        payload: Dict[str, Any] = {
-            "memory_id": memory_id,
-            "content": content,
-            "async_vectorize": async_vectorize,
-            "metadata_defaults": metadata_defaults or {},
-        }
-        if agent_role:
-            payload["agent_role"] = agent_role
-        if source:
-            payload["default_source"] = source
-
-        data, resolved_trace = self._request(
-            method="POST",
-            path="/mcp/events",
-            json_payload=payload,
-            trace_id=trace_id,
-        )
-        return self._attach_trace(data, resolved_trace)
-
-    def begin_memory_session(
+    def _begin_memory_session(
         self,
         memory_id: str,
         source: str = "",
@@ -845,118 +834,7 @@ class MemoryCloudClient:
             "events": items,
         }, resolved_trace_id)
 
-    def remember_step(
-        self,
-        memory_id: str,
-        text: str,
-        source: str = "",
-        session_id: Optional[str] = None,
-        actor: str = "",
-        event_type: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
-        metadata_defaults: Optional[Dict[str, Any]] = None,
-        user_id: Optional[str] = None,
-        insights: Optional[Dict[str, Any]] = None,
-        trace_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Deprecated: use record() instead."""
-        source_label = self._clean_source(source or self.default_source)
-        active_session = self._resolve_session(
-            memory_id=memory_id,
-            source=source_label,
-            session_id=session_id,
-            rotate=False,
-        )
-        body = (text or "").strip()
-        if not body:
-            raise MemoryCloudError("INVALID_ARGUMENT", "text is required")
-
-        event: Dict[str, Any] = {
-            "content": body,
-            "source": source_label,
-            "session_id": active_session,
-            "actor": self._infer_actor(body, actor),
-            "event_type": self._infer_event_type(body, event_type),
-            "timestamp": self._now_iso(),
-        }
-        if metadata:
-            event["metadata"] = metadata
-
-        result = self.ingest_events(
-            memory_id=memory_id,
-            events=[event],
-            default_source=source_label,
-            metadata_defaults=metadata_defaults,
-            skip_duplicates=True,
-            generate_summary=False,
-            user_id=user_id or self._user_id,
-            insights=insights,
-            trace_id=trace_id,
-        )
-        response = {
-            "memory_id": memory_id,
-            "source": source_label,
-            "session_id": active_session,
-            "event": event,
-            "result": result,
-            "extraction_request": result.get("extraction_request") if isinstance(result, dict) else None,
-            "trace_id": result.get("trace_id"),
-        }
-        self._maybe_auto_extract(response, memory_id)
-        return response
-
-    def remember_batch(
-        self,
-        memory_id: str,
-        steps: List[Union[str, Dict[str, Any]]],
-        source: str = "",
-        session_id: Optional[str] = None,
-        metadata_defaults: Optional[Dict[str, Any]] = None,
-        user_id: Optional[str] = None,
-        insights: Optional[Dict[str, Any]] = None,
-        trace_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Deprecated: use record() instead."""
-        source_label = self._clean_source(source or self.default_source)
-        active_session = self._resolve_session(
-            memory_id=memory_id,
-            source=source_label,
-            session_id=session_id,
-            rotate=False,
-        )
-        events: List[Dict[str, Any]] = []
-        for step in steps:
-            normalized = self._normalize_step(step, source=source_label, session_id=active_session)
-            if normalized:
-                events.append(normalized)
-
-        if not events:
-            raise MemoryCloudError("INVALID_ARGUMENT", "no valid steps provided")
-
-        result = self.ingest_events(
-            memory_id=memory_id,
-            events=events,
-            default_source=source_label,
-            metadata_defaults=metadata_defaults,
-            skip_duplicates=True,
-            generate_summary=True,
-            user_id=user_id or self._user_id,
-            insights=insights,
-            trace_id=trace_id,
-        )
-        response = {
-            "memory_id": memory_id,
-            "source": source_label,
-            "session_id": active_session,
-            "accepted_steps": len(events),
-            "result": result,
-            "extraction_request": result.get("extraction_request") if isinstance(result, dict) else None,
-            "trace_id": result.get("trace_id"),
-        }
-        self._maybe_auto_extract(response, memory_id)
-        return response
-
-    def submit_insights(
+    def _submit_insights(
         self,
         memory_id: str,
         insights: Dict[str, Any],
@@ -965,11 +843,11 @@ class MemoryCloudClient:
         agent_role: Optional[str] = None,
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Deprecated: use record(insights={...}) instead.
+        """Internal method: submit pre-extracted insights to server.
 
         Submit pre-extracted insights from client-side LLM processing (no server LLM needed).
 
-        Called after processing an extraction_request returned from remember_step/remember_batch.
+        Called after processing an extraction_request returned from record()/ingest_events().
         The server stores insights with server-side deduplication (zero LLM calls).
         """
         payload: Dict[str, Any] = {**insights}
@@ -987,58 +865,6 @@ class MemoryCloudClient:
             trace_id=trace_id,
         )
         return self._attach_trace(data, resolved_trace)
-
-    def backfill_conversation_history(
-        self,
-        memory_id: str,
-        history: Union[str, List[str], Dict[str, Any], List[Dict[str, Any]]],
-        source: str = "",
-        session_id: Optional[str] = None,
-        agent_role: str = "",
-        metadata_defaults: Optional[Dict[str, Any]] = None,
-        generate_summary: bool = True,
-        summary_min_new_events: int = 10,
-        max_events: int = 800,
-        trace_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Deprecated: use record() instead."""
-        source_label = self._clean_source(source or self.default_source)
-        active_session = self._resolve_session(
-            memory_id=memory_id,
-            source=source_label,
-            session_id=session_id,
-            rotate=False,
-        )
-
-        events = self._coerce_history_to_events(history, source=source_label, session_id=active_session)
-        if not events:
-            raise MemoryCloudError("INVALID_ARGUMENT", "no parseable history found")
-
-        capped_events = events[: max(1, min(max_events, 5000))]
-        merged_defaults = dict(metadata_defaults or {})
-        if agent_role.strip() and "agent_role" not in merged_defaults:
-            merged_defaults["agent_role"] = agent_role.strip()
-
-        result = self.ingest_events(
-            memory_id=memory_id,
-            events=capped_events,
-            default_source=source_label,
-            metadata_defaults=merged_defaults,
-            skip_duplicates=True,
-            generate_summary=generate_summary,
-            summary_min_new_events=max(1, summary_min_new_events),
-            trace_id=trace_id,
-        )
-        return {
-            "memory_id": memory_id,
-            "source": source_label,
-            "session_id": active_session,
-            "parsed_events": len(events),
-            "ingested_events": len(capped_events),
-            "truncated": len(capped_events) < len(events),
-            "result": result,
-            "trace_id": result.get("trace_id"),
-        }
 
     # ----------------------------
     # Context / Knowledge / Tasks
@@ -1267,7 +1093,7 @@ class MemoryCloudClient:
         Update an action item's status.
 
         Call after completing a task found via get_pending_tasks or get_session_context.
-        Always call remember_step first to record what you did, then update_task_status.
+        Always call record() first to record what you did, then update_task_status.
 
         Args:
             memory_id: Target memory id.
@@ -1841,59 +1667,6 @@ class MemoryCloudClient:
         event.setdefault("timestamp", self._now_iso())
         return event
 
-    def _events_from_transcript_text(self, transcript: str, source: str, session_id: str) -> List[Dict[str, Any]]:
-        lines = [line.strip() for line in transcript.splitlines() if line.strip()]
-        output: List[Dict[str, Any]] = []
-        for line in lines:
-            normalized = self._normalize_step(line, source=source, session_id=session_id)
-            if normalized:
-                output.append(normalized)
-        return output
-
-    def _coerce_history_to_events(
-        self,
-        history: Union[str, List[str], Dict[str, Any], List[Dict[str, Any]]],
-        source: str,
-        session_id: str,
-    ) -> List[Dict[str, Any]]:
-        if isinstance(history, str):
-            stripped = history.strip()
-            if not stripped:
-                return []
-            if stripped[:1] in {"[", "{"}:
-                try:
-                    parsed = json.loads(stripped)
-                    return self._coerce_history_to_events(parsed, source=source, session_id=session_id)  # type: ignore[arg-type]
-                except Exception:
-                    pass
-            return self._events_from_transcript_text(stripped, source=source, session_id=session_id)
-
-        if isinstance(history, dict):
-            if isinstance(history.get("events"), list):
-                return self._coerce_history_to_events(history["events"], source=source, session_id=session_id)  # type: ignore[arg-type]
-            if isinstance(history.get("messages"), list):
-                return self._coerce_history_to_events(history["messages"], source=source, session_id=session_id)  # type: ignore[arg-type]
-            normalized = self._normalize_step(history, source=source, session_id=session_id)
-            return [normalized] if normalized else []
-
-        if isinstance(history, list):
-            events: List[Dict[str, Any]] = []
-            for item in history:
-                if isinstance(item, str):
-                    if "\n" in item:
-                        events.extend(self._events_from_transcript_text(item, source=source, session_id=session_id))
-                    else:
-                        normalized = self._normalize_step(item, source=source, session_id=session_id)
-                        if normalized:
-                            events.append(normalized)
-                elif isinstance(item, dict):
-                    normalized = self._normalize_step(item, source=source, session_id=session_id)
-                    if normalized:
-                        events.append(normalized)
-            return events
-
-        return []
-
     # ----------------------------
     # Utility
     # ----------------------------
@@ -1974,7 +1747,7 @@ class MemoryCloudClient:
             turn_brief = insights.pop("turn_brief", None)
             insights = _normalize_insights(insights)
 
-            self.submit_insights(
+            self._submit_insights(
                 memory_id=memory_id,
                 insights=insights,
                 session_id=session_id,
@@ -1990,12 +1763,20 @@ class MemoryCloudClient:
 
             if turn_brief and isinstance(turn_brief, str) and turn_brief.strip():
                 try:
-                    self.remember_step(
+                    source_label = self._clean_source(self.default_source)
+                    self.ingest_events(
                         memory_id=memory_id,
-                        text=turn_brief.strip(),
-                        session_id=session_id,
-                        actor="system",
-                        event_type="turn_brief",
+                        events=[{
+                            "content": turn_brief.strip(),
+                            "source": source_label,
+                            "session_id": session_id,
+                            "actor": "system",
+                            "event_type": "turn_brief",
+                            "timestamp": self._now_iso(),
+                        }],
+                        default_source=source_label,
+                        skip_duplicates=True,
+                        generate_summary=False,
                         user_id=self._user_id,
                     )
                 except Exception as e:

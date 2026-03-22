@@ -233,9 +233,9 @@ describe.skipIf(!runE2E)("E2E: OpenClaw Plugin against Live API", () => {
   describe("Write/Read roundtrip", () => {
     const uniqueMarker = `e2e-test-${Date.now()}`;
 
-    it.skipIf(!apiReachable)("rememberStep persists and can be recalled", async () => {
+    it.skipIf(!apiReachable)("record() persists and can be recalled", async () => {
       // Write
-      const writeResult = await client.rememberStep(
+      const writeResult = await client.record(
         `E2E test event: ${uniqueMarker} — Testing OpenClaw plugin integration`,
       );
       expect(writeResult.accepted).toBeGreaterThanOrEqual(1);
@@ -287,7 +287,7 @@ describe.skipIf(!runE2E)("E2E: Full Plugin Flow", () => {
     expect(recallResult).toBeDefined();
 
     // Step 3: Record work
-    await client.rememberStep("E2E: Completed plugin integration test");
+    await client.record("E2E: Completed plugin integration test");
 
     // Step 4: Lookup structured data
     const tasks = await client.getData("tasks", { limit: 5 });
