@@ -85,7 +85,7 @@ async function main() {
             use_hybrid_search: true,
             reconstruct_chunks: true,
             vector_weight: 0.7,
-            full_text_weight: 0.3,
+            bm25_weight: 0.3,
           },
           include_installed: true,
           agent_role: config.agentRole || undefined,

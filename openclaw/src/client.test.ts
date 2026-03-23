@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AwarenessClient, SearchOptions } from "./client";
 
-const LEGACY_TEXT_WEIGHT_KEY = ["b", "m", "25", "Weight"].join("");
+const LEGACY_FULL_TEXT_WEIGHT_KEY = ["full", "_text", "_weight"].join("");
 
 // ---------------------------------------------------------------------------
 // Mock fetch globally
@@ -293,24 +293,24 @@ describe("AwarenessClient", () => {
       expect(body2.custom_kwargs.limit).toBe(1);
     });
 
-    it("uses fullTextWeight in the retrieve payload", async () => {
+    it("uses bm25Weight in the retrieve payload", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       await makeClient().search({
         semanticQuery: "auth method",
-        fullTextWeight: 0.4,
+        bm25Weight: 0.4,
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.custom_kwargs.full_text_weight).toBe(0.4);
+      expect(body.custom_kwargs.bm25_weight).toBe(0.4);
     });
 
-    it("keeps runtime compatibility with older text-weight callers", async () => {
+    it("keeps runtime compatibility with older full_text_weight callers", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       const legacyOptions = {
         semanticQuery: "auth method",
-        [LEGACY_TEXT_WEIGHT_KEY]: 0.25,
+        [LEGACY_FULL_TEXT_WEIGHT_KEY]: 0.25,
       } as unknown as SearchOptions;
 
       await makeClient().search({
@@ -318,7 +318,7 @@ describe("AwarenessClient", () => {
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.custom_kwargs.full_text_weight).toBe(0.25);
+      expect(body.custom_kwargs.bm25_weight).toBe(0.25);
     });
   });
 

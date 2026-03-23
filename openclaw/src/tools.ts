@@ -1,7 +1,7 @@
 import type { PluginApi } from "./types";
 import type { AwarenessClient } from "./client";
 
-const LEGACY_TEXT_WEIGHT_KEY = ["b", "m", "25", "_weight"].join("");
+const LEGACY_FULL_TEXT_WEIGHT_KEY = ["full", "_text", "_weight"].join("");
 
 // ---------------------------------------------------------------------------
 // Register 6 OpenClaw tools backed by the Awareness REST API
@@ -146,9 +146,9 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
           description: "Weight for vector search in hybrid mode (default 0.7).",
           default: 0.7,
         },
-        full_text_weight: {
+        bm25_weight: {
           type: "number",
-          description: "Weight for full-text search in hybrid mode (default 0.3).",
+          description: "Weight for BM25 keyword search in hybrid mode (default 0.3).",
           default: 0.3,
         },
         recall_mode: {
@@ -200,16 +200,16 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       required: ["semantic_query"],
     },
     execute: async (input) => {
-      const legacyFullTextWeight = input[LEGACY_TEXT_WEIGHT_KEY];
+      const legacyFullTextWeight = input[LEGACY_FULL_TEXT_WEIGHT_KEY];
       return client.search({
         semanticQuery: String(input.semantic_query ?? ""),
         keywordQuery: input.keyword_query !== undefined ? String(input.keyword_query) : undefined,
         scope: (input.scope as "all" | "timeline" | "knowledge" | "insights") ?? "all",
         limit: input.limit !== undefined ? Number(input.limit) : undefined,
         vectorWeight: input.vector_weight !== undefined ? Number(input.vector_weight) : undefined,
-        fullTextWeight:
-          input.full_text_weight !== undefined
-            ? Number(input.full_text_weight)
+        bm25Weight:
+          input.bm25_weight !== undefined
+            ? Number(input.bm25_weight)
             : legacyFullTextWeight !== undefined
               ? Number(legacyFullTextWeight)
               : undefined,

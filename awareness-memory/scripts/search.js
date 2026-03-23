@@ -3,7 +3,7 @@
 // awareness_recall — Semantic + keyword hybrid search
 // Usage: node search.js "query text" [keyword_query="terms"] [limit=6]
 //        [scope=all|timeline|knowledge|insights] [recall_mode=hybrid]
-//        [vector_weight=0.7] [full_text_weight=0.3]
+//        [vector_weight=0.7] [bm25_weight=0.3]
 //        [multi_level=true] [cluster_expand=true]
 //        [detail=summary|full] [ids=id1,id2]
 // ---------------------------------------------------------------------------
@@ -42,7 +42,7 @@ async function main() {
       use_hybrid_search: true,
       reconstruct_chunks: true,
       vector_weight: Number(args.vector_weight) || 0.7,
-      full_text_weight: Number(args.full_text_weight) || 0.3,
+      bm25_weight: Number(args.bm25_weight) || 0.3,
     };
 
     if (args.multi_level) customKwargs.multi_level = true;

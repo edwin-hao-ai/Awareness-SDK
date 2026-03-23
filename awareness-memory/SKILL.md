@@ -81,7 +81,7 @@ node ${CLAUDE_SKILL_DIR}/scripts/search.js "auth" detail=full ids=id1,id2
 - `limit` — max results (default 6, max 30)
 - `recall_mode` — hybrid (default), precise, session, structured, auto
 - `vector_weight` — weight for semantic search (default 0.7)
-- `full_text_weight` — weight for keyword search (default 0.3)
+- `bm25_weight` — weight for keyword search (default 0.3)
 - `multi_level` — broader context across sessions
 - `cluster_expand` — topic-based context expansion
 - `detail` — summary (lightweight) or full (complete content)

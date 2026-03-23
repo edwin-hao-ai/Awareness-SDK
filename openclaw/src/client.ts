@@ -9,7 +9,7 @@ import type {
   SupersedeResponse,
 } from "./types";
 
-const LEGACY_TEXT_WEIGHT_KEY = ["b", "m", "25", "Weight"].join("");
+const LEGACY_FULL_TEXT_WEIGHT_KEY = ["full", "_text", "_weight"].join("");
 
 // ---------------------------------------------------------------------------
 // Search options for the awareness_recall interface
@@ -21,7 +21,7 @@ export interface SearchOptions {
   scope?: "all" | "timeline" | "knowledge" | "insights";
   limit?: number;
   vectorWeight?: number;
-  fullTextWeight?: number;
+  bm25Weight?: number;
   recallMode?: "precise" | "session" | "structured" | "hybrid" | "auto";
   /** Enable broader context retrieval across sessions and time ranges. */
   multiLevel?: boolean;
@@ -87,7 +87,7 @@ export class AwarenessClient {
 
   async search(opts: SearchOptions): Promise<RecallResult> {
     const query = opts.semanticQuery;
-    const legacyTextWeight = (opts as unknown as Record<string, unknown>)[LEGACY_TEXT_WEIGHT_KEY];
+    const legacyFullTextWeight = (opts as unknown as Record<string, unknown>)[LEGACY_FULL_TEXT_WEIGHT_KEY];
 
     const customKwargs: Record<string, unknown> = {
       limit: Math.max(1, Math.min(opts.limit ?? 6, 30)),
@@ -95,9 +95,9 @@ export class AwarenessClient {
       reconstruct_chunks: true,
       recall_mode: opts.recallMode ?? "hybrid",
       vector_weight: opts.vectorWeight ?? 0.7,
-      full_text_weight:
-        opts.fullTextWeight ??
-        (typeof legacyTextWeight === "number" ? legacyTextWeight : undefined) ??
+      bm25_weight:
+        opts.bm25Weight ??
+        (typeof legacyFullTextWeight === "number" ? legacyFullTextWeight : undefined) ??
         0.3,
     };
     if (opts.multiLevel !== undefined) customKwargs.multi_level = opts.multiLevel;
