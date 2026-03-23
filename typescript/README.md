@@ -1,5 +1,7 @@
 # Awareness Memory SDK — TypeScript
 
+[![npm](https://img.shields.io/npm/v/@awareness-sdk/memory-cloud?color=7b68ee)](https://www.npmjs.com/package/@awareness-sdk/memory-cloud) [![Discord](https://img.shields.io/discord/1354000000000000000?color=5865F2&logo=discord&logoColor=white&label=Discord)](https://discord.com/invite/nMDrT538Qa)
+
 TypeScript SDK for adding persistent memory to AI agents and apps.
 
 Online docs: <https://awareness.market/docs?doc=typescript>

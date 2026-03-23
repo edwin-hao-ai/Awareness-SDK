@@ -489,13 +489,26 @@ async function syncOneIdeOpenClaw({ argv, dryRun }) {
 
   if (!dryRun) {
     // Attempt to auto-install the Awareness plugin via the openclaw CLI
+    const { execSync } = await import("node:child_process");
+    let installed = false;
     try {
-      const { execSync } = await import("node:child_process");
       execSync("openclaw plugins install @awareness-sdk/openclaw-memory", { stdio: "pipe" });
       console.log("✓ Awareness plugin installed in OpenClaw.");
+      installed = true;
     } catch {
-      console.log("ℹ To install the Awareness plugin, run:");
+      // plugins install failed, try skill install as fallback
+      try {
+        execSync("npx clawhub@latest install awareness-memory --force", { stdio: "pipe" });
+        console.log("✓ Awareness skill installed in OpenClaw via ClawHub.");
+        installed = true;
+      } catch {
+        // both failed
+      }
+    }
+    if (!installed) {
+      console.log("ℹ To install the Awareness plugin, run one of:");
       console.log("    openclaw plugins install @awareness-sdk/openclaw-memory");
+      console.log("    npx clawhub@latest install awareness-memory");
     }
 
     if (result.action !== "noop") {

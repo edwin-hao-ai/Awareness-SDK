@@ -61,10 +61,11 @@ describe("register (plugin entry point)", () => {
     const { api, tools, hooks, logCalls } = makeApi();
     register(api);
 
-    // 5 tools: workflow, init, recall, lookup, record
-    expect(Object.keys(tools)).toHaveLength(5);
+    // 6 tools: workflow, init, get_agent_prompt, recall, lookup, record
+    expect(Object.keys(tools)).toHaveLength(6);
     expect(tools["__awareness_workflow__"]).toBeDefined();
     expect(tools["awareness_init"]).toBeDefined();
+    expect(tools["awareness_get_agent_prompt"]).toBeDefined();
     expect(tools["awareness_recall"]).toBeDefined();
     expect(tools["awareness_lookup"]).toBeDefined();
     expect(tools["awareness_record"]).toBeDefined();
@@ -134,7 +135,7 @@ describe("register (plugin entry point)", () => {
 
     // Should not throw — defaults are applied internally
     register(api);
-    expect(Object.keys(tools)).toHaveLength(5);
+    expect(Object.keys(tools)).toHaveLength(6);
     // 2 hooks registered via api.on() from registerHooks
     expect(hooks).toHaveLength(2);
   });

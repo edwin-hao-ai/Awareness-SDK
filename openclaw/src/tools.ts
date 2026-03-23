@@ -4,7 +4,7 @@ import type { AwarenessClient } from "./client";
 const LEGACY_TEXT_WEIGHT_KEY = ["b", "m", "25", "_weight"].join("");
 
 // ---------------------------------------------------------------------------
-// Register 5 OpenClaw tools backed by the Awareness REST API
+// Register 6 OpenClaw tools backed by the Awareness REST API
 // ---------------------------------------------------------------------------
 
 export function registerTools(api: PluginApi, client: AwarenessClient): void {

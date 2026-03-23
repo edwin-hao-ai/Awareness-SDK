@@ -1,5 +1,7 @@
 # @awareness-sdk/setup
 
+[![npm](https://img.shields.io/npm/v/@awareness-sdk/setup?color=22c55e)](https://www.npmjs.com/package/@awareness-sdk/setup) [![Discord](https://img.shields.io/discord/1354000000000000000?color=5865F2&logo=discord&logoColor=white&label=Discord)](https://discord.com/invite/nMDrT538Qa)
+
 **One command to give your AI agent persistent memory. 13+ IDEs supported.**
 
 ```bash

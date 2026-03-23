@@ -1,5 +1,7 @@
 # Awareness Memory — Claude Code Plugin
 
+[![Discord](https://img.shields.io/discord/1354000000000000000?color=5865F2&logo=discord&logoColor=white&label=Discord)](https://discord.com/invite/nMDrT538Qa)
+
 Persistent cross-session memory for Claude Code via [Awareness](https://awareness.market). Local-first — works offline, no account needed.
 
 Gives Claude Code a long-term memory that survives across sessions — no more forgetting what was built, repeating architectural decisions, or losing track of open TODOs.

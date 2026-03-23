@@ -8,12 +8,13 @@
   <a href="https://www.npmjs.com/package/@awareness-sdk/local"><img src="https://img.shields.io/npm/v/@awareness-sdk/local?color=22c55e&label=local" alt="local"/></a>
   <a href="https://awareness.market"><img src="https://img.shields.io/badge/Cloud-awareness.market-5ce0d2" alt="Cloud"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue" alt="License"/></a>
+  <a href="https://discord.com/invite/nMDrT538Qa"><img src="https://img.shields.io/discord/1354000000000000000?color=5865F2&logo=discord&logoColor=white&label=Discord" alt="Discord"/></a>
 </p>
 
 <p align="center">
   <strong>Give your AI agent persistent memory across sessions.</strong><br/>
   Local-first. Works offline. One command to set up. 13+ IDE support.<br/>
-  <a href="https://awareness.market/docs">Docs</a> · <a href="https://awareness.market">Cloud</a> · <a href="#quick-start">Quick Start</a>
+  <a href="https://awareness.market/docs">Docs</a> · <a href="https://awareness.market">Cloud</a> · <a href="https://discord.com/invite/nMDrT538Qa">Discord</a> · <a href="#quick-start">Quick Start</a>
 </p>
 
 ---
@@ -128,7 +129,11 @@ Skills: `/awareness-memory:session-start` · `/awareness-memory:recall` · `/awa
 #### OpenClaw
 
 ```bash
+# Plugin (full integration):
 openclaw plugins install @awareness-sdk/openclaw-memory
+
+# Or Skill (via ClawHub):
+npx clawhub@latest install awareness-memory
 ```
 
 Auto-recall on session start. Auto-capture on session end. Zero configuration.

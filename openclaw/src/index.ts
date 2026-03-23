@@ -14,7 +14,7 @@ function registerSetupMode(api: PluginApi): void {
     name: "awareness_setup",
     description:
       "Awareness Memory is not configured yet. Call this tool to get setup instructions.\n" +
-      "The quickest way: run `npx @awareness-sdk/setup --ide openclaw` in a terminal.",
+      "Quickest way: `openclaw plugins install @awareness-sdk/openclaw-memory` or `npx clawhub@latest install awareness-memory`.",
     inputSchema: {
       type: "object",
       properties: {
@@ -42,6 +42,12 @@ function registerSetupMode(api: PluginApi): void {
             "Opens browser for login, lets you pick a memory, and writes config automatically.",
         },
         {
+          method: "Install as skill (via ClawHub)",
+          command: "npx clawhub@latest install awareness-memory",
+          description:
+            "Lightweight skill-based integration. Configure API key and memory ID after install.",
+        },
+        {
           method: "Manual cloud configuration",
           steps: [
             "1. Sign up or log in at https://awareness.market",
@@ -61,8 +67,8 @@ function registerSetupMode(api: PluginApi): void {
     async (_context: HookContext): Promise<HookResult | void> => ({
       prependSystemContext:
         "[Awareness Memory] Not configured yet. " +
-        "Start a local daemon with `npx @awareness-sdk/local start`, " +
-        "or run `npx @awareness-sdk/setup --ide openclaw` for cloud setup. " +
+        "Install: `openclaw plugins install @awareness-sdk/openclaw-memory` or `npx clawhub@latest install awareness-memory`. " +
+        "For local-first: `npx @awareness-sdk/local start`. " +
         "Call the awareness_setup tool for detailed instructions.",
     }),
     { priority: 10 },
@@ -70,7 +76,7 @@ function registerSetupMode(api: PluginApi): void {
 
   api.logger.warn(
     "Awareness memory plugin loaded in setup mode — no local daemon and no cloud credentials. " +
-      "Run `npx @awareness-sdk/local start` or `npx @awareness-sdk/setup --ide openclaw` to complete setup.",
+      "Run `openclaw plugins install @awareness-sdk/openclaw-memory` or `npx clawhub@latest install awareness-memory` to complete setup.",
   );
 }
 

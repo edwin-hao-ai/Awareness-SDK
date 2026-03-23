@@ -1,13 +1,23 @@
 # @awareness-sdk/openclaw-memory
 
+[![npm](https://img.shields.io/npm/v/@awareness-sdk/openclaw-memory?color=7b68ee)](https://www.npmjs.com/package/@awareness-sdk/openclaw-memory) [![Discord](https://img.shields.io/discord/1354000000000000000?color=5865F2&logo=discord&logoColor=white&label=Discord)](https://discord.com/invite/nMDrT538Qa)
+
 OpenClaw memory plugin backed by Awareness Memory Cloud.
 
 Online docs: <https://awareness.market/docs?doc=openclaw>
 
 ## Installation
 
+**Plugin (full integration):**
+
 ```bash
 openclaw plugins install @awareness-sdk/openclaw-memory
+```
+
+**Or Skill (via ClawHub):**
+
+```bash
+npx clawhub@latest install awareness-memory
 ```
 
 For local development:
@@ -80,10 +90,11 @@ When `autoCapture` is enabled, the plugin stores a concise run summary after the
 ## Verification
 
 ```bash
-openclaw plugins list
+openclaw plugins list   # if installed as plugin
+openclaw skills list    # if installed as skill
 ```
 
-You should see `openclaw-memory` loaded.
+You should see `openclaw-memory` or `awareness-memory` loaded.
 
 ## License
 
