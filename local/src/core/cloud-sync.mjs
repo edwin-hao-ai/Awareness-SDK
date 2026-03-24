@@ -437,14 +437,155 @@ export class CloudSync {
   }
 
   /**
-   * Full bidirectional sync: push then pull.
-   * @returns {Promise<{ pushed: number, pulled: number }>}
+   * Push unsynced knowledge cards to the cloud.
+   * Uses POST /memories/{id}/insights/submit with action:"new".
+   *
+   * @returns {Promise<{ synced: number, errors: number }>}
+   */
+  async syncInsightsToCloud() {
+    if (!this.isEnabled()) return { synced: 0, errors: 0 };
+
+    let synced = 0;
+    let errors = 0;
+
+    try {
+      const unsynced = this.indexer.db
+        .prepare("SELECT * FROM knowledge_cards WHERE synced_to_cloud = 0 AND status = 'active' ORDER BY created_at")
+        .all();
+
+      if (!unsynced.length) return { synced: 0, errors: 0 };
+
+      // Batch cards in groups of 10 to reduce API calls
+      const batchSize = 10;
+      for (let i = 0; i < unsynced.length; i += batchSize) {
+        const batch = unsynced.slice(i, i + batchSize);
+        const cards = batch.map((card) => ({
+          title: card.title,
+          summary: card.summary || '',
+          category: card.category,
+          confidence: card.confidence || 0.8,
+          tags: this._parseTags(card.tags),
+          action: 'new',
+        }));
+
+        try {
+          const result = await this._post(
+            `/memories/${this.memoryId}/insights/submit`,
+            {
+              session_id: `local-sync-${this.deviceId}`,
+              knowledge_cards: cards,
+              metadata: { device_id: this.deviceId, source: 'awareness-local' },
+            }
+          );
+
+          if (result) {
+            // Mark batch as synced
+            const markStmt = this.indexer.db.prepare(
+              'UPDATE knowledge_cards SET synced_to_cloud = 1 WHERE id = ?'
+            );
+            for (const card of batch) {
+              markStmt.run(card.id);
+            }
+            synced += batch.length;
+          } else {
+            errors += batch.length;
+          }
+        } catch (err) {
+          console.warn(`${LOG_PREFIX} Failed to push insight batch:`, err.message);
+          errors += batch.length;
+        }
+      }
+
+      if (synced > 0) {
+        console.log(`${LOG_PREFIX} Pushed ${synced} knowledge cards to cloud` + (errors ? ` (${errors} errors)` : ''));
+      }
+    } catch (err) {
+      console.error(`${LOG_PREFIX} syncInsightsToCloud failed:`, err.message);
+    }
+
+    return { synced, errors };
+  }
+
+  /**
+   * Push unsynced tasks (action items) to the cloud.
+   * Uses POST /memories/{id}/insights/submit with action_items.
+   *
+   * @returns {Promise<{ synced: number, errors: number }>}
+   */
+  async syncTasksToCloud() {
+    if (!this.isEnabled()) return { synced: 0, errors: 0 };
+
+    let synced = 0;
+    let errors = 0;
+
+    try {
+      const unsynced = this.indexer.db
+        .prepare("SELECT * FROM tasks WHERE synced_to_cloud = 0 ORDER BY created_at")
+        .all();
+
+      if (!unsynced.length) return { synced: 0, errors: 0 };
+
+      const batchSize = 10;
+      for (let i = 0; i < unsynced.length; i += batchSize) {
+        const batch = unsynced.slice(i, i + batchSize);
+        const items = batch.map((task) => ({
+          title: task.title,
+          detail: task.description || '',
+          priority: task.priority || 'medium',
+          status: task.status || 'open',
+          agent_role: task.agent_role || '',
+        }));
+
+        try {
+          const result = await this._post(
+            `/memories/${this.memoryId}/insights/submit`,
+            {
+              session_id: `local-sync-${this.deviceId}`,
+              action_items: items,
+              metadata: { device_id: this.deviceId, source: 'awareness-local' },
+            }
+          );
+
+          if (result) {
+            const markStmt = this.indexer.db.prepare(
+              'UPDATE tasks SET synced_to_cloud = 1 WHERE id = ?'
+            );
+            for (const task of batch) {
+              markStmt.run(task.id);
+            }
+            synced += batch.length;
+          } else {
+            errors += batch.length;
+          }
+        } catch (err) {
+          console.warn(`${LOG_PREFIX} Failed to push task batch:`, err.message);
+          errors += batch.length;
+        }
+      }
+
+      if (synced > 0) {
+        console.log(`${LOG_PREFIX} Pushed ${synced} tasks to cloud` + (errors ? ` (${errors} errors)` : ''));
+      }
+    } catch (err) {
+      console.error(`${LOG_PREFIX} syncTasksToCloud failed:`, err.message);
+    }
+
+    return { synced, errors };
+  }
+
+  /**
+   * Full bidirectional sync: push memories + insights + tasks, then pull.
+   * @returns {Promise<{ pushed: number, pulled: number, insights_pushed: number, tasks_pushed: number }>}
    */
   async fullSync() {
     const pushResult = await this.syncToCloud();
+    const insightsResult = await this.syncInsightsToCloud();
+    const tasksResult = await this.syncTasksToCloud();
     const pullResult = await this.pullFromCloud();
     return {
       pushed: pushResult.synced,
+      insights_pushed: insightsResult.synced,
+      tasks_pushed: tasksResult.synced,
       pulled: pullResult.pulled,
     };
   }
@@ -518,9 +659,9 @@ export class CloudSync {
     this._periodicTimer = setInterval(async () => {
       try {
         const result = await this.fullSync();
-        if (result.pushed > 0 || result.pulled > 0) {
+        if (result.pushed > 0 || result.pulled > 0 || result.insights_pushed > 0 || result.tasks_pushed > 0) {
           console.log(
-            `${LOG_PREFIX} Periodic sync: pushed ${result.pushed}, pulled ${result.pulled}`
+            `${LOG_PREFIX} Periodic sync: memories=${result.pushed}, insights=${result.insights_pushed}, tasks=${result.tasks_pushed}, pulled=${result.pulled}`
           );
         }
       } catch (err) {
@@ -552,8 +693,10 @@ export class CloudSync {
     }
 
     try {
-      // Push unsynced
+      // Push unsynced memories, knowledge cards, and tasks
       await this.syncToCloud();
+      await this.syncInsightsToCloud();
+      await this.syncTasksToCloud();
     } catch (err) {
       console.warn(`${LOG_PREFIX} Initial push failed (will retry):`, err.message);
     }
@@ -637,12 +780,24 @@ export class CloudSync {
         break;
       }
 
-      case 'knowledge_extracted': {
+      case 'knowledge_extracted':
+      case 'insight_submitted': {
         if (data.device_id === this.deviceId) return;
         try {
           await this._pullKnowledgeCard(data);
         } catch (err) {
           console.warn(`${LOG_PREFIX} SSE knowledge pull failed:`, err.message);
+        }
+        break;
+      }
+
+      case 'task_created':
+      case 'task_updated': {
+        if (data.device_id === this.deviceId) return;
+        try {
+          await this._pullTask(data);
+        } catch (err) {
+          console.warn(`${LOG_PREFIX} SSE task pull failed:`, err.message);
         }
         break;
       }
@@ -790,8 +945,8 @@ export class CloudSync {
       this.indexer.db
         .prepare(
           `INSERT OR IGNORE INTO knowledge_cards
-           (id, category, title, summary, source_memories, confidence, status, tags, created_at, filepath)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (id, category, title, summary, source_memories, confidence, status, tags, created_at, filepath, synced_to_cloud)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
         )
         .run(
           kcId,
@@ -809,6 +964,57 @@ export class CloudSync {
       this._setSyncState(`cloud_kc:${data.id}`, kcId);
     } catch (err) {
       // Duplicate or constraint error — safe to ignore
+      if (!err.message?.includes('UNIQUE')) {
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * Pull a task from cloud SSE event data and store locally.
+   * @param {object} data — { id, title, detail, priority, status, agent_role, ... }
+   */
+  async _pullTask(data) {
+    if (!data.title) return;
+
+    // Check if we already have this task
+    const existing = this._getSyncState(`cloud_task:${data.id}`);
+    if (existing) {
+      // Task update — update status/priority if changed
+      try {
+        this.indexer.db
+          .prepare('UPDATE tasks SET status = ?, priority = ?, updated_at = ? WHERE id = ?')
+          .run(data.status || 'open', data.priority || 'medium', new Date().toISOString(), existing);
+      } catch {
+        // ignore update failures
+      }
+      return;
+    }
+
+    const taskId = `task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const now = new Date().toISOString();
+
+    try {
+      this.indexer.db
+        .prepare(
+          `INSERT OR IGNORE INTO tasks
+           (id, title, description, status, priority, agent_role, created_at, updated_at, filepath, synced_to_cloud)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+        )
+        .run(
+          taskId,
+          data.title,
+          data.detail || data.description || '',
+          data.status || 'open',
+          data.priority || 'medium',
+          data.agent_role || '',
+          now,
+          now,
+          `cloud-pull:${data.id}`
+        );
+
+      this._setSyncState(`cloud_task:${data.id}`, taskId);
+    } catch (err) {
       if (!err.message?.includes('UNIQUE')) {
         throw err;
       }
@@ -908,6 +1114,20 @@ export class CloudSync {
         .run();
     } catch {
       // Table likely already exists
+    }
+
+    // Migrate existing tables: add synced_to_cloud column if missing.
+    // DEFAULT 0 means all existing records are marked as unsynced → they'll be
+    // pushed on the next sync cycle, ensuring old data reaches the cloud.
+    for (const table of ['knowledge_cards', 'tasks']) {
+      try {
+        this.indexer.db
+          .prepare(`ALTER TABLE ${table} ADD COLUMN synced_to_cloud INTEGER DEFAULT 0`)
+          .run();
+        console.log(`${LOG_PREFIX} Migrated ${table}: added synced_to_cloud column`);
+      } catch {
+        // Column already exists — expected for fresh installs
+      }
     }
   }
 

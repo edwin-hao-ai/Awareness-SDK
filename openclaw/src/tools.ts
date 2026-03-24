@@ -294,7 +294,8 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
           description: "Write action to perform.",
         },
         content: {
-          description: "Content to record. String for single event, array for batch. Falls back to 'text' param for legacy compatibility.",
+          type: "string",
+          description: "Content to record. String for single event, JSON-stringified array for batch. Falls back to 'text' param for legacy compatibility.",
         },
         text: { type: "string", description: "Text content (legacy alias for content)." },
         task_id: { type: "string", description: "Task ID for update_task action." },

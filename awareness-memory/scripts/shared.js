@@ -67,7 +67,36 @@ async function resolveEndpoint(config) {
         memoryId: config.memoryId || "local",
       };
     }
-  } catch { /* local daemon not available */ }
+  } catch { /* local daemon not available — try to auto-start */ }
+
+  // Auto-start local daemon if not running
+  try {
+    const { spawn } = require("child_process");
+    const child = spawn("npx", ["-y", "@awareness-sdk/local", "start"], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    // Poll healthz for up to 6 seconds (hook timeout is 15s)
+    for (let i = 0; i < 12; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      try {
+        const retry = await fetch(`${config.localUrl}/healthz`, {
+          method: "GET", signal: AbortSignal.timeout(1000),
+        });
+        if (retry.ok) {
+          return {
+            mode: "local",
+            localUrl: config.localUrl,
+            baseUrl: config.baseUrl,
+            apiKey: "",
+            memoryId: config.memoryId || "local",
+          };
+        }
+      } catch { /* keep polling */ }
+    }
+  } catch { /* npx/spawn not available */ }
 
   // Fall back to cloud
   if (!config.apiKey || !config.memoryId) return null;

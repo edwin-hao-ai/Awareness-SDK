@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS knowledge_cards (
   status TEXT DEFAULT 'active',
   tags TEXT,
   created_at TEXT NOT NULL,
-  filepath TEXT NOT NULL UNIQUE
+  filepath TEXT NOT NULL UNIQUE,
+  synced_to_cloud INTEGER DEFAULT 0
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
@@ -61,7 +62,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   agent_role TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  filepath TEXT NOT NULL UNIQUE
+  filepath TEXT NOT NULL UNIQUE,
+  synced_to_cloud INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
