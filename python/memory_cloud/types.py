@@ -156,7 +156,8 @@ class SessionContextResult(TypedDict, total=False):
     last_sessions: List[SessionSummary]
     recent_days: List[DayNarrative]
     open_tasks: List[OpenTask]
-    knowledge_cards: List[KnowledgeCard]
+    user_preferences: List[KnowledgeCard]  # personal preferences, identity, career — surfaced first in init
+    knowledge_cards: List[KnowledgeCard]   # technical knowledge cards (non-preference)
     active_skills: List[ActiveSkill]  # reusable skill prompts, pre-loaded at session start
     proactive_alerts: List[ProactiveAlert]  # actionable alerts (stale tasks, handoff, contradictions)
     attention_summary: AttentionSummary  # LLM-side attention summary

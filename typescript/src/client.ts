@@ -193,6 +193,8 @@ export class MemoryCloudClient {
     agentRole?: string;
     multiLevel?: boolean;
     clusterExpand?: boolean;
+    /** Expand results via inter-document similarity graph. */
+    documentGraphExpand?: boolean;
     includeInstalled?: boolean;
     /** Progressive disclosure: "summary" returns compact cards, "full" includes all metadata. */
     detail?: "summary" | "full";
@@ -254,6 +256,7 @@ export class MemoryCloudClient {
     if (input.agentRole) body["agent_role"] = input.agentRole;
     if (input.multiLevel) body["multi_level"] = true;
     if (input.clusterExpand) body["cluster_expand"] = true;
+    if (input.documentGraphExpand) body["document_graph_expand"] = true;
     if (input.includeInstalled !== undefined) {
       body["include_installed"] = input.includeInstalled;
     } else {
@@ -609,6 +612,7 @@ export class MemoryCloudClient {
     agentRole?: string;
     multiLevel?: boolean;
     clusterExpand?: boolean;
+    documentGraphExpand?: boolean;
     includeInstalled?: boolean;
     /** Progressive disclosure: "summary" returns compact cards, "full" includes all metadata. */
     detail?: "summary" | "full";
@@ -649,6 +653,7 @@ export class MemoryCloudClient {
       agentRole: input.agentRole,
       multiLevel: input.multiLevel,
       clusterExpand: input.clusterExpand,
+      documentGraphExpand: input.documentGraphExpand,
       includeInstalled: input.includeInstalled,
       detail: input.detail,
       ids: input.ids,

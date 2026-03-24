@@ -186,6 +186,7 @@ class MemoryCloudClient:
         agent_role: Optional[str] = None,
         multi_level: bool = False,
         cluster_expand: bool = False,
+        document_graph_expand: bool = False,
         include_installed: bool = True,
         detail: Optional[str] = None,
         ids: Optional[List[str]] = None,
@@ -205,6 +206,7 @@ class MemoryCloudClient:
 
         multi_level: Enable broader context retrieval across sessions and time ranges.
         cluster_expand: Enable topic-based context expansion for deeper exploration.
+        document_graph_expand: Expand results via inter-document similarity graph.
         include_installed: Search installed market memories alongside primary memory.
         detail: Progressive disclosure level — "summary" (default server behavior),
             "full", or "debug". Controls how much metadata and context is returned
@@ -266,7 +268,9 @@ class MemoryCloudClient:
             body["multi_level"] = True
         if cluster_expand:
             body["cluster_expand"] = True
-        # Always send explicit flag to avoid依赖服务端默认值
+        if document_graph_expand:
+            body["document_graph_expand"] = True
+        # Always send explicit flag
         body["include_installed"] = include_installed
         if detail is not None:
             body["detail"] = detail
@@ -629,6 +633,7 @@ class MemoryCloudClient:
         agent_role: Optional[str] = None,
         multi_level: bool = False,
         cluster_expand: bool = False,
+        document_graph_expand: bool = False,
         include_installed: bool = True,
         detail: Optional[str] = None,
         ids: Optional[List[str]] = None,
@@ -645,6 +650,7 @@ class MemoryCloudClient:
 
         multi_level: Enable broader context retrieval across sessions and time ranges.
         cluster_expand: Enable topic-based context expansion for deeper exploration.
+        document_graph_expand: Expand results via inter-document similarity graph.
         include_installed: Search installed market memories alongside primary memory.
         detail: Progressive disclosure level — "summary", "full", or "debug".
             Controls how much metadata is returned per result.
@@ -682,6 +688,7 @@ class MemoryCloudClient:
             agent_role=agent_role,
             multi_level=multi_level,
             cluster_expand=cluster_expand,
+            document_graph_expand=document_graph_expand,
             include_installed=include_installed,
             detail=detail,
             ids=ids,

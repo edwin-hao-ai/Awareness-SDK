@@ -226,6 +226,9 @@ export interface SessionContextResponse extends JsonObject {
   last_sessions?: SessionSummary[];
   recent_days?: DayNarrative[];
   open_tasks?: OpenTask[];
+  /** Personal preferences, identity, career — surfaced first in init for highest visibility */
+  user_preferences?: KnowledgeCard[];
+  /** Technical knowledge cards (non-preference categories) */
   knowledge_cards?: KnowledgeCard[];
   active_skills?: ActiveSkill[];
   /** Actionable alerts: stale tasks, session handoff, recent contradictions */

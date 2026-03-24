@@ -31,6 +31,7 @@ Steps:
    - Mark resolved items via `awareness_record` with completed_tasks
 
 6. Present a concise summary (3-5 bullet points):
+   - **User preferences first** (from `user_preferences` in the response): If present, show key user identity, tech stack preferences, and communication style at the top. These define who the user is and how they want to work.
    - What was accomplished recently (from context.recent_days)
    - Current open tasks ordered by priority
    - Any relevant knowledge cards

@@ -108,6 +108,18 @@ export function registerHooks(
             parts.push("  </skills>");
           }
 
+          // User preferences — surfaced before everything else for identity & style context
+          const userPrefs = sessionCtx.user_preferences ?? [];
+          if (userPrefs.length > 0) {
+            parts.push("  <who-you-are>");
+            for (const pref of userPrefs) {
+              parts.push(
+                `    <pref category="${escapeXml(pref.category ?? "")}">${escapeXml(pref.title ?? "")}: ${escapeXml(pref.summary ?? "")}</pref>`,
+              );
+            }
+            parts.push("  </who-you-are>");
+          }
+
           // Last session summaries
           const lastSessions = sessionCtx.last_sessions ?? [];
           if (lastSessions.length > 0) {

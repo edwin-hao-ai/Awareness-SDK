@@ -144,9 +144,13 @@ export interface SessionContext {
   last_sessions?: SessionSummary[];
   recent_days?: DayNarrative[];
   open_tasks?: ActionItem[];
+  /** Personal preferences, identity, career — surfaced first in init */
+  user_preferences?: KnowledgeCard[];
   knowledge_cards?: KnowledgeCard[];
   /** Reusable skill prompts pre-loaded at session start for token efficiency */
   active_skills?: ActiveSkill[];
+  /** Attention summary for stale tasks and high risks */
+  attention_summary?: Record<string, unknown>;
   trace_id?: string;
 }
 

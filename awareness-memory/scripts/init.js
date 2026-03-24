@@ -34,6 +34,7 @@ async function main() {
     session_id: ctx.session_id || sessionId,
     memory_id: ep.memoryId,
     mode: ep.mode,
+    user_preferences: ctx.user_preferences || [],
     last_sessions: ctx.last_sessions || ctx.recent_sessions || [],
     recent_days: ctx.recent_days || [],
     open_tasks: ctx.open_tasks || [],
