@@ -19,6 +19,26 @@ import { z } from 'zod';
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Categories surfaced as top-level user_preferences (mirrors cloud). */
+const PREFERENCE_FIRST_CATEGORIES = new Set([
+  'personal_preference', 'activity_preference', 'important_detail', 'career_info',
+]);
+const MAX_USER_PREFERENCES = 15;
+
+/** Split knowledge cards into {user_preferences, knowledge_cards}. */
+function splitPreferences(cards) {
+  const prefs = [];
+  const other = [];
+  for (const c of cards) {
+    if (PREFERENCE_FIRST_CATEGORIES.has(c.category) && prefs.length < MAX_USER_PREFERENCES) {
+      prefs.push(c);
+    } else {
+      other.push(c);
+    }
+  }
+  return { user_preferences: prefs, knowledge_cards: other };
+}
+
 /**
  * Wrap a result object in the MCP-standard content envelope.
  * @param {object} result
@@ -118,10 +138,12 @@ export class LocalMcpServer {
           // Load workflow rules from awareness-spec.json
           const spec = this.engine.loadSpec();
 
+          const { user_preferences, knowledge_cards: otherCards } = splitPreferences(recentCards);
           return mcpResult({
             session_id: session.id,
             mode: 'local',
-            knowledge_cards: recentCards,
+            user_preferences,
+            knowledge_cards: otherCards,
             open_tasks: openTasks,
             recent_sessions: recentSessions,
             stats,

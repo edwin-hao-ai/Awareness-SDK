@@ -42,6 +42,26 @@ function nowISO() {
   return new Date().toISOString();
 }
 
+/** Categories surfaced as top-level user_preferences (mirrors cloud PREFERENCE_FIRST_CATEGORIES). */
+const PREFERENCE_FIRST_CATEGORIES = new Set([
+  'personal_preference', 'activity_preference', 'important_detail', 'career_info',
+]);
+const MAX_USER_PREFERENCES = 15;
+
+/** Split knowledge cards into {user_preferences, knowledge_cards}. */
+function splitPreferences(cards) {
+  const prefs = [];
+  const other = [];
+  for (const c of cards) {
+    if (PREFERENCE_FIRST_CATEGORIES.has(c.category) && prefs.length < MAX_USER_PREFERENCES) {
+      prefs.push(c);
+    } else {
+      other.push(c);
+    }
+  }
+  return { user_preferences: prefs, knowledge_cards: other };
+}
+
 /**
  * Send a JSON response.
  * @param {http.ServerResponse} res
@@ -668,13 +688,15 @@ export class AwarenessLocalDaemon {
           needs_attention: staleTasks > 0 || highRisks > 0,
         };
 
+        const { user_preferences, knowledge_cards: otherCards } = splitPreferences(recentCards);
         return {
           content: [{
             type: 'text',
             text: JSON.stringify({
               session_id: session.id,
               mode: 'local',
-              knowledge_cards: recentCards,
+              user_preferences,
+              knowledge_cards: otherCards,
               open_tasks: openTasks,
               recent_sessions: recentSessions,
               stats,
@@ -1548,12 +1570,13 @@ ${item.description || item.title || ''}
 
     switch (type) {
       case 'context': {
-        // Full context dump
+        // Full context dump with preference separation
         const stats = this.indexer.getStats();
         const knowledge = this.indexer.getRecentKnowledge(limit);
         const tasks = this.indexer.getOpenTasks(0);
         const sessions = this.indexer.getRecentSessions(7);
-        return { stats, knowledge_cards: knowledge, open_tasks: tasks, recent_sessions: sessions, mode: 'local' };
+        const { user_preferences, knowledge_cards: otherCards } = splitPreferences(knowledge);
+        return { stats, user_preferences, knowledge_cards: otherCards, open_tasks: tasks, recent_sessions: sessions, mode: 'local' };
       }
 
       case 'tasks': {
