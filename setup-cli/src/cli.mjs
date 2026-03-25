@@ -747,10 +747,20 @@ async function runLocalMode({ argv, dryRun, force, ask, isInteractive }) {
     console.log("\n────────────────────────────────────────");
     console.log("✓ Awareness is running locally on your machine.");
     console.log(`  MCP endpoint: ${LOCAL_MCP_URL}`);
+    console.log("  Dashboard:    http://localhost:37800/");
     console.log("  Your data never leaves your computer.");
     console.log("\n  Want cloud sync & collaboration?");
     console.log("  → npx @awareness-sdk/setup --cloud");
     console.log("────────────────────────────────────────");
+
+    // Auto-open dashboard in browser
+    try {
+      const { exec } = await import("node:child_process");
+      const url = "http://localhost:37800/";
+      if (process.platform === "darwin") exec(`open "${url}"`);
+      else if (process.platform === "linux") exec(`xdg-open "${url}"`);
+      else if (process.platform === "win32") exec(`start "" "${url}"`);
+    } catch { /* ignore open failures */ }
   }
 
   return hasError ? 1 : 0;
