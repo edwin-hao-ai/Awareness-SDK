@@ -165,7 +165,7 @@
       "label": "Claude Code",
       "rules_file": "CLAUDE.md",
       "mcp_path": ".mcp.json",
-      "mcp_config_variant": "sse",
+      "mcp_config_variant": "http",
       "strategy": "managed_block",
       "conflict_policy": "error_on_invalid_markers",
       "header": "# Project Memory (Awareness MCP)",

@@ -17,8 +17,8 @@ function extractContent(input) {
   const prompt = input.prompt || input.user_message || "";
   if (prompt) parts.push(`User: ${prompt}`);
 
-  // 2. Assistant's response (full content, no truncation)
-  const response = input.response || input.result || input.message || "";
+  // 2. Assistant's response — Claude Code passes "last_assistant_message" not "response"
+  const response = input.last_assistant_message || input.response || input.result || input.message || "";
   if (response) {
     const text = typeof response === "string" ? response : JSON.stringify(response);
     parts.push(`Assistant: ${text}`);
@@ -38,18 +38,11 @@ async function main() {
   let input = {};
   try { input = await readStdin(); } catch { /* no stdin */ }
 
-  // Debug: log what we receive
-  const fs = require("fs");
-  fs.appendFileSync("/tmp/capture-debug.log",
-    `[${new Date().toISOString()}] keys=${Object.keys(input).join(",")}\n` +
-    `  stop_reason=${input.stop_reason || input.stopReason || "none"}\n` +
-    `  has_response=${!!(input.response || input.result || input.message)}\n` +
-    `  has_prompt=${!!(input.prompt || input.user_message)}\n` +
-    `  input_preview=${JSON.stringify(input).slice(0, 300)}\n\n`
-  );
-
   // Only capture on meaningful completions (skip mid-conversation tool use)
-  if ((input.stop_reason || input.stopReason) === "tool_use") process.exit(0);
+  const stopReason = input.stop_reason || input.stopReason || "";
+  if (stopReason === "tool_use") process.exit(0);
+  // Claude Code Stop hook sets stop_hook_active=false when not a real stop
+  if (input.stop_hook_active === false && !input.last_assistant_message) process.exit(0);
 
   const content = extractContent(input);
   // Skip empty checkpoints — no point saving "[session-checkpoint]"
