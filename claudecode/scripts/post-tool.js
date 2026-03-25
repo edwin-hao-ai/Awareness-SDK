@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // ---------------------------------------------------------------------------
-// PostToolUse hook — Auto-record after significant tool operations
-// Only fires for Edit, Write, Bash (code changes) — skips Read/Glob/Grep
+// PostToolUse hook — Only record Edit/Write (actual code changes)
+// Bash commands are too noisy and create low-quality memories
 // ---------------------------------------------------------------------------
 
 const { loadConfig, resolveEndpoint, mcpCall, readStdin } = require("./shared");
 
-const SIGNIFICANT_TOOLS = new Set([
-  "edit", "write", "bash", "notebookedit",
-  "Edit", "Write", "Bash", "NotebookEdit",
+// Only track actual file modifications, not command execution
+const CODE_CHANGE_TOOLS = new Set([
+  "edit", "write", "notebookedit",
+  "Edit", "Write", "NotebookEdit",
 ]);
 
 async function main() {
@@ -16,14 +17,14 @@ async function main() {
   try { input = await readStdin(); } catch { /* no stdin */ }
 
   const toolName = input.tool_name || input.toolName || "";
-  if (!toolName || !SIGNIFICANT_TOOLS.has(toolName)) process.exit(0);
+  if (!toolName || !CODE_CHANGE_TOOLS.has(toolName)) process.exit(0);
 
-  // Debounce: don't save more than once per 30 seconds
+  // Debounce: don't save more than once per 60 seconds
   const fs = require("fs");
   const debounceFile = "/tmp/awareness-post-tool-ts";
   try {
     const last = Number(fs.readFileSync(debounceFile, "utf-8").trim());
-    if (Date.now() - last < 30000) process.exit(0);
+    if (Date.now() - last < 60000) process.exit(0);
   } catch { /* no file or parse error */ }
   try { fs.writeFileSync(debounceFile, String(Date.now())); } catch { /* ignore */ }
 
@@ -32,20 +33,17 @@ async function main() {
   if (!ep) process.exit(0);
 
   try {
-    // Build content from tool input/output
-    const parts = [];
-    parts.push(`Tool: ${toolName}`);
+    // Extract file path from tool input
+    const toolInput = input.tool_input || input.input || {};
+    const inputObj = typeof toolInput === "string" ? (() => { try { return JSON.parse(toolInput); } catch { return {}; } })() : toolInput;
+    const filePath = inputObj.file_path || inputObj.path || "";
 
-    const toolInput = input.tool_input || input.input || "";
-    if (toolInput) {
-      const inputStr = typeof toolInput === "string" ? toolInput : JSON.stringify(toolInput);
-      parts.push(`Input: ${inputStr.slice(0, 500)}`);
-    }
+    // Build concise description
+    const parts = [`File changed: ${filePath || "unknown"}`];
 
-    const toolOutput = input.tool_output || input.output || input.result || "";
-    if (toolOutput) {
-      const outputStr = typeof toolOutput === "string" ? toolOutput : JSON.stringify(toolOutput);
-      parts.push(`Output: ${outputStr.slice(0, 500)}`);
+    // For Edit, include old→new context
+    if (toolName.toLowerCase() === "edit" && inputObj.old_string && inputObj.new_string) {
+      parts.push(`Changed: "${inputObj.old_string.slice(0, 100)}" → "${inputObj.new_string.slice(0, 100)}"`);
     }
 
     const content = parts.join("\n");
@@ -54,7 +52,7 @@ async function main() {
       await mcpCall(ep.localUrl, "awareness_record", {
         action: "remember",
         content,
-        event_type: "tool_use",
+        event_type: "code_change",
       }, 5000);
     }
   } catch (err) {

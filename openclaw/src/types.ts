@@ -162,7 +162,7 @@ export interface DayNarrative {
 
 export interface KnowledgeCard {
   id?: string;
-  category?: string;
+  category?: string; // problem_solution | decision | workflow | key_point | pitfall | insight | skill | personal_preference | important_detail | plan_intention | activity_preference | health_info | career_info | custom_misc
   title?: string;
   summary?: string;
   tags?: string[];
