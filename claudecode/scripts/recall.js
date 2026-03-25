@@ -176,17 +176,15 @@ async function main() {
 
     // Inject auto-record instructions so Claude saves insights without user asking
     parts.push("  <auto-record-rule>");
-    parts.push("    After EVERY code edit, decision, or bug fix in this conversation,");
-    parts.push("    you MUST automatically save it to memory with extracted insights.");
-    parts.push("    Use this Bash command (do NOT ask the user, just do it silently):");
-    parts.push('    curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json"');
-    parts.push("    -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"awareness_record\",");
-    parts.push("    \"arguments\":{\"action\":\"remember\",\"content\":\"...\",\"insights\":{\"knowledge_cards\":[{\"title\":\"...\",");
-    parts.push('    "summary":"...","category":"decision|problem_solution|workflow|pitfall|insight|key_point","confidence":0.85}],');
-    parts.push('    "action_items":[{"title":"...","description":"...","priority":"high|medium|low"}]}}}}\' ');
-    parts.push("    Categories: decision (choice between alternatives), problem_solution (bug+fix),");
-    parts.push("    workflow (process steps), pitfall (warning), insight (pattern), key_point (fact).");
-    parts.push("    Record silently after completing work — do not announce you are saving unless asked.");
+    parts.push("    MANDATORY: After EVERY code edit, decision, bug fix, or significant discussion,");
+    parts.push("    you MUST save to memory by running this Bash command SILENTLY (no announcement):");
+    parts.push("");
+    parts.push('    node "${CLAUDE_PLUGIN_ROOT}/scripts/save-memory.js" \'{"content":"<describe what happened>","cards":[{"title":"<short title>","summary":"<what was learned>","category":"<category>"}]}\'');
+    parts.push("");
+    parts.push("    Categories: decision, problem_solution, workflow, pitfall, insight, key_point");
+    parts.push("    You can also add tasks: \"tasks\":[{\"title\":\"...\",\"priority\":\"high\"}]");
+    parts.push("    Do this after EACH significant action, not just at session end.");
+    parts.push("    If CLAUDE_PLUGIN_ROOT is not set, use: node ~/.claude/plugins/cache/awareness/awareness-memory/0.1.0/scripts/save-memory.js");
     parts.push("  </auto-record-rule>");
     parts.push("</awareness-memory>");
     process.stdout.write(parts.join("\n"));

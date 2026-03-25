@@ -38,6 +38,16 @@ async function main() {
   let input = {};
   try { input = await readStdin(); } catch { /* no stdin */ }
 
+  // Debug: log what we receive
+  const fs = require("fs");
+  fs.appendFileSync("/tmp/capture-debug.log",
+    `[${new Date().toISOString()}] keys=${Object.keys(input).join(",")}\n` +
+    `  stop_reason=${input.stop_reason || input.stopReason || "none"}\n` +
+    `  has_response=${!!(input.response || input.result || input.message)}\n` +
+    `  has_prompt=${!!(input.prompt || input.user_message)}\n` +
+    `  input_preview=${JSON.stringify(input).slice(0, 300)}\n\n`
+  );
+
   // Only capture on meaningful completions (skip mid-conversation tool use)
   if ((input.stop_reason || input.stopReason) === "tool_use") process.exit(0);
 
