@@ -2,8 +2,8 @@
   "mcpServers": {
     "awareness-memory": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@awareness-sdk/local", "mcp"]
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-stdio.cjs"]
     }
   }
 }
