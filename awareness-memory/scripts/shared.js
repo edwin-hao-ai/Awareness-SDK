@@ -62,8 +62,8 @@ async function resolveEndpoint(config) {
       return {
         mode: "local",
         localUrl: config.localUrl,
-        baseUrl: config.baseUrl,   // kept for cloud fallback
-        apiKey: "",
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey || "",     // pass cloud key for hybrid recall
         memoryId: config.memoryId || "local",
       };
     }
@@ -90,7 +90,7 @@ async function resolveEndpoint(config) {
             mode: "local",
             localUrl: config.localUrl,
             baseUrl: config.baseUrl,
-            apiKey: "",
+            apiKey: config.apiKey || "",
             memoryId: config.memoryId || "local",
           };
         }

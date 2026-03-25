@@ -55,8 +55,8 @@ async function main() {
     const keywords = extractKeywords(prompt);
 
     if (ep.mode === "local") {
-      // Local daemon: parallel MCP calls (6s timeout each, hook has 15s)
-      [ctx, recall] = await Promise.all([
+      // Local daemon + optional cloud: parallel calls
+      const promises = [
         mcpCall(ep.localUrl, "awareness_init", { source: "awareness-skill" }, 6000),
         mcpCall(ep.localUrl, "awareness_recall", {
           semantic_query: prompt,
@@ -64,7 +64,51 @@ async function main() {
           detail: "summary",
           limit: config.recallLimit,
         }, 6000),
-      ]);
+      ];
+
+      // If cloud credentials available, add cloud search in parallel (3s timeout)
+      let cloudRecall = null;
+      if (ep.apiKey && ep.memoryId && ep.memoryId !== "local") {
+        promises.push(
+          apiPost(ep.baseUrl, ep.apiKey, `/memories/${ep.memoryId}/retrieve`, {
+            query: prompt,
+            keyword_query: keywords || undefined,
+            recall_mode: "hybrid",
+            custom_kwargs: {
+              limit: config.recallLimit,
+              use_hybrid_search: true,
+              reconstruct_chunks: true,
+              vector_weight: 0.7,
+              bm25_weight: 0.3,
+            },
+            detail: "summary",
+          }).catch(() => null)  // silent fail — cloud is optional
+        );
+      }
+
+      const results = await Promise.all(promises);
+      ctx = results[0];
+      recall = results[1];
+      cloudRecall = results[2] || null;
+
+      // Merge cloud results into recall (cloud supplements local)
+      if (cloudRecall && cloudRecall.results) {
+        const localIds = new Set();
+        if (typeof recall === "string") {
+          // Will be parsed later
+        } else if (recall && recall.results) {
+          recall.results.forEach(r => { if (r.id) localIds.add(r.id); });
+        }
+        // Append cloud-only results
+        const cloudOnly = cloudRecall.results.filter(r => !localIds.has(r.id));
+        if (cloudOnly.length > 0) {
+          if (typeof recall === "object" && recall && recall.results) {
+            recall.results = [...recall.results, ...cloudOnly.slice(0, 3)];
+          } else {
+            recall = { results: cloudOnly.slice(0, 5) };
+          }
+        }
+      }
     } else {
       // Cloud: parallel REST calls (6s timeout each)
       const params = new URLSearchParams({
@@ -108,7 +152,9 @@ async function main() {
       parts.push("  </skills>");
     }
 
-    const sessions = ctx.last_sessions || ctx.recent_sessions || [];
+    const sessions = (ctx.last_sessions || ctx.recent_sessions || [])
+      .filter(s => (s.event_count || s.memory_count || 0) > 0 || s.summary)
+      .slice(0, 5);
     if (sessions.length > 0) {
       parts.push("  <last-sessions>");
       for (const s of sessions) {
@@ -144,6 +190,21 @@ async function main() {
       parts.push("  </open-tasks>");
     }
 
+    // Who-you-are: surface personal knowledge cards as user profile
+    // Daemon splits personal cards into user_preferences, so check both sources
+    const personalCategories = new Set(['personal_preference','important_detail','career_info','activity_preference','plan_intention']);
+    const personalCards = [
+      ...(ctx.user_preferences || []),
+      ...(ctx.knowledge_cards || []).filter(c => personalCategories.has(c.category)),
+    ];
+    if (personalCards.length > 0) {
+      parts.push("  <who-you-are>");
+      for (const c of personalCards.slice(0, 3)) {
+        parts.push(`    ${esc(c.title)}: ${esc(c.summary)}`);
+      }
+      parts.push("  </who-you-are>");
+    }
+
     const cards = ctx.knowledge_cards || [];
     if (cards.length > 0) {
       parts.push("  <knowledge>");
@@ -157,8 +218,16 @@ async function main() {
     let results = [];
     if (recall) {
       if (typeof recall === "string") {
-        // MCP text response - extract what we can
-        results = [];
+        // MCP text response — try to parse JSON, fallback to raw text
+        try {
+          const parsed = JSON.parse(recall);
+          results = (parsed.results || parsed.items || []).filter(r => !r.score || r.score >= 0.3);
+        } catch {
+          // If it's plain text, create a single result from it
+          if (recall.trim().length > 20) {
+            results = [{ content: recall.trim(), score: 0.5 }];
+          }
+        }
       } else {
         results = (recall.results || []).filter((r) => !r.score || r.score >= 0.5);
       }
@@ -167,45 +236,30 @@ async function main() {
       parts.push("  <recall>");
       for (const r of results) {
         if (r.content) {
-          const score = r.score ? ` score="${r.score.toFixed(3)}"` : "";
-          parts.push(`    <result${score}>${r.content}</result>`);
+          const score = r.score ? r.score : 0;
+          const daysAgo = r.created_at ? Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86400000) : 0;
+          const isAha = score > 0.8 && daysAgo > 3;
+
+          if (isAha) {
+            parts.push(`    <aha score="${score.toFixed(2)}" days-ago="${daysAgo}">`);
+            parts.push(`      ${r.content.slice(0, 300)}`);
+            parts.push("    </aha>");
+          } else {
+            const scoreAttr = score ? ` score="${score.toFixed(2)}"` : "";
+            parts.push(`    <result${scoreAttr}>${esc(r.content.slice(0, 200))}</result>`);
+          }
         }
       }
       parts.push("  </recall>");
     }
 
-    // Inject auto-record instructions so Claude saves insights without user asking
-    parts.push("  <auto-record-rule>");
-    parts.push("    MANDATORY: After completing significant work, save to memory SILENTLY:");
-    parts.push('    node "${CLAUDE_PLUGIN_ROOT}/scripts/save-memory.js" \'<JSON>\'');
-    parts.push("    If CLAUDE_PLUGIN_ROOT is not set: node ~/.claude/plugins/cache/awareness/awareness-memory/0.1.0/scripts/save-memory.js");
-    parts.push("");
-    parts.push("    JSON format: {\"content\":\"<detailed description>\",\"cards\":[...],\"tasks\":[...]}");
-    parts.push("    Each card: {\"title\":\"<clear title>\",\"summary\":\"<what+why+how>\",\"category\":\"<cat>\"}");
-    parts.push("");
-    parts.push("    Engineering categories:");
-    parts.push("      decision — choice between alternatives (include what was chosen AND rejected)");
-    parts.push("      problem_solution — bug + root cause + fix applied");
-    parts.push("      workflow — setup steps, deployment process, configuration");
-    parts.push("      pitfall — gotcha, warning, limitation discovered");
-    parts.push("      insight — reusable pattern or architectural learning");
-    parts.push("      key_point — important technical fact");
-    parts.push("    Personal categories (use when user shares preferences or personal info):");
-    parts.push("      personal_preference — \"I prefer X\", \"always use Y\", communication style");
-    parts.push("      important_detail — user's role, team, project context, relationships");
-    parts.push("      plan_intention — user's goals, plans, upcoming deadlines");
-    parts.push("      activity_preference — hobbies, interests, routines");
-    parts.push("      health_info — health-related notes shared by user");
-    parts.push("      career_info — job, skills, career goals");
-    parts.push("      custom_misc — anything personal that doesn't fit above");
-    parts.push("");
-    parts.push("    Quality rules:");
-    parts.push("    - Title must be descriptive (NOT 'Tool: Bash' or 'Assistant: ...')");
-    parts.push("    - Summary must explain WHAT happened + WHY + key details");
-    parts.push("    - Include file paths when code was changed");
-    parts.push("    - Save after each MEANINGFUL milestone, not every tool call");
-    parts.push("    - When user expresses preferences, save as personal_preference card");
-    parts.push("  </auto-record-rule>");
+    // Inject compact auto-record instructions (~100 tokens instead of ~300)
+    parts.push("  <record-rule>");
+    parts.push("    Save significant work SILENTLY: node \"${CLAUDE_PLUGIN_ROOT}/scripts/save-memory.js\" '<JSON>'");
+    parts.push("    Fallback: node ~/.claude/plugins/cache/awareness/awareness-memory/0.1.0/scripts/save-memory.js");
+    parts.push("    JSON: {\"content\":\"what+why\",\"cards\":[{\"title\":\"...\",\"summary\":\"...\",\"category\":\"decision|problem_solution|workflow|pitfall|insight|key_point|personal_preference|important_detail\"}]}");
+    parts.push("    Save decisions, solutions, pitfalls, user preferences. NOT every tool call.");
+    parts.push("  </record-rule>");
     parts.push("</awareness-memory>");
     process.stdout.write(parts.join("\n"));
   } catch (err) {

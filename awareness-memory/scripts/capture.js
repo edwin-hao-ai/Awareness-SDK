@@ -11,23 +11,15 @@ const { loadConfig, resolveEndpoint, mcpCall, readStdin } = require("./shared");
 // ---------------------------------------------------------------------------
 
 function extractContent(input) {
-  const parts = [];
+  // Session checkpoint: brief summary only, NOT full response
+  // The daemon's knowledge extractor skips session_checkpoint events
+  const msg = input.last_assistant_message || input.response || input.result || input.message || "";
+  if (!msg) return "";
 
-  // 1. User prompt for context
-  const prompt = input.prompt || input.user_message || "";
-  if (prompt) parts.push(`User: ${prompt}`);
-
-  // 2. Assistant's response — Claude Code passes "last_assistant_message" not "response"
-  const response = input.last_assistant_message || input.response || input.result || input.message || "";
-  if (response) {
-    const text = typeof response === "string" ? response : JSON.stringify(response);
-    parts.push(`Assistant: ${text}`);
-  }
-
-  // 3. Tool usage info if present
-  if (input.tool_name) parts.push(`Tool: ${input.tool_name}`);
-
-  return parts.length > 0 ? parts.join("\n\n") : "";
+  const text = typeof msg === "string" ? msg : JSON.stringify(msg);
+  // Take first 200 chars as checkpoint summary
+  const summary = text.slice(0, 200).replace(/\n/g, ' ').trim();
+  return `Session checkpoint: ${summary}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -57,6 +49,7 @@ async function main() {
       await mcpCall(ep.localUrl, "awareness_record", {
         action: "remember",
         content,
+        event_type: "session_checkpoint",
       }, 5000);
     } else {
       const headers = { "Content-Type": "application/json", Accept: "application/json" };
@@ -67,6 +60,7 @@ async function main() {
         body: JSON.stringify({
           memory_id: ep.memoryId,
           content,
+          event_type: "session_checkpoint",
         }),
         signal: AbortSignal.timeout(5000),
       });
