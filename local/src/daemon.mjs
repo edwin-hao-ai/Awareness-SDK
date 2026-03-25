@@ -16,7 +16,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { MemoryStore } from './core/memory-store.mjs';
 import { Indexer } from './core/indexer.mjs';
@@ -1784,7 +1784,7 @@ ${item.description || item.title || ''}
       const thisDir = path.dirname(fileURLToPath(import.meta.url));
       const modPath = path.join(thisDir, 'core', 'search.mjs');
       if (fs.existsSync(modPath)) {
-        const mod = await import(modPath);
+        const mod = await import(pathToFileURL(modPath).href);
         const SearchEngine = mod.SearchEngine || mod.default;
         if (SearchEngine) {
           return new SearchEngine(this.indexer, this.memoryStore);
@@ -1802,7 +1802,7 @@ ${item.description || item.title || ''}
       const thisDir = path.dirname(fileURLToPath(import.meta.url));
       const modPath = path.join(thisDir, 'core', 'knowledge-extractor.mjs');
       if (fs.existsSync(modPath)) {
-        const mod = await import(modPath);
+        const mod = await import(pathToFileURL(modPath).href);
         const KnowledgeExtractor = mod.KnowledgeExtractor || mod.default;
         if (KnowledgeExtractor) {
           return new KnowledgeExtractor(this.memoryStore, this.indexer);

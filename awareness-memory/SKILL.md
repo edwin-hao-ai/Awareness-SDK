@@ -1,6 +1,6 @@
 ---
 name: awareness-memory
-description: Persistent cloud memory across sessions. Automatically recalls past decisions, code, and tasks before each request, and saves summaries after each session. Also provides manual tools for searching, recording, and querying memory via Bash commands.
+description: Persistent memory across sessions — local-first, no account needed. Automatically recalls past decisions, code, and tasks before each prompt, and saves session checkpoints. Also provides manual tools for searching, recording, and querying memory via Bash commands.
 user-invocable: true
 argument-hint: [recall-query]
 hooks:
@@ -15,7 +15,7 @@ hooks:
           command: "node ${CLAUDE_SKILL_DIR}/scripts/capture.js"
           timeout: 10
           async: true
-metadata: {"openclaw":{"emoji":"🧠","requires":{"bins":["node"],"env":["AWARENESS_API_KEY","AWARENESS_MEMORY_ID"]},"primaryEnv":"AWARENESS_API_KEY","os":["darwin","linux","win32"]}}
+metadata: {"openclaw":{"emoji":"🧠","requires":{"bins":["node"]},"os":["darwin","linux","win32"]}}
 ---
 
 # Awareness Cloud Memory
