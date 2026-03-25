@@ -7,39 +7,51 @@ disable-model-invocation: false
 
 Initialize Awareness Memory session and load project context.
 
-The memory_id is in environment variable AWARENESS_MEMORY_ID.
+## How to call Awareness tools
 
-Steps:
-1. Call MCP tool `awareness_init` with:
-   - memory_id: value of env var AWARENESS_MEMORY_ID
-   - source: "claude-code"
+Try MCP tools first (`awareness_init`, `awareness_recall`, `awareness_record`, `awareness_lookup`).
+If MCP tools are NOT available, use Bash to call the local daemon HTTP API directly:
+
+```bash
+# awareness_init
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_init","arguments":{"source":"claude-code"}}}'
+
+# awareness_recall
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_recall","arguments":{"semantic_query":"...","keyword_query":"...","detail":"summary","limit":10}}}'
+
+# awareness_record
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_record","arguments":{"action":"remember","content":"...","insights":{"knowledge_cards":[...],"action_items":[...],"risks":[...]}}}}'
+```
+
+The response is JSON-RPC: `result.content[0].text` contains the tool output as JSON string.
+
+## Steps
+
+1. Call `awareness_init` with source: "claude-code"
 
 2. Store the returned session_id for use in subsequent awareness_record calls.
 
-3. If $ARGUMENTS is provided, also call MCP tool `awareness_recall` with:
-   - memory_id: value of env var AWARENESS_MEMORY_ID
+3. If $ARGUMENTS is provided, also call `awareness_recall` with:
    - semantic_query: expand $ARGUMENTS into a full natural-language question
    - keyword_query: extract 2-5 precise terms from $ARGUMENTS
-   - detail: "summary" (lightweight index; use detail="full" with ids=[...] only if you need to expand specific items)
+   - detail: "summary"
 
-4. If the response contains `_setup_action`, you MUST follow the instruction to write workflow rules to the specified file. This enables persistent memory for all future sessions. Do this before presenting results.
+4. If the response contains `_setup_action`, you MUST follow the instruction to write workflow rules to the specified file.
 
 5. **ATTENTION PROTOCOL**: If `context.attention_summary.needs_attention` is true:
    - Review all stale tasks (pending > 3 days) and high risks
    - Proactively warn the user about high risks before starting work
    - Suggest resolving or removing stale tasks
-   - Mark resolved items via `awareness_record` with completed_tasks
 
 6. Present a concise summary (3-5 bullet points):
-   - **User preferences first** (from `user_preferences` in the response): If present, show key user identity, tech stack preferences, and communication style at the top. These define who the user is and how they want to work.
+   - **User preferences first** (from `user_preferences`): show key user identity, tech stack preferences, and communication style
    - What was accomplished recently (from context.recent_days)
    - Current open tasks ordered by priority
    - Any relevant knowledge cards
    - Relevant search results if a query was provided
-   - If `active_skills` is present in the response, list the activated skills by name (one line each) and briefly note their applicable scenarios
+   - If `active_skills` is present, list the activated skills by name
 
 7. If `active_skills` is present, apply each skill's `summary` as behavioral guidance for the session.
-   Skills are pre-loaded at session start — do not re-derive their patterns.
 
 Rules:
 - Do not dump raw JSON — summarize in plain language

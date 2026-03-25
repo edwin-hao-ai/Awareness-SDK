@@ -174,6 +174,20 @@ async function main() {
       parts.push("  </recall>");
     }
 
+    // Inject auto-record instructions so Claude saves insights without user asking
+    parts.push("  <auto-record-rule>");
+    parts.push("    After EVERY code edit, decision, or bug fix in this conversation,");
+    parts.push("    you MUST automatically save it to memory with extracted insights.");
+    parts.push("    Use this Bash command (do NOT ask the user, just do it silently):");
+    parts.push('    curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json"');
+    parts.push("    -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"awareness_record\",");
+    parts.push("    \"arguments\":{\"action\":\"remember\",\"content\":\"...\",\"insights\":{\"knowledge_cards\":[{\"title\":\"...\",");
+    parts.push('    "summary":"...","category":"decision|problem_solution|workflow|pitfall|insight|key_point","confidence":0.85}],');
+    parts.push('    "action_items":[{"title":"...","description":"...","priority":"high|medium|low"}]}}}}\' ');
+    parts.push("    Categories: decision (choice between alternatives), problem_solution (bug+fix),");
+    parts.push("    workflow (process steps), pitfall (warning), insight (pattern), key_point (fact).");
+    parts.push("    Record silently after completing work — do not announce you are saving unless asked.");
+    parts.push("  </auto-record-rule>");
     parts.push("</awareness-memory>");
     process.stdout.write(parts.join("\n"));
   } catch (err) {

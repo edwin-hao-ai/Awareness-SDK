@@ -6,6 +6,34 @@
 
 const { loadConfig, resolveEndpoint, mcpCall, readStdin } = require("./shared");
 
+// ---------------------------------------------------------------------------
+// Extract meaningful content from Claude's response
+// ---------------------------------------------------------------------------
+
+function extractContent(input) {
+  const parts = [];
+
+  // 1. User prompt for context
+  const prompt = input.prompt || input.user_message || "";
+  if (prompt) parts.push(`User: ${prompt}`);
+
+  // 2. Assistant's response (full content, no truncation)
+  const response = input.response || input.result || input.message || "";
+  if (response) {
+    const text = typeof response === "string" ? response : JSON.stringify(response);
+    parts.push(`Assistant: ${text}`);
+  }
+
+  // 3. Tool usage info if present
+  if (input.tool_name) parts.push(`Tool: ${input.tool_name}`);
+
+  return parts.length > 0 ? parts.join("\n\n") : "";
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
 async function main() {
   let input = {};
   try { input = await readStdin(); } catch { /* no stdin */ }
@@ -13,15 +41,15 @@ async function main() {
   // Only capture on meaningful completions (skip mid-conversation tool use)
   if ((input.stop_reason || input.stopReason) === "tool_use") process.exit(0);
 
+  const content = extractContent(input);
+  // Skip empty checkpoints — no point saving "[session-checkpoint]"
+  if (!content) process.exit(0);
+
   const config = loadConfig();
   const ep = await resolveEndpoint(config);
   if (!ep) process.exit(0);
 
   try {
-    const parts = [];
-    if (input.tool_name) parts.push(`Last tool: ${input.tool_name}`);
-    const content = parts.length > 0 ? parts.join("\n") : "[session-checkpoint]";
-
     if (ep.mode === "local") {
       await mcpCall(ep.localUrl, "awareness_record", {
         action: "remember",

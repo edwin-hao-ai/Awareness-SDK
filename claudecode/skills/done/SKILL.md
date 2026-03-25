@@ -7,28 +7,34 @@ disable-model-invocation: false
 
 End the current Awareness Memory session.
 
-The memory_id is in environment variable AWARENESS_MEMORY_ID.
+## How to call Awareness tools
 
-Steps:
-1. Gather context about what happened in this session, then extract structured insights:
-   - knowledge_cards: key facts, decisions, patterns learned (each with category, title, summary)
-   - action_items: pending tasks, TODOs, blockers (each with title, description, priority)
-   - risks: potential issues, concerns discovered (each with title, description, severity)
-   - completed_tasks: if awareness_init returned open_tasks, check which ones were completed in this session (each with task_id, reason)
-   - Also check attention_summary: if any stale tasks were addressed or risks mitigated during this session, include them in completed_tasks
+Try MCP tools first (`awareness_record`).
+If MCP tools are NOT available, use Bash to call the local daemon HTTP API directly:
 
-2. Save session progress by calling MCP tool `awareness_record` with:
-   - content: array summarizing what was done (same format as /awareness-memory:save)
-   - insights: the structured object from step 1, with knowledge_cards, action_items, risks, completed_tasks
-   - memory_id: value of env var AWARENESS_MEMORY_ID
-   - session_id: the session_id from awareness_init (if available)
+```bash
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_record","arguments":{"action":"remember_batch","items":[{"content":"..."}],"insights":{"knowledge_cards":[...],"action_items":[...],"risks":[...],"completed_tasks":[...]}}}}'
+```
+
+The response is JSON-RPC: `result.content[0].text` contains the tool output as JSON string.
+
+## Steps
+
+1. Gather context about this session, then extract structured insights:
+   - knowledge_cards: key facts, decisions, patterns (each with category, title, summary)
+   - action_items: pending tasks, TODOs (each with title, description, priority)
+   - risks: potential issues (each with title, description, severity)
+   - completed_tasks: tasks from awareness_init that were completed (each with task_id, reason)
+
+2. Call `awareness_record` with:
+   - action: "remember_batch"
+   - items: array summarizing what was done (same format as /awareness-memory:save)
+   - insights: the structured object from step 1
 
 3. Report what happened:
    - Session progress saved
    - Whether insights were included
-   - Note: insight extraction happens automatically on every write — no explicit session close needed
 
 Rules:
-- If no session_id is available, inform user to start a session first with /awareness-memory:session-start
-- Always save progress with inline insights — this is faster and more accurate than server-side extraction
-- Write detailed content — include reasoning, alternatives considered, key code snippets, user quotes, and files changed. Do NOT compress into single-line summaries
+- Always save with inline insights
+- Write detailed content — include reasoning, alternatives, code snippets, files changed

@@ -9,49 +9,46 @@ Search Awareness Memory for relevant context.
 
 Query: $ARGUMENTS
 
-The memory_id is in environment variable AWARENESS_MEMORY_ID.
+## How to call Awareness tools
 
-Steps:
-1. REWRITE the user query before calling the tool:
+Try MCP tools first (`awareness_recall`).
+If MCP tools are NOT available, use Bash to call the local daemon HTTP API directly:
+
+```bash
+# awareness_recall (summary)
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_recall","arguments":{"semantic_query":"...","keyword_query":"...","detail":"summary","limit":10}}}'
+
+# awareness_recall (full, with specific IDs)
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_recall","arguments":{"semantic_query":"...","detail":"full","ids":["id1","id2"]}}}'
+```
+
+The response is JSON-RPC: `result.content[0].text` contains the tool output as JSON string.
+
+## Steps
+
+1. REWRITE the user query:
    - SEMANTIC_QUERY: Expand $ARGUMENTS into a full natural-language question with context.
-     Example: user says "auth bug" → "authentication bug in login flow, JWT token handling, session management, and OAuth integration"
-   - KEYWORD_QUERY: Extract 2-5 precise terms for full-text matching. Use exact identifiers: file names, function names, error codes.
-     Example: "auth.py JWT session_cookies OAuth2 login"
+     Example: "auth bug" → "authentication bug in login flow, JWT token handling, session management"
+   - KEYWORD_QUERY: Extract 2-5 precise terms. Use exact identifiers: file names, function names, error codes.
 
-2. **Phase 1 — Lightweight index** (recommended for most queries):
-   Call MCP tool `awareness_recall` with:
-   - memory_id: value of env var AWARENESS_MEMORY_ID
-   - semantic_query: the expanded natural-language question
-   - keyword_query: the extracted precise terms
+2. **Phase 1 — Lightweight index**:
+   Call `awareness_recall` with:
+   - semantic_query: the expanded question
+   - keyword_query: the extracted terms
    - detail: "summary"
-   - Choose appropriate recall_mode based on intent:
-     - "hybrid" (default): structured data + vector results in parallel — best for general queries
-     - "precise": targeted vector search with chunk reconstruction — best for specific facts
-     - "session": expands matched chunks to full session histories — best for "what happened when?"
-     - "structured": zero-LLM DB-only lookup — fastest, best for verified knowledge
-   - Choose appropriate scope:
-     - "all" (default): search everything
-     - "timeline": session events, steps, decisions
-     - "knowledge": uploaded docs, ingested content
-     - "insights": compressed session summaries
+   - recall_mode: "hybrid" (default), "precise" (specific facts), "session" (what happened when), or "structured" (DB-only, fastest)
 
 3. **Phase 2 — Expand selected items** (only when needed):
-   If the summary results contain items that look directly relevant and you need full detail,
-   call `awareness_recall` again with:
-   - memory_id: same as above
-   - semantic_query: same as above
-   - detail: "full"
-   - ids: list of item IDs from the Phase 1 results that you want to expand
-   Skip Phase 2 if the summaries already answer the question sufficiently.
+   Call `awareness_recall` again with detail: "full" and ids: [relevant IDs from Phase 1].
+   Skip if summaries already answer the question.
 
-4. Present results clearly, highlighting:
-   - Existing implementations that can be reused (include file paths if mentioned)
-   - Architectural decisions already made (avoid re-deciding)
-   - Related past work and outcomes
-   - Any warnings or known issues discovered previously
+4. Present results clearly:
+   - Existing implementations that can be reused (include file paths)
+   - Architectural decisions already made
+   - Related past work and warnings
 
 Rules:
-- Use detail="summary" by default — it returns a compact index that is faster and uses fewer tokens
-- Only escalate to detail="full" for items that genuinely need the complete content
-- If results are empty or not relevant, say so clearly — do not hallucinate context
+- Use detail="summary" by default
+- Only escalate to detail="full" for items that need complete content
+- If results are empty, say so clearly — do not hallucinate
 - Do not dump raw JSON — summarize in plain language
