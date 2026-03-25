@@ -2,8 +2,7 @@
   "mcpServers": {
     "awareness-memory": {
       "type": "stdio",
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-bridge.cjs"]
+      "command": "${CLAUDE_PLUGIN_ROOT}/mcp-bridge.cjs"
     }
   }
 }

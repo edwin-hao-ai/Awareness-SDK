@@ -6,7 +6,29 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if curl -sf http://localhost:37800/healthz > /dev/null 2>&1; then echo '[Awareness Memory] Ready. Run /awareness-memory:session-start to load context.'; elif [ -n \"$AWARENESS_API_KEY\" ] && [ \"$AWARENESS_API_KEY\" != \"aw_your-api-key-here\" ] && [ -n \"$AWARENESS_MEMORY_ID\" ] && [ \"$AWARENESS_MEMORY_ID\" != \"your-memory-id-here\" ]; then echo '[Awareness Memory] Cloud mode. Run /awareness-memory:session-start'; else echo '[Awareness Memory] Starting local daemon...'; npx -y @awareness-sdk/local start > /dev/null 2>&1 &  sleep 5; if curl -sf http://localhost:37800/healthz > /dev/null 2>&1; then echo '[Awareness Memory] Daemon started. Run /awareness-memory:session-start to load context.'; else echo '[Awareness Memory] Could not auto-start. Run: npx @awareness-sdk/setup'; fi; fi"
+            "command": "if curl -sf http://localhost:37800/healthz > /dev/null 2>&1; then echo '[Awareness Memory] Ready. Run /awareness-memory:session-start to load context.'; elif [ -n \"$AWARENESS_API_KEY\" ] && [ \"$AWARENESS_API_KEY\" != \"aw_your-api-key-here\" ] && [ -n \"$AWARENESS_MEMORY_ID\" ] && [ \"$AWARENESS_MEMORY_ID\" != \"your-memory-id-here\" ]; then echo '[Awareness Memory] Cloud mode. Run /awareness-memory:session-start'; else echo '[Awareness Memory] Starting local daemon...'; npx -y @awareness-sdk/local start > /dev/null 2>&1 & sleep 5; if curl -sf http://localhost:37800/healthz > /dev/null 2>&1; then echo '[Awareness Memory] Daemon started. Run /awareness-memory:session-start to load context.'; else echo '[Awareness Memory] Could not auto-start. Run: npx @awareness-sdk/setup'; fi; fi"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/recall.js\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/capture.js\""
           }
         ]
       }
