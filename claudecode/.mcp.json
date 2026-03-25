@@ -1,8 +1,9 @@
 {
   "mcpServers": {
     "awareness-memory": {
-      "type": "http",
-      "url": "${AWARENESS_MCP_URL:-http://localhost:37800/mcp}"
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-bridge.cjs"]
     }
   }
 }

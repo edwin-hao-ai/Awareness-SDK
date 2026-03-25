@@ -11,6 +11,5 @@
   "license": "Apache-2.0",
   "keywords": ["memory", "context", "persistence", "awareness", "recall"],
   "skills": "./skills/",
-  "hooks": "./hooks/hooks.json",
   "mcpServers": "./.mcp.json"
 }
