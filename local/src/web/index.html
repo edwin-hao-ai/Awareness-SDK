@@ -785,8 +785,14 @@ async function startDeviceAuth() {
     link.href = data.verification_uri + '?code=' + data.user_code;
     link.textContent = data.verification_uri;
 
-    // Open browser automatically
-    window.open(link.href, '_blank');
+    // Open browser via daemon (bypasses popup blockers)
+    api('/cloud/auth/open-browser', {
+      method: 'POST',
+      body: JSON.stringify({ url: link.href })
+    }).catch(function() {
+      // Fallback to window.open if daemon endpoint fails
+      window.open(link.href, '_blank');
+    });
 
     // Poll for authorization
     var result = await api('/cloud/auth/poll', {

@@ -7,6 +7,7 @@
 
 import Database from 'better-sqlite3';
 import { createHash } from 'node:crypto';
+import { readFileSync, existsSync } from 'node:fs';
 
 // ---------------------------------------------------------------------------
 // Schema DDL
@@ -31,7 +32,7 @@ CREATE TABLE IF NOT EXISTS memories (
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
   id UNINDEXED, title, content, tags,
-  tokenize='unicode61 remove_diacritics 2'
+  tokenize='trigram'
 );
 
 CREATE TABLE IF NOT EXISTS knowledge_cards (
@@ -50,7 +51,7 @@ CREATE TABLE IF NOT EXISTS knowledge_cards (
 
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
   id UNINDEXED, title, summary, content, tags,
-  tokenize='unicode61 remove_diacritics 2'
+  tokenize='trigram'
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -155,6 +156,26 @@ export class Indexer {
 
     this.initSchema();
     this._prepareStatements();
+    this._reindexFts();
+    this._checkFtsSyncHealth();
+  }
+
+  /**
+   * If FTS row count is less than memories row count, reindex missing entries.
+   * Handles cases where migration dropped FTS data or records were added without FTS.
+   */
+  _checkFtsSyncHealth() {
+    try {
+      const memCount = this.db.prepare('SELECT count(*) AS c FROM memories').get().c;
+      const ftsCount = this.db.prepare('SELECT count(*) AS c FROM memories_fts').get().c;
+      if (memCount > 0 && ftsCount < memCount) {
+        console.log(`[indexer] FTS out of sync (${ftsCount}/${memCount}) — rebuilding missing entries...`);
+        this._ftsNeedsReindex = true;
+        this._reindexFts();
+      }
+    } catch {
+      // Skip if tables don't exist yet
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -166,7 +187,76 @@ export class Indexer {
    * Safe to call repeatedly — every statement uses IF NOT EXISTS.
    */
   initSchema() {
+    // Migrate FTS5 tables from unicode61 to trigram (CJK support)
+    this._migrateFtsTokenizer();
     this.db.exec(SCHEMA_SQL);
+  }
+
+  /**
+   * If existing FTS5 tables use unicode61 tokenizer, recreate them with trigram.
+   * This enables Chinese/Japanese/Korean full-text search.
+   */
+  _migrateFtsTokenizer() {
+    let migrated = false;
+    for (const table of ['memories_fts', 'knowledge_fts']) {
+      try {
+        const row = this.db.prepare(
+          `SELECT sql FROM sqlite_master WHERE type='table' AND name=?`
+        ).get(table);
+        if (row && row.sql && row.sql.includes('unicode61')) {
+          this.db.exec(`DROP TABLE IF EXISTS ${table}`);
+          migrated = true;
+        }
+      } catch {
+        // Table doesn't exist yet — will be created by SCHEMA_SQL
+      }
+    }
+    this._ftsNeedsReindex = migrated;
+  }
+
+  /**
+   * Rebuild FTS5 indexes from source tables after tokenizer migration.
+   * Called after schema init + prepared statements are ready.
+   */
+  _reindexFts() {
+    if (!this._ftsNeedsReindex) return;
+    console.log('[indexer] Rebuilding FTS indexes after tokenizer migration...');
+    // Repopulate memories_fts from memories table + markdown files
+    const memories = this.db.prepare('SELECT id, title, tags, filepath FROM memories').all();
+    for (const m of memories) {
+      try {
+        const content = m.filepath && existsSync(m.filepath)
+          ? readFileSync(m.filepath, 'utf-8')
+          : (m.title || '');
+        this._stmtDeleteFts.run(m.id);
+        this._stmtInsertFts.run({
+          id: m.id,
+          title: m.title || '',
+          content,
+          tags: m.tags || '',
+        });
+      } catch {
+        // Skip files that can't be read
+      }
+    }
+    // Repopulate knowledge_fts
+    const cards = this.db.prepare('SELECT id, title, summary, tags FROM knowledge_cards').all();
+    for (const c of cards) {
+      try {
+        this._stmtDeleteKnowledgeFts.run(c.id);
+        this._stmtInsertKnowledgeFts.run({
+          id: c.id,
+          title: c.title || '',
+          summary: c.summary || '',
+          content: c.summary || '',
+          tags: c.tags || '',
+        });
+      } catch {
+        // Skip
+      }
+    }
+    console.log(`[indexer] FTS reindex done: ${memories.length} memories, ${cards.length} cards`);
+    this._ftsNeedsReindex = false;
   }
 
   // -----------------------------------------------------------------------

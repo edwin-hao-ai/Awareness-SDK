@@ -337,7 +337,7 @@ export class SearchEngine {
         .split(/\s+/)
         .filter((w) => w.length > 0);
       for (const w of words) {
-        // Quote each word for safety (handles special chars)
+        // Quote each word — trigram tokenizer handles CJK natively
         terms.push(`"${w.replace(/"/g, '')}"`);
       }
     }
@@ -510,8 +510,8 @@ export class SearchEngine {
     // Compute cosine similarity for each
     const scored = [];
     for (const item of allEmbeddings) {
-      if (!item.embedding) continue;
-      const similarity = cosineSimilarity(queryVec, item.embedding);
+      if (!item.vector) continue;
+      const similarity = cosineSimilarity(queryVec, item.vector);
       if (similarity > 0.1) {
         scored.push({
           ...item,

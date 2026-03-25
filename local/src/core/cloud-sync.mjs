@@ -644,6 +644,13 @@ export class CloudSync {
       });
 
     } catch (err) {
+      // SSE is optional (server may not support it yet) — silently fall back
+      if (err.message && err.message.includes('404')) {
+        if (!this._sseRetryCount) {
+          console.log(`${LOG_PREFIX} SSE not available on server — using periodic sync only`);
+        }
+        return; // Don't retry on 404; periodic sync is the fallback
+      }
       console.warn(`${LOG_PREFIX} SSE connection failed:`, err.message);
       this._scheduleSSEReconnect();
     }

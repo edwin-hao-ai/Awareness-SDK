@@ -16,6 +16,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { MemoryStore } from './core/memory-store.mjs';
@@ -886,6 +887,11 @@ export class AwarenessLocalDaemon {
       return await this._apiCloudAuthPoll(req, res);
     }
 
+    // POST /api/v1/cloud/auth/open-browser — open URL in system browser
+    if (route === '/cloud/auth/open-browser' && req.method === 'POST') {
+      return await this._apiCloudAuthOpenBrowser(req, res);
+    }
+
     // GET /api/v1/cloud/memories — list memories (after auth)
     if (route.startsWith('/cloud/memories') && req.method === 'GET') {
       return await this._apiCloudListMemories(req, res, url);
@@ -1137,6 +1143,27 @@ export class AwarenessLocalDaemon {
   // Cloud Auth API (device-auth flow from Dashboard)
   // -----------------------------------------------------------------------
 
+  async _apiCloudAuthOpenBrowser(req, res) {
+    const body = await readBody(req);
+    let params;
+    try { params = JSON.parse(body); } catch { return jsonResponse(res, { error: 'Invalid JSON' }, 400); }
+    const { url: targetUrl } = params;
+    if (!targetUrl || typeof targetUrl !== 'string') {
+      return jsonResponse(res, { error: 'url required' }, 400);
+    }
+    // Only allow opening our own auth URLs
+    if (!targetUrl.startsWith('https://awareness.market/')) {
+      return jsonResponse(res, { error: 'URL not allowed' }, 403);
+    }
+    const cmd = process.platform === 'darwin' ? 'open'
+      : process.platform === 'win32' ? 'start'
+      : 'xdg-open';
+    execFile(cmd, [targetUrl], (err) => {
+      if (err) console.warn('[awareness-local] failed to open browser:', err.message);
+    });
+    return jsonResponse(res, { status: 'ok' });
+  }
+
   async _apiCloudAuthStart(_req, res) {
     const apiBase = this.config?.cloud?.api_base || 'https://awareness.market/api/v1';
     try {
@@ -1178,9 +1205,10 @@ export class AwarenessLocalDaemon {
   }
 
   async _apiCloudListMemories(req, res, url) {
-    // SECURITY C3: Use cloud config API key instead of query param (avoid log/referer leaks)
+    // Accept api_key from query param (during auth flow, before config is saved)
+    // or fall back to saved config (for subsequent calls)
     const config = this._loadConfig();
-    const apiKey = config?.cloud?.api_key;
+    const apiKey = url.searchParams.get('api_key') || config?.cloud?.api_key;
     if (!apiKey) return jsonResponse(res, { error: 'Cloud not configured. Connect via /api/v1/cloud/connect first.' }, 400);
 
     const apiBase = this.config?.cloud?.api_base || 'https://awareness.market/api/v1';
@@ -1370,7 +1398,11 @@ export class AwarenessLocalDaemon {
 
     // Cloud sync (fire-and-forget — don't block the response)
     if (this.cloudSync?.isEnabled()) {
-      this.cloudSync.syncToCloud().catch((err) => {
+      Promise.all([
+        this.cloudSync.syncToCloud(),
+        this.cloudSync.syncInsightsToCloud(),
+        this.cloudSync.syncTasksToCloud(),
+      ]).catch((err) => {
         console.warn('[awareness-local] cloud sync after remember failed:', err.message);
       });
     }
