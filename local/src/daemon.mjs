@@ -857,6 +857,12 @@ export class AwarenessLocalDaemon {
       return this._apiListKnowledge(req, res, url);
     }
 
+    // GET /api/v1/knowledge/:id/evolution — get evolution chain for a card
+    if (route.startsWith('/knowledge/') && route.endsWith('/evolution') && req.method === 'GET') {
+      const cardId = decodeURIComponent(route.replace('/knowledge/', '').replace('/evolution', ''));
+      return this._apiGetEvolutionChain(req, res, cardId);
+    }
+
     // DELETE /api/v1/knowledge/cleanup — batch-delete cards matching regex patterns
     if (route === '/knowledge/cleanup' && req.method === 'DELETE') {
       return await this._apiCleanupKnowledge(req, res);
@@ -997,6 +1003,22 @@ export class AwarenessLocalDaemon {
 
     const rows = this.indexer.db.prepare(sql).all(...params);
     return jsonResponse(res, { items: rows, total: rows.length });
+  }
+
+  /**
+   * GET /api/v1/knowledge/:id/evolution
+   * Returns the full evolution chain for a knowledge card.
+   */
+  _apiGetEvolutionChain(_req, res, cardId) {
+    if (!this.indexer?.getEvolutionChain) {
+      return jsonResponse(res, { card_id: cardId, chain_length: 0, evolution_chain: [] });
+    }
+    const chain = this.indexer.getEvolutionChain(cardId);
+    return jsonResponse(res, {
+      card_id: cardId,
+      chain_length: chain.length,
+      evolution_chain: chain,
+    });
   }
 
   /**
@@ -1926,7 +1948,17 @@ ${item.description || item.title || ''}
         const mod = await import(pathToFileURL(modPath).href);
         const KnowledgeExtractor = mod.KnowledgeExtractor || mod.default;
         if (KnowledgeExtractor) {
-          return new KnowledgeExtractor(this.memoryStore, this.indexer);
+          // Try to load embedder for vector-based conflict detection
+          let embedderModule = null;
+          try {
+            const embedderPath = path.join(thisDir, 'core', 'embedder.mjs');
+            if (fs.existsSync(embedderPath)) {
+              embedderModule = await import(pathToFileURL(embedderPath).href);
+            }
+          } catch {
+            // Embedder optional — conflict detection falls back to BM25 only
+          }
+          return new KnowledgeExtractor(this.memoryStore, this.indexer, embedderModule);
         }
       }
     } catch (err) {

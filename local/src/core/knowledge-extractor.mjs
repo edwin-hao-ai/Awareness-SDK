@@ -17,6 +17,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
+// Conflict detection thresholds (BM25 rank is negative — closer to 0 = better match)
+const BM25_DUPLICATE_THRESHOLD = -8;  // rank > this → likely duplicate
+const BM25_UPDATE_THRESHOLD = -12;    // rank > this → likely update
+// Vector cosine similarity thresholds (same as cloud backend)
+const VECTOR_DUPLICATE_THRESHOLD = 0.95;
+const VECTOR_UPDATE_THRESHOLD = 0.85;
+
 // ---------------------------------------------------------------------------
 // Multilingual regex patterns (NOT hardcoded to any single language)
 // ---------------------------------------------------------------------------
@@ -59,10 +66,12 @@ export class KnowledgeExtractor {
   /**
    * @param {object} memoryStore - MemoryStore instance for file writes
    * @param {object} indexer     - Indexer instance for index updates
+   * @param {object} [embedderModule] - Optional embedder module ({ embed, cosineSimilarity, isEmbeddingAvailable })
    */
-  constructor(memoryStore, indexer) {
+  constructor(memoryStore, indexer, embedderModule = null) {
     this.store = memoryStore;
     this.indexer = indexer;
+    this._embedder = embedderModule;
   }
 
   // -------------------------------------------------------------------------
@@ -388,6 +397,8 @@ export class KnowledgeExtractor {
         confidence: card.confidence ?? 0.8,
         status: card.status || 'active',
         tags: card.tags || [],
+        parent_card_id: card.parent_card_id || null,
+        evolution_type: card.evolution_type || 'initial',
         created_at: card.created_at || new Date().toISOString(),
         filepath,
         content: card.summary || card.title || '',
@@ -456,6 +467,80 @@ export class KnowledgeExtractor {
   }
 
   /**
+   * Check if a new card conflicts with existing cards.
+   * Uses BM25 (FTS5) as primary check, vector cosine as secondary.
+   *
+   * @param {object} card - The new card to check
+   * @returns {Promise<{ verdict: 'new'|'duplicate'|'update', matchId?: string }>}
+   */
+  async _checkConflict(card) {
+    if (!this.indexer?.searchKnowledge) {
+      return { verdict: 'new' };
+    }
+
+    const queryText = `${card.title} ${card.summary || ''}`.trim();
+    if (!queryText) return { verdict: 'new' };
+
+    // Layer 1: BM25 full-text search
+    try {
+      const matches = this.indexer.searchKnowledge(queryText, { limit: 3 });
+      if (matches.length > 0) {
+        const best = matches[0];
+        // SQLite FTS5 bm25() returns negative values — closer to 0 = better match
+        const rank = best.rank ?? -999;
+        if (rank > BM25_DUPLICATE_THRESHOLD) {
+          return { verdict: 'duplicate', matchId: best.id };
+        }
+        if (rank > BM25_UPDATE_THRESHOLD) {
+          // Only treat as update if new content is longer (has more info)
+          const newLen = (card.summary || '').length;
+          const oldLen = (best.summary || '').length;
+          if (newLen > oldLen) {
+            return { verdict: 'update', matchId: best.id };
+          }
+          return { verdict: 'duplicate', matchId: best.id };
+        }
+      }
+    } catch (err) {
+      console.warn(`[KnowledgeExtractor] BM25 conflict check failed:`, err.message);
+    }
+
+    // Layer 2: Vector cosine similarity (if embedder available)
+    if (this._embedder) {
+      try {
+        const available = await this._embedder.isEmbeddingAvailable();
+        if (available) {
+          const newVec = await this._embedder.embed(queryText, 'passage');
+          // Compare against recent active cards
+          const recentCards = this.indexer.getRecentKnowledge?.(20) || [];
+          let bestSim = 0;
+          let bestMatchId = null;
+          for (const existing of recentCards) {
+            const existingText = `${existing.title} ${existing.summary || ''}`.trim();
+            if (!existingText) continue;
+            const existingVec = await this._embedder.embed(existingText, 'passage');
+            const sim = this._embedder.cosineSimilarity(newVec, existingVec);
+            if (sim > bestSim) {
+              bestSim = sim;
+              bestMatchId = existing.id;
+            }
+          }
+          if (bestSim >= VECTOR_DUPLICATE_THRESHOLD) {
+            return { verdict: 'duplicate', matchId: bestMatchId };
+          }
+          if (bestSim >= VECTOR_UPDATE_THRESHOLD && bestMatchId) {
+            return { verdict: 'update', matchId: bestMatchId };
+          }
+        }
+      } catch (err) {
+        console.warn(`[KnowledgeExtractor] Vector conflict check failed:`, err.message);
+      }
+    }
+
+    return { verdict: 'new' };
+  }
+
+  /**
    * Persist all extracted cards, tasks, and risks to disk.
    * @param {{ cards: object[], tasks: object[], risks: object[] }} result
    * @param {object} metadata
@@ -463,8 +548,26 @@ export class KnowledgeExtractor {
   async _persistAll(result, metadata) {
     const promises = [];
 
+    // Run conflict detection on each card before saving
+    const cardsToSave = [];
     for (const card of result.cards) {
       card.source_memory_id = card.source_memory_id || metadata.id;
+      const conflict = await this._checkConflict(card);
+      if (conflict.verdict === 'duplicate') {
+        console.log(`[KnowledgeExtractor] Skipping duplicate card '${card.title}' (matched: ${conflict.matchId})`);
+        continue;
+      }
+      if (conflict.verdict === 'update' && conflict.matchId) {
+        card.parent_card_id = conflict.matchId;
+        card.evolution_type = 'update';
+        // Supersede the old card
+        this.indexer?.supersedeCard?.(conflict.matchId);
+        console.log(`[KnowledgeExtractor] Evolving card '${card.title}' (supersedes: ${conflict.matchId})`);
+      }
+      cardsToSave.push(card);
+    }
+
+    for (const card of cardsToSave) {
       promises.push(this.saveCard(card).catch((err) => {
         // Log but don't fail the whole extraction
         console.warn(`[KnowledgeExtractor] Failed to save card ${card.id}:`, err.message);
@@ -626,6 +729,8 @@ export class KnowledgeExtractor {
       `confidence: ${card.confidence ?? 0.7}`,
       `tags: [${tags.join(', ')}]`,
       card.source_memory_id ? `source_memory_id: ${card.source_memory_id}` : null,
+      card.parent_card_id ? `parent_card_id: ${card.parent_card_id}` : null,
+      card.evolution_type && card.evolution_type !== 'initial' ? `evolution_type: ${card.evolution_type}` : null,
       card.severity ? `severity: ${card.severity}` : null,
       `created_at: ${card.created_at || new Date().toISOString()}`,
       '---',

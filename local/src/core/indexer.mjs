@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS knowledge_cards (
   confidence REAL DEFAULT 0.8,
   status TEXT DEFAULT 'active',
   tags TEXT,
+  parent_card_id TEXT,
+  evolution_type TEXT DEFAULT 'initial',
   created_at TEXT NOT NULL,
   filepath TEXT NOT NULL UNIQUE,
   synced_to_cloud INTEGER DEFAULT 0
@@ -190,6 +192,27 @@ export class Indexer {
     // Migrate FTS5 tables from unicode61 to trigram (CJK support)
     this._migrateFtsTokenizer();
     this.db.exec(SCHEMA_SQL);
+    // Add evolution columns to existing knowledge_cards tables
+    this._migrateKnowledgeEvolution();
+  }
+
+  /**
+   * Add parent_card_id and evolution_type columns if they don't exist yet.
+   * Safe to call repeatedly — uses PRAGMA table_info to check.
+   */
+  _migrateKnowledgeEvolution() {
+    try {
+      const cols = this.db.prepare(`PRAGMA table_info(knowledge_cards)`).all();
+      const colNames = new Set(cols.map((c) => c.name));
+      if (!colNames.has('parent_card_id')) {
+        this.db.exec(`ALTER TABLE knowledge_cards ADD COLUMN parent_card_id TEXT`);
+      }
+      if (!colNames.has('evolution_type')) {
+        this.db.exec(`ALTER TABLE knowledge_cards ADD COLUMN evolution_type TEXT DEFAULT 'initial'`);
+      }
+    } catch {
+      // Table doesn't exist yet — SCHEMA_SQL will create it with both columns
+    }
   }
 
   /**
@@ -301,9 +324,11 @@ export class Indexer {
     // -- knowledge_cards --------------------------------------------------
     this._stmtUpsertKnowledge = this.db.prepare(`
       INSERT INTO knowledge_cards (id, category, title, summary, source_memories,
-                                   confidence, status, tags, created_at, filepath)
+                                   confidence, status, tags, parent_card_id,
+                                   evolution_type, created_at, filepath)
       VALUES (@id, @category, @title, @summary, @source_memories,
-              @confidence, @status, @tags, @created_at, @filepath)
+              @confidence, @status, @tags, @parent_card_id,
+              @evolution_type, @created_at, @filepath)
       ON CONFLICT(id) DO UPDATE SET
         category        = excluded.category,
         title           = excluded.title,
@@ -312,6 +337,8 @@ export class Indexer {
         confidence      = excluded.confidence,
         status          = excluded.status,
         tags            = excluded.tags,
+        parent_card_id  = excluded.parent_card_id,
+        evolution_type  = excluded.evolution_type,
         filepath        = excluded.filepath
     `);
 
@@ -466,6 +493,8 @@ export class Indexer {
       confidence: card.confidence ?? 0.8,
       status: card.status || 'active',
       tags,
+      parent_card_id: card.parent_card_id || null,
+      evolution_type: card.evolution_type || 'initial',
       created_at: card.created_at || now,
       filepath: card.filepath,
     };
@@ -681,6 +710,71 @@ export class Indexer {
     }
 
     return { indexed, skipped };
+  }
+
+  // -----------------------------------------------------------------------
+  // Knowledge card evolution
+  // -----------------------------------------------------------------------
+
+  /**
+   * Mark a card as superseded and remove it from FTS index.
+   *
+   * @param {string} cardId - ID of the card to supersede
+   * @returns {boolean} true if updated
+   */
+  supersedeCard(cardId) {
+    try {
+      this.db.prepare(
+        `UPDATE knowledge_cards SET status = 'superseded' WHERE id = ?`
+      ).run(cardId);
+      this._stmtDeleteKnowledgeFts.run(cardId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get the full evolution chain for a card (ancestors + descendants).
+   *
+   * @param {string} cardId
+   * @returns {object[]} — cards sorted by created_at ASC
+   */
+  getEvolutionChain(cardId) {
+    // Find the root of the chain by walking parent_card_id upward
+    let rootId = cardId;
+    for (let i = 0; i < 50; i++) {
+      const row = this.db.prepare(
+        `SELECT parent_card_id FROM knowledge_cards WHERE id = ?`
+      ).get(rootId);
+      if (!row || !row.parent_card_id) break;
+      rootId = row.parent_card_id;
+    }
+
+    // Walk the chain downward from root
+    const chain = [];
+    const visited = new Set();
+    const queue = [rootId];
+    while (queue.length > 0) {
+      const id = queue.shift();
+      if (visited.has(id)) continue;
+      visited.add(id);
+      const card = this.db.prepare(
+        `SELECT id, parent_card_id, evolution_type, category, title, summary,
+                confidence, status, created_at FROM knowledge_cards WHERE id = ?`
+      ).get(id);
+      if (card) {
+        chain.push(card);
+        // Find children
+        const children = this.db.prepare(
+          `SELECT id FROM knowledge_cards WHERE parent_card_id = ?`
+        ).all(id);
+        for (const child of children) queue.push(child.id);
+      }
+    }
+
+    chain.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+    return chain;
   }
 
   // -----------------------------------------------------------------------

@@ -452,8 +452,9 @@ export class CloudSync {
     let errors = 0;
 
     try {
+      // Push active cards + superseded cards that haven't been synced yet
       const unsynced = this.indexer.db
-        .prepare("SELECT * FROM knowledge_cards WHERE synced_to_cloud = 0 AND status = 'active' ORDER BY created_at")
+        .prepare("SELECT * FROM knowledge_cards WHERE synced_to_cloud = 0 AND status IN ('active', 'superseded') ORDER BY created_at")
         .all();
 
       if (!unsynced.length) return { synced: 0, errors: 0 };
@@ -462,14 +463,31 @@ export class CloudSync {
       const batchSize = 10;
       for (let i = 0; i < unsynced.length; i += batchSize) {
         const batch = unsynced.slice(i, i + batchSize);
-        const cards = batch.map((card) => ({
-          title: card.title,
-          summary: card.summary || '',
-          category: card.category,
-          confidence: card.confidence || 0.8,
-          tags: this._parseTags(card.tags),
-          action: 'new',
-        }));
+        const cards = batch.map((card) => {
+          // Determine cloud action based on local evolution type
+          let action = 'new';
+          if (card.evolution_type === 'update' && card.parent_card_id) {
+            // Look up the cloud ID of the parent card
+            const cloudParentId = this._getSyncState(`local_kc_to_cloud:${card.parent_card_id}`);
+            if (cloudParentId) {
+              action = `update:${cloudParentId}`;
+            }
+            // If no cloud mapping exists, fall back to 'new' — cloud's own
+            // BM25/vector dedup will handle it
+          }
+          // Skip superseded cards — they were already replaced locally
+          if (card.status === 'superseded') {
+            return null;
+          }
+          return {
+            title: card.title,
+            summary: card.summary || '',
+            category: card.category,
+            confidence: card.confidence || 0.8,
+            tags: this._parseTags(card.tags),
+            action,
+          };
+        }).filter(Boolean);
 
         try {
           const result = await this._post(
@@ -482,14 +500,14 @@ export class CloudSync {
           );
 
           if (result) {
-            // Mark batch as synced
+            // Mark entire batch as synced (including superseded ones we filtered out)
             const markStmt = this.indexer.db.prepare(
               'UPDATE knowledge_cards SET synced_to_cloud = 1 WHERE id = ?'
             );
             for (const card of batch) {
               markStmt.run(card.id);
             }
-            synced += batch.length;
+            synced += cards.length;
           } else {
             errors += batch.length;
           }
@@ -953,12 +971,30 @@ export class CloudSync {
     const kcId = `kc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     const tags = Array.isArray(data.tags) ? data.tags : [];
 
+    // Resolve parent_card_id: translate cloud parent ID to local ID
+    let localParentId = null;
+    if (data.parent_card_id) {
+      localParentId = this._getSyncState(`cloud_kc:${data.parent_card_id}`) || null;
+    }
+
+    // If this card supersedes a local card, mark the local one as superseded
+    if (localParentId && (data.evolution_type === 'update' || data.evolution_type === 'reversal')) {
+      try {
+        this.indexer.db
+          .prepare("UPDATE knowledge_cards SET status = 'superseded' WHERE id = ? AND status = 'active'")
+          .run(localParentId);
+      } catch {
+        // Non-critical
+      }
+    }
+
     try {
       this.indexer.db
         .prepare(
           `INSERT OR IGNORE INTO knowledge_cards
-           (id, category, title, summary, source_memories, confidence, status, tags, created_at, filepath, synced_to_cloud)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+           (id, category, title, summary, source_memories, confidence, status, tags,
+            parent_card_id, evolution_type, created_at, filepath, synced_to_cloud)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
         )
         .run(
           kcId,
@@ -967,13 +1003,17 @@ export class CloudSync {
           data.summary || '',
           JSON.stringify(data.source_memories || []),
           data.confidence || 0.8,
-          'active',
+          data.status || 'active',
           JSON.stringify(tags),
+          localParentId,
+          data.evolution_type || 'initial',
           new Date().toISOString(),
           `cloud-pull:${data.id}`
         );
 
       this._setSyncState(`cloud_kc:${data.id}`, kcId);
+      // Store reverse mapping for push evolution references
+      this._setSyncState(`local_kc_to_cloud:${kcId}`, data.id);
     } catch (err) {
       // Duplicate or constraint error — safe to ignore
       if (!err.message?.includes('UNIQUE')) {
