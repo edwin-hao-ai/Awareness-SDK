@@ -144,6 +144,37 @@ console.log(ctx.results);
 
 ---
 
+## Perception (Record-Time Signals)
+
+When you call `record()`, the response may include a `perception` array -- automatic signals the system surfaces without you asking. These are computed from pure DB queries (no LLM calls), adding less than 50ms of latency.
+
+**Signal types:**
+
+| Type | Description |
+|------|-------------|
+| `contradiction` | New content conflicts with an existing knowledge card |
+| `resonance` | Similar past experience found in memory |
+| `pattern` | Recurring theme detected (e.g., same category appearing often) |
+| `staleness` | A related knowledge card hasn't been updated in a long time |
+| `related_decision` | A past decision is relevant to what you just recorded |
+
+```typescript
+const result = await client.record({
+  memoryId: "memory_123",
+  content: "Decided to use RS256 for JWT signing",
+  insights: {
+    knowledge_cards: [{ title: "JWT signing", category: "decision", summary: "Use RS256" }]
+  }
+});
+if (result.perception) {
+  result.perception.forEach(s => console.log(`[${s.type}] ${s.message}`));
+  // [pattern] This is the 4th 'decision' card -- recurring theme
+  // [resonance] Similar past experience: "JWT auth migration"
+}
+```
+
+---
+
 ## API Coverage
 
 `MemoryCloudClient` includes:

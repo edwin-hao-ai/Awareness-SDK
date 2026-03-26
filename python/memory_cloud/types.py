@@ -14,6 +14,18 @@ class WriteResult(TypedDict, total=False):
     trace_id: str
 
 
+class PerceptionSignal(TypedDict, total=False):
+    type: str           # "contradiction" | "resonance" | "pattern" | "staleness" | "related_decision"
+    title: str
+    summary: str        # human-readable summary (max 150 chars)
+    category: str
+    card_id: str
+    message: str        # human-readable message with emoji
+    days_ago: int       # (resonance) days since the original memory
+    days_since_update: int  # (staleness) days since last update
+    count: int          # (pattern) number of occurrences
+
+
 class IngestResult(TypedDict, total=False):
     accepted: int
     written: int
@@ -24,6 +36,7 @@ class IngestResult(TypedDict, total=False):
     async_job_id: str
     status: str
     trace_id: str
+    perception: List[PerceptionSignal]  # perception signals triggered by this ingest
 
 
 class RecordResult(TypedDict, total=False):

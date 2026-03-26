@@ -330,6 +330,7 @@ export class SearchEngine {
    */
   buildFtsQuery(semantic, keyword) {
     const terms = [];
+    const CJK_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/;
 
     if (semantic) {
       const words = semantic
@@ -337,14 +338,27 @@ export class SearchEngine {
         .split(/\s+/)
         .filter((w) => w.length > 0);
       for (const w of words) {
-        // Quote each word — trigram tokenizer handles CJK natively
-        terms.push(`"${w.replace(/"/g, '')}"`);
+        const clean = w.replace(/"/g, '');
+        if (CJK_RE.test(clean) && clean.length > 4) {
+          // CJK-heavy token: split into overlapping trigrams for FTS5 trigram tokenizer
+          for (let i = 0; i <= clean.length - 3 && terms.length < 15; i++) {
+            terms.push(`"${clean.substring(i, i + 3)}"`);
+          }
+        } else {
+          terms.push(`"${clean}"`);
+        }
       }
     }
 
     if (keyword) {
-      // Exact phrase match
-      terms.push(`"${keyword.replace(/"/g, '')}"`);
+      const clean = keyword.replace(/"/g, '');
+      if (CJK_RE.test(clean) && clean.length > 4) {
+        for (let i = 0; i <= clean.length - 3 && terms.length < 18; i++) {
+          terms.push(`"${clean.substring(i, i + 3)}"`);
+        }
+      } else {
+        terms.push(`"${clean}"`);
+      }
     }
 
     return terms.join(' OR ');

@@ -87,6 +87,35 @@ When `autoCapture` is enabled, the plugin stores a concise run summary after the
 | `autoCapture` | boolean | `true` | Auto-store a conversation summary after each run |
 | `recallLimit` | integer | `8` | Max results for auto-recall |
 
+## Perception (Record-Time Signals)
+
+When the skill's `awareness_record` tool writes to memory, the response may include a `perception` array -- automatic signals the system surfaces without you asking. These are computed from pure DB queries (no LLM calls), adding less than 50ms of latency.
+
+**Signal types:**
+
+| Type | Description |
+|------|-------------|
+| `contradiction` | New content conflicts with an existing knowledge card |
+| `resonance` | Similar past experience found in memory |
+| `pattern` | Recurring theme detected (e.g., same category appearing often) |
+| `staleness` | A related knowledge card hasn't been updated in a long time |
+| `related_decision` | A past decision is relevant to what you just recorded |
+
+```typescript
+// Inside the skill's record.js script:
+const result = await awareness_record({
+  content: "Decided to use RS256 for JWT signing",
+  insights: {
+    knowledge_cards: [{ title: "JWT signing", category: "decision", summary: "Use RS256" }]
+  }
+});
+if (result.perception) {
+  result.perception.forEach(s => console.log(`[${s.type}] ${s.message}`));
+  // [pattern] This is the 4th 'decision' card -- recurring theme
+  // [resonance] Similar past experience: "JWT auth migration"
+}
+```
+
 ## Verification
 
 ```bash

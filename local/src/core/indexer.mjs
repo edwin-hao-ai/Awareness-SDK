@@ -108,10 +108,33 @@ function sha256(text) {
 /**
  * Sanitise a query string for FTS5 MATCH — escape double-quotes and wrap
  * each token in double-quotes so special characters don't break the query.
- * Falls back to a simple prefix search when the input is a single token.
+ *
+ * For CJK text (Chinese/Japanese/Korean) without spaces, extracts overlapping
+ * 3-character windows (trigrams) and OR-joins them, because FTS5 trigram
+ * tokenizer requires substring matches — long quoted phrases fail silently.
  */
 /** FTS5 boolean operators — pass through without quoting. */
 const FTS5_OPS = new Set(['OR', 'AND', 'NOT', 'NEAR']);
+
+/** Detect CJK characters. */
+const CJK_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/;
+
+/**
+ * Split a CJK-heavy token into overlapping trigrams for FTS5 trigram matching.
+ * @param {string} token
+ * @returns {string[]}
+ */
+function cjkTrigrams(token) {
+  const grams = [];
+  for (let i = 0; i <= token.length - 3; i++) {
+    grams.push(token.substring(i, i + 3));
+  }
+  // Also include the full token if it's short enough (≤4 chars)
+  if (token.length >= 2 && token.length <= 4 && !grams.includes(token)) {
+    grams.unshift(token);
+  }
+  return grams;
+}
 
 function sanitiseFtsQuery(raw) {
   if (!raw || typeof raw !== 'string') return null;
@@ -125,12 +148,26 @@ function sanitiseFtsQuery(raw) {
     return trimmed.replace(/[;\\]/g, '');
   }
 
-  // Plain text query — quote each token to prevent FTS5 syntax errors.
-  const tokens = trimmed.split(/\s+/).map((t) => {
-    const escaped = t.replace(/"/g, '""');
-    return `"${escaped}"`;
-  });
-  return tokens.join(' ');
+  // Split on whitespace
+  const rawTokens = trimmed.split(/\s+/);
+  const quotedParts = [];
+
+  for (const token of rawTokens) {
+    if (CJK_RE.test(token) && token.length > 4) {
+      // CJK-heavy token: split into trigrams and OR-join
+      const grams = cjkTrigrams(token).slice(0, 6);
+      for (const g of grams) {
+        quotedParts.push(`"${g.replace(/"/g, '""')}"`);
+      }
+    } else {
+      // Latin/short token: quote as-is
+      quotedParts.push(`"${token.replace(/"/g, '""')}"`);
+    }
+  }
+
+  // Use OR for mixed CJK+Latin queries to broaden matching
+  const hasCJK = rawTokens.some(t => CJK_RE.test(t) && t.length > 4);
+  return hasCJK ? quotedParts.join(' OR ') : quotedParts.join(' ');
 }
 
 /**

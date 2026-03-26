@@ -663,7 +663,14 @@ export class AwarenessLocalDaemon {
       case 'awareness_init': {
         const session = this._createSession(args.source);
         const stats = this.indexer.getStats();
-        const recentCards = this.indexer.getRecentKnowledge(args.max_cards ?? 5);
+        // If a query/prompt is provided, search for relevant cards instead of recent ones
+        const maxCards = args.max_cards ?? 5;
+        let recentCards;
+        if (args.query) {
+          recentCards = await this._searchRelevantCards(args.query, maxCards);
+        } else {
+          recentCards = this.indexer.getRecentKnowledge(maxCards);
+        }
         const openTasks = this.indexer.getOpenTasks(args.max_tasks ?? 0);
         const rawSessions = this.indexer.getRecentSessions(args.days ?? 7);
         // De-noise: only sessions with content; fallback to 3 most recent
@@ -1453,6 +1460,67 @@ export class AwarenessLocalDaemon {
   // Engine methods (called by MCP tools)
   // -----------------------------------------------------------------------
 
+  /**
+   * Search for knowledge cards relevant to a user query.
+   * Uses FTS5 trigram (with CJK n-gram splitting) + embedding dual-channel.
+   *
+   * @param {string} query - User's prompt text
+   * @param {number} limit - Max cards to return
+   * @returns {Promise<object[]>} Knowledge card rows
+   */
+  async _searchRelevantCards(query, limit) {
+    const results = new Map(); // id → { card, score }
+
+    // Channel 1: FTS5 search (sanitiseFtsQuery now handles CJK trigram splitting)
+    if (this.indexer.searchKnowledge) {
+      try {
+        const ftsResults = this.indexer.searchKnowledge(query, { limit: limit * 2 });
+        for (const r of ftsResults) {
+          results.set(r.id, { card: r, score: 1 / (60 + (results.size + 1)) });
+        }
+      } catch { /* FTS error — skip */ }
+    }
+
+    // Channel 2: Embedding cosine similarity (if available)
+    if (this._embedder) {
+      try {
+        const available = await this._embedder.isEmbeddingAvailable();
+        if (available) {
+          const queryVec = await this._embedder.embed(query, 'query');
+          const allCards = this.indexer.db
+            .prepare("SELECT * FROM knowledge_cards WHERE status = 'active' ORDER BY created_at DESC LIMIT 50")
+            .all();
+          for (const card of allCards) {
+            const cardText = `${card.title || ''} ${card.summary || ''}`.trim();
+            if (!cardText) continue;
+            try {
+              const cardVec = await this._embedder.embed(cardText, 'passage');
+              const sim = this._embedder.cosineSimilarity(queryVec, cardVec);
+              const existing = results.get(card.id);
+              const ftsScore = existing?.score || 0;
+              results.set(card.id, { card, score: ftsScore + sim });
+            } catch { /* skip individual card errors */ }
+          }
+        }
+      } catch { /* Embedder not available — FTS-only */ }
+    }
+
+    // Sort by combined score descending
+    const sorted = [...results.values()]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(r => r.card);
+
+    // Supplement with recent cards if not enough results
+    if (sorted.length < limit) {
+      const matchedIds = new Set(sorted.map(c => c.id));
+      const recent = this.indexer.getRecentKnowledge(limit)
+        .filter(c => !matchedIds.has(c.id));
+      return [...sorted, ...recent].slice(0, limit);
+    }
+    return sorted;
+  }
+
   /** Create a new session and return session metadata. */
   _createSession(source) {
     return this.indexer.createSession(source || 'local');
@@ -1463,6 +1531,11 @@ export class AwarenessLocalDaemon {
 
   /** Write a single memory, index it, and trigger knowledge extraction. */
   async _remember(params) {
+    // Skip session_checkpoint — these are low-value truncated response snippets
+    // that pollute recall results. Meaningful content is saved via record-rule.
+    if (params.event_type === 'session_checkpoint') {
+      return { status: 'skipped', reason: 'session_checkpoint filtered' };
+    }
     if (!params.content) {
       return { error: 'content is required for remember action' };
     }
@@ -1509,12 +1582,126 @@ export class AwarenessLocalDaemon {
       });
     }
 
-    return {
+    // Perception: surface signals the agent didn't ask about (Eywa Whisper)
+    const perception = this._buildPerception(params.content, title, memory, params.insights);
+
+    const result = {
       status: 'ok',
       id,
       filepath,
       mode: 'local',
     };
+
+    if (perception && perception.length > 0) {
+      result.perception = perception;
+    }
+
+    return result;
+  }
+
+  /**
+   * Build perception signals after a record operation (Eywa Whisper).
+   *
+   * Unlike recall (agent asks a question), perception is the system
+   * noticing something the agent didn't ask about:
+   * - resonance: similar past knowledge exists
+   * - pattern: recurring category/theme detected (3+)
+   * - staleness: related knowledge is old
+   *
+   * Zero LLM. Pure SQLite queries. Target: <20ms.
+   *
+   * @param {string} content - The content being recorded
+   * @param {string} title - Auto-generated or provided title
+   * @param {Object} memory - The memory metadata object
+   * @param {Object} [insights] - Optional pre-extracted insights
+   * @returns {Array<Object>} perception signals (max 5)
+   */
+  _buildPerception(content, title, memory, insights) {
+    const signals = [];
+
+    try {
+      // 1. Resonance: find similar existing knowledge cards via FTS5
+      if (title && title.length >= 5) {
+        const resonanceResults = this.indexer.searchKnowledge(title, { limit: 2 });
+        for (const r of resonanceResults) {
+          // BM25 rank: closer to 0 = better match. Only surface strong matches.
+          if (r.rank > -3.0) {
+            const daysAgo = r.created_at
+              ? Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86400000)
+              : 0;
+            signals.push({
+              type: 'resonance',
+              title: r.title,
+              summary: (r.summary || '').slice(0, 150),
+              category: r.category || '',
+              card_id: r.id,
+              days_ago: daysAgo,
+              message: `🌿 Similar past experience (${daysAgo}d ago): "${r.title}"`,
+            });
+          }
+        }
+      }
+
+      // 2. Pattern: detect recurring categories (3+ cards of same category)
+      if (insights?.knowledge_cards?.length) {
+        for (const card of insights.knowledge_cards) {
+          const cat = card.category;
+          if (!cat) continue;
+          try {
+            const row = this.indexer.db
+              .prepare(`SELECT COUNT(*) AS cnt FROM knowledge_cards WHERE category = ? AND status = 'active'`)
+              .get(cat);
+            const count = row?.cnt || 0;
+            if (count >= 3) {
+              signals.push({
+                type: 'pattern',
+                category: cat,
+                count: count + 1, // +1 for the one being written now
+                message: `🔄 Pattern: this is the ${this._ordinal(count + 1)} '${cat}' card — recurring theme`,
+              });
+            }
+          } catch { /* ignore */ }
+        }
+      }
+
+      // 3. Staleness: find related but old knowledge (reuse searchKnowledge for FTS safety)
+      if (title && title.length >= 5) {
+        try {
+          const relatedResults = this.indexer.searchKnowledge(title, { limit: 3 });
+          for (const r of relatedResults) {
+            if (!r.updated_at) continue;
+            const daysOld = Math.floor(
+              (Date.now() - new Date(r.updated_at).getTime()) / 86400000
+            );
+            if (daysOld >= 60) {
+              signals.push({
+                type: 'staleness',
+                title: r.title,
+                category: r.category || '',
+                card_id: r.id,
+                days_since_update: daysOld,
+                message: `⏳ Related knowledge "${r.title}" hasn't been updated in ${daysOld} days`,
+              });
+              break; // Only 1 staleness signal
+            }
+          }
+        } catch { /* FTS query may fail on special chars */ }
+      }
+    } catch (err) {
+      // Perception is best-effort, never block the write
+      if (process.env.DEBUG) {
+        console.warn('[awareness-local] perception failed:', err.message);
+      }
+    }
+
+    return signals.slice(0, 5); // Cap at 5 signals
+  }
+
+  /** Return ordinal string (1st, 2nd, 3rd, etc.) */
+  _ordinal(n) {
+    if (n % 100 >= 11 && n % 100 <= 13) return `${n}th`;
+    const suffix = { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th';
+    return `${n}${suffix}`;
   }
 
   /** Write multiple memories in batch. */
@@ -1958,6 +2145,8 @@ ${item.description || item.title || ''}
           } catch {
             // Embedder optional — conflict detection falls back to BM25 only
           }
+          // Store embedder reference for prompt-aware init search
+          if (embedderModule) this._embedder = embedderModule;
           return new KnowledgeExtractor(this.memoryStore, this.indexer, embedderModule);
         }
       }

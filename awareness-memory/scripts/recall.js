@@ -57,7 +57,7 @@ async function main() {
     if (ep.mode === "local") {
       // Local daemon + optional cloud: parallel calls
       const promises = [
-        mcpCall(ep.localUrl, "awareness_init", { source: "awareness-skill" }, 6000),
+        mcpCall(ep.localUrl, "awareness_init", { source: "awareness-skill", query: prompt }, 6000),
         mcpCall(ep.localUrl, "awareness_recall", {
           semantic_query: prompt,
           keyword_query: keywords || undefined,
@@ -253,10 +253,39 @@ async function main() {
       parts.push("  </recall>");
     }
 
+    // Perception: surface signals from recent records (Eywa Whisper)
+    // These are things the system noticed during previous saves that the agent didn't ask about.
+    try {
+      const perceptionCacheFile = require("path").join(process.env.HOME || "", ".awareness", "perception-cache.json");
+      if (require("fs").existsSync(perceptionCacheFile)) {
+        const cached = JSON.parse(require("fs").readFileSync(perceptionCacheFile, "utf8"));
+        // Only show signals from last 30 minutes
+        const cutoff = Date.now() - 30 * 60 * 1000;
+        const recent = (cached || []).filter(s => (s._ts || 0) > cutoff);
+        if (recent.length > 0) {
+          parts.push("  <perception>");
+          parts.push("    <action-required>BEFORE responding to the user, you MUST address each signal below. For contradiction: tell user about the conflict and ask if intentional. For resonance: mention the past experience. For pattern: suggest systematic fix. For staleness: warn knowledge may be outdated. For related_decision: mention prior decision.</action-required>");
+          for (const s of recent.slice(0, 5)) {
+            parts.push(`    <signal type="${esc(s.type)}">${esc(s.message)}</signal>`);
+          }
+          parts.push("  </perception>");
+          // Clear consumed signals
+          require("fs").writeFileSync(perceptionCacheFile, "[]", "utf8");
+        }
+      }
+    } catch { /* best-effort */ }
+
     // Inject compact auto-record instructions (~100 tokens instead of ~300)
     parts.push("  <record-rule>");
-    parts.push("    Save significant work SILENTLY: node \"${CLAUDE_PLUGIN_ROOT}/scripts/save-memory.js\" '<JSON>'");
-    parts.push("    Fallback: node ~/.claude/plugins/cache/awareness/awareness-memory/0.1.0/scripts/save-memory.js");
+    // Resolve the actual script path: prefer CLAUDE_PLUGIN_ROOT, fallback to cache path, finally repo path
+    const scriptPaths = [
+      process.env.CLAUDE_PLUGIN_ROOT && `${process.env.CLAUDE_PLUGIN_ROOT}/scripts/save-memory.js`,
+      `${process.env.HOME}/.claude/plugins/cache/awareness/awareness-memory/0.1.0/scripts/save-memory.js`,
+      `${__dirname}/save-memory.js`,
+    ].filter(Boolean);
+    const fs = require("fs");
+    const resolvedScript = scriptPaths.find(p => { try { return fs.existsSync(p); } catch { return false; } }) || scriptPaths[1];
+    parts.push(`    Save significant work SILENTLY: node "${resolvedScript}" '<JSON>'`);
     parts.push("    JSON: {\"content\":\"what+why\",\"cards\":[{\"title\":\"...\",\"summary\":\"...\",\"category\":\"decision|problem_solution|workflow|pitfall|insight|key_point|personal_preference|important_detail\"}]}");
     parts.push("    Save decisions, solutions, pitfalls, user preferences. NOT every tool call.");
     parts.push("  </record-rule>");

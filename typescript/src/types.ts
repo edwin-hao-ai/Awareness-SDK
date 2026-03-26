@@ -36,6 +36,23 @@ export interface WriteResponse extends JsonObject {
   trace_id?: string;
 }
 
+export interface PerceptionSignal {
+  type?: "contradiction" | "resonance" | "pattern" | "staleness" | "related_decision";
+  title?: string;
+  /** Human-readable summary (max 150 chars) */
+  summary?: string;
+  category?: string;
+  card_id?: string;
+  /** Human-readable message with emoji */
+  message?: string;
+  /** (resonance) Days since the original memory */
+  days_ago?: number;
+  /** (staleness) Days since last update */
+  days_since_update?: number;
+  /** (pattern) Number of occurrences */
+  count?: number;
+}
+
 export interface IngestEventsResponse extends JsonObject {
   accepted?: number;
   written?: number;
@@ -46,6 +63,8 @@ export interface IngestEventsResponse extends JsonObject {
   async_job_id?: string | null;
   status?: string;
   trace_id?: string;
+  /** Perception signals triggered by this ingest */
+  perception?: PerceptionSignal[];
 }
 
 export interface ExportPackageResponse {

@@ -43,6 +43,24 @@ async function main() {
       content: data.content || "",
       insights: Object.keys(insights).length > 0 ? insights : undefined,
     }, 8000);
+
+    // Cache perception signals for recall.js to surface on next prompt
+    const perception = result.perception?.perception || result.perception;
+    if (perception && Array.isArray(perception) && perception.length > 0) {
+      try {
+        const fs = require("fs");
+        const path = require("path");
+        const cacheDir = path.join(process.env.HOME || "", ".awareness");
+        if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+        const cacheFile = path.join(cacheDir, "perception-cache.json");
+        // Append to existing cache (keep last 10 signals max)
+        let existing = [];
+        try { existing = JSON.parse(fs.readFileSync(cacheFile, "utf8")); } catch { /* empty */ }
+        const updated = [...perception.map(s => ({ ...s, _ts: Date.now() })), ...existing].slice(0, 10);
+        fs.writeFileSync(cacheFile, JSON.stringify(updated), "utf8");
+      } catch { /* best-effort, never fail the save */ }
+    }
+
     process.stdout.write(JSON.stringify({ status: "saved", id: result.id }) + "\n");
   } catch (err) {
     process.stderr.write(`[awareness] save failed: ${err.message}\n`);
