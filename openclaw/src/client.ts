@@ -54,7 +54,7 @@ export class AwarenessClient {
   private readonly agentRole: string | undefined;
   readonly sessionId: string;
   /** True when connected to the local daemon (no apiKey + localhost). */
-  private readonly isLocal: boolean;
+  readonly isLocal: boolean;
   /** Origin for local MCP calls (e.g. http://localhost:37800). */
   private readonly localOrigin: string;
 

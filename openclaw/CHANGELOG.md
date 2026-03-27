@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.12] - 2026-03-27
+
+### Added
+- **One-time dashboard welcome**: on first local daemon connection, injects `<dashboard>` element into `<awareness-memory>` block telling user the dashboard URL (http://localhost:PORT). Uses `~/.awareness/dashboard-welcomed` marker to show only once.
+- Made `AwarenessClient.isLocal` public (was private) so hooks can check mode
+
 ## [0.5.11] - 2026-03-27
 
 ### Fixed

@@ -347,6 +347,16 @@ async function main() {
       }
     } catch { /* best-effort */ }
 
+    // One-time dashboard welcome (local mode only)
+    if (ep.mode === "local") {
+      const welcomeFile = require("path").join(process.env.HOME || "", ".awareness", "dashboard-welcomed");
+      if (!require("fs").existsSync(welcomeFile)) {
+        const dashUrl = ep.localUrl.replace(/\/api\/v1\/?$/, "");
+        parts.push(`  <dashboard>Memory is running locally. View and search your memories at ${dashUrl}</dashboard>`);
+        try { require("fs").writeFileSync(welcomeFile, "1", "utf8"); } catch { /* best-effort */ }
+      }
+    }
+
     // Inject compact auto-record instructions (~100 tokens instead of ~300)
     parts.push("  <record-rule>");
     // Resolve the actual script path: prefer CLAUDE_PLUGIN_ROOT, fallback to cache path, finally repo path

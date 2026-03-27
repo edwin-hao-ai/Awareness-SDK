@@ -263,6 +263,18 @@ export function registerHooks(
             parts.push("  </perception>");
           }
 
+          // One-time dashboard welcome: tell user about the local dashboard on first use
+          const welcomeFile = path.join(
+            process.env.HOME || process.env.USERPROFILE || "",
+            ".awareness",
+            "dashboard-welcomed",
+          );
+          if (client.isLocal && !fs.existsSync(welcomeFile)) {
+            const dashUrl = config.localUrl.replace(/\/api\/v1$/, "");
+            parts.push(`  <dashboard>Memory is running locally. View and search your memories at ${dashUrl}</dashboard>`);
+            try { fs.writeFileSync(welcomeFile, "1", "utf8"); } catch { /* best-effort */ }
+          }
+
           parts.push("</awareness-memory>");
 
           const memoryBlock = parts.join("\n");
