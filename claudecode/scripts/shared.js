@@ -114,8 +114,10 @@ async function resolveEndpoint(config) {
 // ---------------------------------------------------------------------------
 
 function getSessionId() {
-  const tmpDir = process.env.TMPDIR || process.env.TMP || "/tmp";
-  const pidFile = path.join(tmpDir, "awareness-session-id");
+  // Store in ~/.awareness/ (persistent) instead of /tmp (cleared on reboot)
+  const awarenessDir = path.join(process.env.HOME || process.env.USERPROFILE || "", ".awareness");
+  try { fs.mkdirSync(awarenessDir, { recursive: true }); } catch { /* ignore */ }
+  const pidFile = path.join(awarenessDir, "session-id");
   try {
     const data = fs.readFileSync(pidFile, "utf-8").trim();
     const [id, ts] = data.split("|");

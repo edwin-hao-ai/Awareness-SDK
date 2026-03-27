@@ -203,6 +203,159 @@ export async function resolveMcpConfigInputs(options = {}) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Doctor command — cross-channel health check
+// ---------------------------------------------------------------------------
+
+async function doctorCommand() {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const os = await import("node:os");
+  const home = os.default.homedir();
+  let issues = 0;
+
+  console.log("\n  Awareness Doctor\n");
+
+  // 1. Local daemon
+  const daemonHealthy = await checkDaemonHealth();
+  if (daemonHealthy) {
+    // Get stats from healthz
+    try {
+      const data = await new Promise((resolve) => {
+        http.get(LOCAL_HEALTHZ_URL, { timeout: 2000 }, (res) => {
+          let d = ""; res.on("data", (c) => { d += c; }); res.on("end", () => resolve(d));
+        }).on("error", () => resolve(""));
+      });
+      const stats = JSON.parse(data);
+      console.log(`  [OK] Local daemon running (port ${stats.port || LOCAL_DAEMON_PORT}, pid ${stats.pid || "?"})`);
+      console.log(`       ${stats.stats?.totalMemories || 0} memories, ${stats.stats?.totalKnowledge || 0} knowledge cards`);
+    } catch {
+      console.log(`  [OK] Local daemon running on port ${LOCAL_DAEMON_PORT}`);
+    }
+  } else {
+    console.log(`  [!!] Local daemon NOT running (port ${LOCAL_DAEMON_PORT})`);
+    console.log(`       Fix: npx @awareness-sdk/local start`);
+    issues++;
+  }
+
+  // 2. Cloud credentials
+  const creds = loadCredentials();
+  if (creds?.api_key) {
+    console.log(`  [OK] Cloud credentials found (key: ${creds.api_key.slice(0, 8)}...)`);
+    if (creds.memory_id) {
+      console.log(`       Memory ID: ${creds.memory_id}`);
+    }
+  } else {
+    console.log(`  [--] No cloud credentials (local-only mode)`);
+  }
+
+  // 3. IDE detection + rules
+  const detected = autoDetectAllIdes();
+  if (detected.length > 0) {
+    console.log(`  [OK] IDEs detected: ${detected.join(", ")}`);
+    for (const ideId of detected) {
+      const config = getIdeConfig(ideId);
+      if (!config || !config.rules_file) continue;
+      const rulesPath = path.default.join(process.cwd(), config.rules_file);
+      const rulesExist = fs.default.existsSync(rulesPath);
+      // Check if rules contain awareness markers
+      let hasMarker = false;
+      if (rulesExist) {
+        try {
+          const content = fs.default.readFileSync(rulesPath, "utf-8");
+          hasMarker = content.includes("AWARENESS") || content.includes("awareness_init");
+        } catch { /* ignore */ }
+      }
+      if (rulesExist && hasMarker) {
+        console.log(`       [OK] ${config.rules_file} (awareness rules injected)`);
+      } else if (rulesExist) {
+        console.log(`       [!!] ${config.rules_file} exists but NO awareness rules`);
+        console.log(`            Fix: npx @awareness-sdk/setup --ide ${ideId}`);
+        issues++;
+      } else {
+        console.log(`       [!!] ${config.rules_file} missing`);
+        console.log(`            Fix: npx @awareness-sdk/setup --ide ${ideId}`);
+        issues++;
+      }
+
+      // Check MCP config (skip for IDEs without MCP file, e.g. OpenClaw)
+      let mcpPath = null;
+      try { mcpPath = getIdeMcpPath(ideId); } catch { /* no MCP path */ }
+      if (mcpPath) {
+        const fullMcpPath = path.default.join(process.cwd(), mcpPath);
+        const mcpExists = fs.default.existsSync(fullMcpPath);
+        let hasMcp = false;
+        if (mcpExists) {
+          try {
+            const content = fs.default.readFileSync(fullMcpPath, "utf-8");
+            hasMcp = content.includes("awareness");
+          } catch { /* ignore */ }
+        }
+        if (mcpExists && hasMcp) {
+          console.log(`       [OK] ${mcpPath} (MCP configured)`);
+        } else if (!mcpExists || !hasMcp) {
+          console.log(`       [!!] ${mcpPath} — no awareness MCP config`);
+          issues++;
+        }
+      }
+    }
+  } else {
+    console.log(`  [--] No IDE detected in current directory`);
+  }
+
+  // 4. OpenClaw plugin
+  try {
+    const { execSync } = await import("node:child_process");
+    const output = execSync("openclaw plugins inspect openclaw-memory 2>&1", { encoding: "utf-8", timeout: 10000 });
+    const versionMatch = output.match(/Version:\s*(\S+)/);
+    const statusMatch = output.match(/Status:\s*(\S+)/);
+    if (statusMatch?.[1] === "loaded") {
+      console.log(`  [OK] OpenClaw plugin: v${versionMatch?.[1] || "?"} (loaded)`);
+    } else {
+      console.log(`  [!!] OpenClaw plugin: ${statusMatch?.[1] || "not found"}`);
+      issues++;
+    }
+  } catch {
+    console.log(`  [--] OpenClaw CLI not found (skip)`);
+  }
+
+  // 5. Claude Code plugin
+  const claudePluginDir = path.default.join(home, ".claude", "plugins", "awareness-memory");
+  if (fs.default.existsSync(claudePluginDir)) {
+    const settingsPath = path.default.join(claudePluginDir, "settings.json");
+    if (fs.default.existsSync(settingsPath)) {
+      console.log(`  [OK] Claude Code plugin installed`);
+    } else {
+      console.log(`  [!!] Claude Code plugin dir exists but settings.json missing`);
+      issues++;
+    }
+  } else {
+    console.log(`  [--] Claude Code plugin not installed (skip)`);
+  }
+
+  // 6. Data directory
+  const awarenessDir = path.default.join(home, ".awareness");
+  if (fs.default.existsSync(awarenessDir)) {
+    const memCount = fs.default.existsSync(path.default.join(awarenessDir, "memories"))
+      ? (fs.default.readdirSync(path.default.join(awarenessDir, "memories")).length)
+      : 0;
+    const indexExists = fs.default.existsSync(path.default.join(awarenessDir, "index.db"));
+    console.log(`  [OK] Data directory: ~/.awareness/ (${memCount} memory files, index: ${indexExists ? "yes" : "no"})`);
+  } else {
+    console.log(`  [--] No data directory (~/.awareness/ not found)`);
+  }
+
+  // Summary
+  console.log("");
+  if (issues === 0) {
+    console.log("  All checks passed.\n");
+  } else {
+    console.log(`  ${issues} issue(s) found. Run suggested fix commands above.\n`);
+  }
+
+  return issues > 0 ? 1 : 0;
+}
+
 export function printUsage() {
   console.log(`
 @awareness-sdk/setup - Set up Awareness Memory for your IDE
@@ -219,6 +372,7 @@ Usage:
   npx @awareness-sdk/setup --force         Allow overwrite for managed files without markers
   npx @awareness-sdk/setup --list          Show supported IDEs
   npx @awareness-sdk/setup --logout        Clear saved credentials
+  npx @awareness-sdk/setup doctor          Run diagnostic checks on all channels
   npx @awareness-sdk/setup --api-base <url> Use custom API base URL
 
 Modes:
@@ -538,6 +692,10 @@ export async function main(argv = process.argv.slice(2)) {
     clearCredentials();
     console.log("Credentials cleared.");
     return 0;
+  }
+
+  if (argv.includes("doctor") || argv.includes("--doctor")) {
+    return await doctorCommand();
   }
 
   const dryRun = argv.includes("--dry-run");

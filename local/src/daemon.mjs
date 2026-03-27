@@ -272,10 +272,23 @@ export class AwarenessLocalDaemon {
       this._handleRequest(req, res)
     );
 
-    await new Promise((resolve, reject) => {
-      this.httpServer.on('error', reject);
-      this.httpServer.listen(this.port, BIND_HOST, () => resolve());
-    });
+    try {
+      await new Promise((resolve, reject) => {
+        this.httpServer.on('error', reject);
+        this.httpServer.listen(this.port, BIND_HOST, () => resolve());
+      });
+    } catch (err) {
+      if (err.code === 'EADDRINUSE') {
+        console.error(
+          `[awareness-local] Port ${this.port} is already in use.\n` +
+          `  Possible causes:\n` +
+          `  - Another awareness-local instance is running (try: awareness-local status)\n` +
+          `  - Another application is using port ${this.port}\n` +
+          `  Fix: Run "awareness-local stop" or "lsof -i :${this.port}" to find the process.`
+        );
+      }
+      throw err;
+    }
 
     this._startedAt = Date.now();
 

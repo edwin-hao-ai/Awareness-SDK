@@ -21,7 +21,8 @@ async function main() {
 
   // Debounce: don't save more than once per 60 seconds
   const fs = require("fs");
-  const debounceFile = "/tmp/awareness-post-tool-ts";
+  const os = require("os");
+  const debounceFile = require("path").join(os.homedir(), ".awareness", "post-tool-ts");
   try {
     const last = Number(fs.readFileSync(debounceFile, "utf-8").trim());
     if (Date.now() - last < 60000) process.exit(0);

@@ -177,7 +177,7 @@ async function main() {
         // MCP text response — try to parse JSON, fallback to raw text
         try {
           const parsed = JSON.parse(recall);
-          results = (parsed.results || parsed.items || []).filter(r => !r.score || r.score >= 0.3);
+          results = (parsed.results || parsed.items || []).filter(r => !r.score || r.score >= 0.4);
         } catch {
           // If it's plain text, create a single result from it
           if (recall.trim().length > 20) {
