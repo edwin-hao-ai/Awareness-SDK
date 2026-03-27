@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.10] - 2026-03-27
+
+### Changed
+- **Auto device auth in `before_agent_start` hook**: when no credentials are configured, the hook now automatically calls `/auth/device/init` and injects the login URL directly into the agent's system context — user just starts a conversation and the agent immediately shows them the link. No tool call required.
+- Fixed hook registration: changed from `api.registerHook()` to `api.on()` (correct OpenClaw API)
+
 ## [0.5.9] - 2026-03-27
 
 ### Fixed

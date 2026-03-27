@@ -205,21 +205,83 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
     },
   });
 
-  // Inject a hint into every session so the agent knows memory is unavailable
-  api.registerHook(
+  // On every session start: auto-initiate device auth and inject the URL directly
+  // into system context so the agent presents it without any tool call needed.
+  api.on(
     "before_agent_start",
-    async (_context: HookContext): Promise<HookResult | void> => ({
-      prependSystemContext:
-        "[Awareness Memory] Not configured — cloud credentials needed. " +
-        "Call awareness_setup(action='start_auth') for a device auth flow (works on mobile/Android too — no manual config editing). " +
-        "Or call awareness_setup() for all setup options.",
-    }),
-    { priority: 10 },
+    async (_context: unknown): Promise<HookResult | void> => {
+      // Check if a fresh device auth was already started this session
+      // (cache file may exist from a previous approval attempt)
+      if (fs.existsSync(AUTH_CACHE_FILE)) {
+        try {
+          const cached = JSON.parse(fs.readFileSync(AUTH_CACHE_FILE, "utf8")) as Record<string, unknown>;
+          if (cached.status === "approved" && cached.apiKey) {
+            // Auth completed — poll-auth.js already patched openclaw.json
+            try { fs.unlinkSync(AUTH_CACHE_FILE); } catch { /* ok */ }
+            return {
+              prependSystemContext:
+                "[Awareness Memory] Setup complete! Your account has been linked. " +
+                "Please restart this session to activate memory integration.",
+            };
+          }
+        } catch { /* continue to start fresh auth */ }
+      }
+
+      // Auto-start device auth — user just needs to click the link
+      api.logger.info("[awareness] before_agent_start hook fired — auto-starting device auth");
+      try {
+        const resp = await fetch(`${baseUrl}/auth/device/init`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ client_id: "openclaw-plugin" }),
+          signal: AbortSignal.timeout(6000),
+        });
+        if (resp.ok) {
+          const data = (await resp.json()) as Record<string, unknown>;
+          const deviceCode = String(data.device_code ?? "");
+          const userCode = String(data.user_code ?? "");
+          const verificationUriBase = String(data.verification_uri ?? "https://awareness.market/cli-auth");
+          const authUrl = `${verificationUriBase}?code=${encodeURIComponent(userCode)}`;
+          const intervalSec = Number(data.interval ?? 5);
+          const expiresIn = Number(data.expires_in ?? 600);
+
+          if (deviceCode) {
+            // Spawn background poller
+            const { spawn } = await import("child_process");
+            const scriptCandidates = [
+              path.join(__dirname, "poll-auth.js"),
+              path.join(__dirname, "..", "dist", "poll-auth.js"),
+            ];
+            const pollScript = scriptCandidates.find(p => { try { return fs.existsSync(p); } catch { return false; } }) ?? scriptCandidates[0];
+            const child = spawn(process.execPath, [pollScript, deviceCode, baseUrl, String(intervalSec), String(expiresIn)], {
+              detached: true,
+              stdio: "ignore",
+            });
+            child.unref();
+
+            return {
+              prependSystemContext:
+                `[Awareness Memory] Setup required — please tell the user:\n` +
+                `"To enable memory, visit this link and sign in (takes ~30 seconds):\n` +
+                `${authUrl}\n` +
+                `Once done, start a new session and memory will be active automatically."`,
+            };
+          }
+        }
+      } catch { /* network error — fall back to static hint */ }
+
+      // Fallback: static hint if device auth init fails
+      return {
+        prependSystemContext:
+          "[Awareness Memory] Not configured. " +
+          "Call awareness_setup(action='start_auth') to get a login link, or awareness_setup() for all options.",
+      };
+    },
   );
 
   api.logger.warn(
     "Awareness memory plugin loaded in setup mode — no local daemon and no cloud credentials. " +
-      "Call awareness_setup tool or run `npx @awareness-sdk/setup --ide openclaw` to complete setup.",
+      "Auto-initiating device auth on next session start.",
   );
 }
 
