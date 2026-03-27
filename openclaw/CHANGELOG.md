@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.13] - 2026-03-27
+
+### Fixed
+- **Plugin version sync**: `openclaw.plugin.json` version was stuck at `0.1.10` — OpenClaw host displayed wrong version to users. Now synced to match `package.json`
+
 ## [0.5.12] - 2026-03-27
 
 ### Added
