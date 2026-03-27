@@ -1,5 +1,8 @@
-import type { PluginApi, PluginConfig, HookContext, HookResult } from "./types";
+import type { PluginApi, PluginConfig, HookContext, HookResult, PerceptionSignal } from "./types";
 import type { AwarenessClient } from "./client";
+import * as fs from "fs";
+import * as path from "path";
+import { syncDailyLog } from "./sync";
 
 // ---------------------------------------------------------------------------
 // Language-agnostic keyword extraction for full-text search (zero LLM cost)
@@ -51,6 +54,52 @@ function extractKeywords(text: string, maxKeywords: number = 8): string {
     if (result.length >= maxKeywords) break;
   }
   return result.join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Perception cache — bridge between record (write) and recall (read)
+// Signals are written by auto-capture / tool calls, read by auto-recall.
+// ---------------------------------------------------------------------------
+
+const PERCEPTION_CACHE_FILE = path.join(
+  process.env.HOME || process.env.USERPROFILE || "",
+  ".awareness",
+  "perception-cache.json",
+);
+const PERCEPTION_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
+const PERCEPTION_MAX_ITEMS = 10;
+
+/** Append perception signals to the local cache file. */
+function cachePerception(signals: PerceptionSignal[]): void {
+  if (!signals || signals.length === 0) return;
+  try {
+    const dir = path.dirname(PERCEPTION_CACHE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    let existing: Array<PerceptionSignal & { _ts?: number }> = [];
+    try { existing = JSON.parse(fs.readFileSync(PERCEPTION_CACHE_FILE, "utf8")); } catch { /* empty */ }
+    const updated = [
+      ...signals.map((s) => ({ ...s, _ts: Date.now() })),
+      ...existing,
+    ].slice(0, PERCEPTION_MAX_ITEMS);
+    fs.writeFileSync(PERCEPTION_CACHE_FILE, JSON.stringify(updated), "utf8");
+  } catch { /* best-effort */ }
+}
+
+/** Read and consume cached perception signals (clears after read). */
+function consumePerception(): Array<PerceptionSignal & { _ts?: number }> {
+  try {
+    if (!fs.existsSync(PERCEPTION_CACHE_FILE)) return [];
+    const cached: Array<PerceptionSignal & { _ts?: number }> = JSON.parse(
+      fs.readFileSync(PERCEPTION_CACHE_FILE, "utf8"),
+    );
+    const cutoff = Date.now() - PERCEPTION_MAX_AGE_MS;
+    const recent = (cached || []).filter((s) => (s._ts || 0) > cutoff);
+    // Clear consumed signals
+    fs.writeFileSync(PERCEPTION_CACHE_FILE, "[]", "utf8");
+    return recent.slice(0, 5);
+  } catch {
+    return [];
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -203,11 +252,22 @@ export function registerHooks(
             parts.push("  </recall>");
           }
 
+          // Perception signals from previous records (Eywa Whisper)
+          const perceptionSignals = consumePerception();
+          if (perceptionSignals.length > 0) {
+            parts.push("  <perception>");
+            parts.push("    <action-required>BEFORE responding to the user, you MUST address each signal below. For contradiction: tell user about the conflict and ask if intentional. For resonance: mention the past experience. For pattern: suggest systematic fix. For staleness: warn knowledge may be outdated. For related_decision: mention prior decision.</action-required>");
+            for (const s of perceptionSignals) {
+              parts.push(`    <signal type="${escapeXml(s.type ?? "")}">${escapeXml(s.message ?? "")}</signal>`);
+            }
+            parts.push("  </perception>");
+          }
+
           parts.push("</awareness-memory>");
 
           const memoryBlock = parts.join("\n");
           api.logger.info(
-            `Awareness auto-recall injected ${memoryBlock.length} chars (skills=${activeSkills.length}, sessions=${lastSessions.length}, recall=${results.length})`,
+            `Awareness auto-recall injected ${memoryBlock.length} chars (skills=${activeSkills.length}, sessions=${lastSessions.length}, recall=${results.length}, perception=${perceptionSignals.length})`,
           );
           return { prependSystemContext: memoryBlock };
         } catch (err) {
@@ -287,10 +347,22 @@ export function registerHooks(
           parts.push(`Turns: ${messageCount} messages`);
           const summary = parts.join("\n");
 
-          await client.record(summary, {
+          const captureResult = await client.record(summary, {
             event_type: "turn_brief",
             source: "openclaw-plugin",
           });
+
+          // Cache perception signals for next recall injection
+          const perception = (captureResult as Record<string, unknown>)?.perception;
+          if (Array.isArray(perception) && perception.length > 0) {
+            cachePerception(perception as PerceptionSignal[]);
+            api.logger.info(
+              `Awareness perception: cached ${perception.length} signals`,
+            );
+          }
+
+          // Sync to OpenClaw Markdown (memory/YYYY-MM-DD.md)
+          syncDailyLog(summary, "openclaw-plugin");
 
           api.logger.info(
             `Awareness auto-capture: stored turn brief (${messageCount} messages)`,

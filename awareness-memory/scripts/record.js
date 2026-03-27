@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 const { loadConfig, resolveEndpoint, mcpCall, apiPost, apiPatch, readStdin, parseArgs } = require("./shared");
+const { syncRecordToOpenClaw } = require("./sync");
 
 async function main() {
   const args = parseArgs();
@@ -80,6 +81,7 @@ async function main() {
       if (input.insights) mcpArgs.insights = input.insights;
       const result = await mcpCall(ep.localUrl, "awareness_record", mcpArgs);
       cachePerception(result);
+      syncRecordToOpenClaw(input.content || "", input.insights, "awareness-skill");
       console.log(JSON.stringify(result, null, 2));
     } else {
       const body = {
@@ -87,6 +89,7 @@ async function main() {
         content: input.content || "",
       };
       const result = await apiPost(ep.baseUrl, ep.apiKey, "/mcp/events", body);
+      syncRecordToOpenClaw(input.content || "", input.insights, "awareness-skill");
       console.log(JSON.stringify(result, null, 2));
     }
     return;
@@ -102,6 +105,7 @@ async function main() {
       content,
     });
     cachePerception(result);
+    syncRecordToOpenClaw(content, undefined, "awareness-skill");
     console.log(JSON.stringify(result, null, 2));
   } else {
     const body = {
@@ -109,6 +113,7 @@ async function main() {
       content,
     };
     const result = await apiPost(ep.baseUrl, ep.apiKey, "/mcp/events", body);
+    syncRecordToOpenClaw(content, undefined, "awareness-skill");
     console.log(JSON.stringify(result, null, 2));
   }
 }

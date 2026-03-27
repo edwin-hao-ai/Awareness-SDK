@@ -7,6 +7,7 @@ import type {
   RisksResponse,
   IngestResponse,
   SupersedeResponse,
+  VectorResult,
 } from "./types";
 
 const LEGACY_FULL_TEXT_WEIGHT_KEY = ["full", "_text", "_weight"].join("");
@@ -43,6 +44,7 @@ export interface SearchOptions {
 
 // ---------------------------------------------------------------------------
 // AwarenessClient — thin HTTP wrapper around the Awareness REST API
+// Supports both cloud REST and local daemon MCP JSON-RPC transparently.
 // ---------------------------------------------------------------------------
 
 export class AwarenessClient {
@@ -51,6 +53,10 @@ export class AwarenessClient {
   private readonly memoryId: string;
   private readonly agentRole: string | undefined;
   readonly sessionId: string;
+  /** True when connected to the local daemon (no apiKey + localhost). */
+  private readonly isLocal: boolean;
+  /** Origin for local MCP calls (e.g. http://localhost:37800). */
+  private readonly localOrigin: string;
 
   constructor(
     baseUrl: string,
@@ -63,6 +69,78 @@ export class AwarenessClient {
     this.memoryId = memoryId;
     this.agentRole = agentRole;
     this.sessionId = `openclaw-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Detect local mode: empty apiKey + localhost URL
+    this.isLocal = !apiKey && /localhost|127\.0\.0\.1/.test(baseUrl);
+    // Strip /api/v1 suffix to get the daemon origin for MCP calls
+    this.localOrigin = baseUrl.replace(/\/api\/v1\/?$/, "");
+  }
+
+  // -----------------------------------------------------------------------
+  // Local MCP JSON-RPC helper
+  // -----------------------------------------------------------------------
+
+  /**
+   * Call a daemon MCP tool via the /mcp Streamable HTTP endpoint.
+   * Returns the parsed JSON from the first text content block.
+   */
+  private async mcpCall<T>(toolName: string, args: Record<string, unknown>): Promise<T> {
+    const response = await fetch(`${this.localOrigin}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: Date.now(),
+        method: "tools/call",
+        params: { name: toolName, arguments: args },
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`MCP call ${toolName} failed (${response.status})`);
+    }
+    const rpc = (await response.json()) as Record<string, unknown>;
+    if (rpc.error) {
+      const err = rpc.error as Record<string, unknown>;
+      throw new Error(`MCP ${toolName}: ${err.message ?? JSON.stringify(err)}`);
+    }
+    const result = rpc.result as Record<string, unknown>;
+    const content = result?.content as Array<{ type: string; text: string }> | undefined;
+    if (!content || content.length === 0) return {} as T;
+    const text = content[0].text;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.error) throw new Error(`MCP ${toolName}: ${parsed.error}`);
+      return parsed as T;
+    } catch {
+      // Not JSON — return as-is wrapped
+      return { raw: text } as unknown as T;
+    }
+  }
+
+  /**
+   * Call MCP recall and return all content blocks (summary mode returns 2 blocks).
+   */
+  private async mcpCallRaw(toolName: string, args: Record<string, unknown>): Promise<Array<{ type: string; text: string }>> {
+    const response = await fetch(`${this.localOrigin}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: Date.now(),
+        method: "tools/call",
+        params: { name: toolName, arguments: args },
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`MCP call ${toolName} failed (${response.status})`);
+    }
+    const rpc = (await response.json()) as Record<string, unknown>;
+    if (rpc.error) {
+      const err = rpc.error as Record<string, unknown>;
+      throw new Error(`MCP ${toolName}: ${err.message ?? JSON.stringify(err)}`);
+    }
+    const result = rpc.result as Record<string, unknown>;
+    return (result?.content ?? []) as Array<{ type: string; text: string }>;
   }
 
   // -----------------------------------------------------------------------
@@ -86,6 +164,10 @@ export class AwarenessClient {
   // -----------------------------------------------------------------------
 
   async search(opts: SearchOptions): Promise<RecallResult> {
+    if (this.isLocal) {
+      return this.localSearch(opts);
+    }
+
     const query = opts.semanticQuery;
     const legacyFullTextWeight = (opts as unknown as Record<string, unknown>)[LEGACY_FULL_TEXT_WEIGHT_KEY];
 
@@ -129,6 +211,61 @@ export class AwarenessClient {
       `/memories/${this.memoryId}/retrieve`,
       body,
     );
+  }
+
+  /**
+   * Local daemon search via MCP awareness_recall.
+   * Converts the MCP two-block response into RecallResult format.
+   */
+  private async localSearch(opts: SearchOptions): Promise<RecallResult> {
+    const args: Record<string, unknown> = {
+      detail: opts.detail ?? "summary",
+      limit: Math.max(1, Math.min(opts.limit ?? 6, 30)),
+    };
+    if (opts.semanticQuery) args.semantic_query = opts.semanticQuery;
+    if (opts.keywordQuery) args.keyword_query = opts.keywordQuery;
+    if (opts.ids && opts.ids.length > 0) args.ids = opts.ids;
+    if (opts.scope) args.scope = opts.scope;
+    if (opts.recallMode) args.recall_mode = opts.recallMode;
+    const agentRole = opts.agentRole ?? this.agentRole;
+    if (agentRole) args.agent_role = agentRole;
+
+    const blocks = await this.mcpCallRaw("awareness_recall", args);
+
+    // Parse MCP response into RecallResult
+    // summary mode: block[0] = readable text, block[1] = JSON {_ids, _meta}
+    // full mode with ids: single JSON block {results: [...]}
+    if (blocks.length === 0) return { results: [] };
+
+    // Try to parse the first block as JSON (full mode or error)
+    try {
+      const parsed = JSON.parse(blocks[0].text);
+      if (parsed.error) throw new Error(parsed.error);
+      if (parsed.results) return parsed as RecallResult;
+    } catch {
+      // Not JSON — it's the readable summary text
+    }
+
+    // summary mode: convert text + _ids into VectorResult[]
+    const results: VectorResult[] = [];
+    const summaryText = blocks[0]?.text ?? "";
+
+    // Parse numbered items: "1. [type] title\n   content\n\n2. ..."
+    const itemRegex = /\d+\.\s+\[([^\]]*)\]\s+(.*)\n\s+([\s\S]*?)(?=\n\n\d+\.|$)/g;
+    let match: RegExpExecArray | null;
+    while ((match = itemRegex.exec(summaryText)) !== null) {
+      results.push({
+        content: `[${match[1]}] ${match[2]}\n${match[3].trim()}`,
+        score: 0.75, // local FTS doesn't return cosine scores; use placeholder
+      });
+    }
+
+    // If regex didn't match (format changed), use the raw text as single result
+    if (results.length === 0 && summaryText.length > 20) {
+      results.push({ content: summaryText, score: 0.75 });
+    }
+
+    return { results };
   }
 
   // -----------------------------------------------------------------------
@@ -257,6 +394,26 @@ export class AwarenessClient {
     maxCards?: number,
     maxTasks?: number,
   ): Promise<SessionContext> {
+    if (this.isLocal) {
+      // Use MCP awareness_init which returns full session context
+      const raw = await this.mcpCall<Record<string, unknown>>("awareness_init", {
+        source: "openclaw-plugin",
+        days: days ?? 7,
+        max_cards: maxCards ?? 8,
+        max_tasks: maxTasks ?? 8,
+      });
+      // Map MCP response to SessionContext interface
+      return {
+        user_preferences: raw.user_preferences as SessionContext["user_preferences"],
+        knowledge_cards: raw.knowledge_cards as SessionContext["knowledge_cards"],
+        open_tasks: raw.open_tasks as SessionContext["open_tasks"],
+        recent_days: raw.recent_days as SessionContext["recent_days"],
+        last_sessions: raw.recent_sessions as SessionContext["last_sessions"],
+        active_skills: raw.active_skills as SessionContext["active_skills"],
+        attention_summary: raw.attention_summary as SessionContext["attention_summary"],
+      };
+    }
+
     const params = new URLSearchParams();
     if (days !== undefined) params.set("days", String(days));
     if (maxCards !== undefined) params.set("max_cards", String(maxCards));
@@ -273,6 +430,19 @@ export class AwarenessClient {
     category?: string,
     limit?: number,
   ): Promise<KnowledgeBaseResponse> {
+    if (this.isLocal) {
+      const result = await this.mcpCall<Record<string, unknown>>("awareness_lookup", {
+        type: "knowledge",
+        ...(query && { query }),
+        ...(category && { category }),
+        ...(limit !== undefined && { limit }),
+      });
+      return {
+        cards: result.knowledge_cards as KnowledgeBaseResponse["cards"],
+        total: result.total as number,
+      };
+    }
+
     const params = new URLSearchParams();
     if (query) params.set("query", query);
     if (category) params.set("category", category);
@@ -287,15 +457,27 @@ export class AwarenessClient {
   private async getPendingTasks(
     status?: string,
     priority?: string,
-    includeCompleted?: boolean,
+    _includeCompleted?: boolean,
     limit?: number,
   ): Promise<ActionItemsResponse> {
+    if (this.isLocal) {
+      const result = await this.mcpCall<Record<string, unknown>>("awareness_lookup", {
+        type: "tasks",
+        ...(status && { status }),
+        ...(priority && { priority }),
+        ...(limit !== undefined && { limit }),
+      });
+      return {
+        action_items: result.tasks as ActionItemsResponse["action_items"],
+        total: result.total as number,
+      };
+    }
+
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (priority) params.set("priority", priority);
     if (limit !== undefined) params.set("limit", String(limit));
     if (this.agentRole) params.set("agent_role", this.agentRole);
-    // For compatibility: fetch in_progress + pending if no specific status
     return this.get<ActionItemsResponse>(
       `/memories/${this.memoryId}/insights/action-items`,
       params,
@@ -307,6 +489,19 @@ export class AwarenessClient {
     status?: string,
     limit?: number,
   ): Promise<RisksResponse> {
+    if (this.isLocal) {
+      const result = await this.mcpCall<Record<string, unknown>>("awareness_lookup", {
+        type: "risks",
+        ...(level && { level }),
+        ...(status && { status }),
+        ...(limit !== undefined && { limit }),
+      });
+      return {
+        risks: result.risks as RisksResponse["risks"],
+        total: result.total as number,
+      };
+    }
+
     const params = new URLSearchParams();
     if (level) params.set("level", level);
     if (status) params.set("status", status);
@@ -322,6 +517,20 @@ export class AwarenessClient {
     sessionId: string,
     limit?: number,
   ): Promise<SessionHistoryResult> {
+    if (this.isLocal) {
+      const result = await this.mcpCall<Record<string, unknown>>("awareness_lookup", {
+        type: "session_history",
+        session_id: sessionId,
+        ...(limit !== undefined && { limit }),
+      });
+      return {
+        memory_id: this.memoryId,
+        session_id: sessionId,
+        event_count: (result.sessions as unknown[])?.length ?? 0,
+        events: result.sessions as SessionHistoryResult["events"],
+      };
+    }
+
     const params = new URLSearchParams({
       session_id: sessionId,
       limit: String(Math.max(1, Math.min(limit ?? 100, 500))),
@@ -356,6 +565,15 @@ export class AwarenessClient {
     offset?: number,
     sessionId?: string,
   ): Promise<unknown> {
+    if (this.isLocal) {
+      return this.mcpCall<unknown>("awareness_lookup", {
+        type: "timeline",
+        ...(limit !== undefined && { limit }),
+        ...(offset !== undefined && { offset }),
+        ...(sessionId && { session_id: sessionId }),
+      });
+    }
+
     const params = new URLSearchParams();
     if (limit !== undefined) params.set("limit", String(limit));
     if (offset !== undefined) params.set("offset", String(offset));
@@ -368,16 +586,8 @@ export class AwarenessClient {
   }
 
   private async getHandoffContext(query?: string): Promise<unknown> {
-    const params = new URLSearchParams({
-      days: "3",
-      max_cards: "5",
-      max_tasks: "10",
-    });
-    if (this.agentRole) params.set("agent_role", this.agentRole);
-    const ctx = await this.get<SessionContext>(
-      `/memories/${this.memoryId}/context`,
-      params,
-    );
+    // Reuses getSessionContext which already handles local/cloud routing
+    const ctx = await this.getSessionContext(3, 5, 10);
     return {
       memory_id: this.memoryId,
       briefing_for: query || "Continue previous work",
@@ -399,6 +609,10 @@ export class AwarenessClient {
   private async getRules(
     params: Record<string, unknown>,
   ): Promise<unknown> {
+    if (this.isLocal) {
+      // Local daemon doesn't have /rules endpoint; return empty
+      return { rules: [], mode: "local" };
+    }
     const qs = new URLSearchParams();
     if (params.format !== undefined) qs.set("format", String(params.format));
     if (this.agentRole) qs.set("agent_role", this.agentRole);
@@ -408,11 +622,14 @@ export class AwarenessClient {
   private async getGraph(
     params: Record<string, unknown>,
   ): Promise<unknown> {
+    if (this.isLocal) {
+      // Local daemon doesn't have graph endpoints
+      return { entities: [], mode: "local" };
+    }
     const qs = new URLSearchParams();
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.entity_type !== undefined) qs.set("entity_type", String(params.entity_type));
     if (params.search !== undefined) qs.set("search", String(params.search));
-    // If entity_id is given, fetch neighbors; otherwise list entities
     if (params.entity_id) {
       if (params.max_hops !== undefined) qs.set("max_hops", String(params.max_hops));
       return this.get<unknown>(
@@ -424,10 +641,16 @@ export class AwarenessClient {
   }
 
   private async getAgents(): Promise<unknown> {
+    if (this.isLocal) {
+      return { agents: [], mode: "local" };
+    }
     return this.get<unknown>(`/memories/${this.memoryId}/agents`);
   }
 
   async getAgentPrompt(agentRole: string): Promise<unknown> {
+    if (this.isLocal) {
+      return this.mcpCall<unknown>("awareness_get_agent_prompt", { role: agentRole });
+    }
     const params = new URLSearchParams({ agent_role: agentRole });
     return this.get<unknown>(
       `/memories/${this.memoryId}/agents/prompt`,
@@ -445,6 +668,23 @@ export class AwarenessClient {
     userId?: string,
     insights?: Record<string, unknown>,
   ): Promise<IngestResponse> {
+    if (this.isLocal) {
+      const args: Record<string, unknown> = {
+        action: "remember",
+        content: text,
+        session_id: this.sessionId,
+      };
+      if (this.agentRole) args.agent_role = this.agentRole;
+      if (userId) args.user_id = userId;
+      if (insights) args.insights = insights;
+      if (metadata) {
+        if (metadata.event_type) args.event_type = metadata.event_type;
+        if (metadata.source) args.source = metadata.source;
+        if (metadata.tags) args.tags = metadata.tags;
+      }
+      return this.mcpCall<IngestResponse>("awareness_record", args);
+    }
+
     const body: Record<string, unknown> = {
       memory_id: this.memoryId,
       content: text,
@@ -461,6 +701,18 @@ export class AwarenessClient {
     steps: string[],
     userId?: string,
   ): Promise<IngestResponse> {
+    if (this.isLocal) {
+      const items = steps.map((content) => ({ content }));
+      const args: Record<string, unknown> = {
+        action: "remember_batch",
+        items,
+        session_id: this.sessionId,
+      };
+      if (this.agentRole) args.agent_role = this.agentRole;
+      if (userId) args.user_id = userId;
+      return this.mcpCall<IngestResponse>("awareness_record", args);
+    }
+
     const body: Record<string, unknown> = {
       memory_id: this.memoryId,
       steps,
@@ -476,6 +728,14 @@ export class AwarenessClient {
     contentScope: string,
     metadata?: Record<string, unknown>,
   ): Promise<IngestResponse> {
+    if (this.isLocal) {
+      // For local, ingest as a regular record with event_type
+      return this.record(
+        typeof content === "string" ? content : JSON.stringify(content),
+        { event_type: contentScope, ...(metadata ?? {}) },
+      );
+    }
+
     const body: Record<string, unknown> = {
       memory_id: this.memoryId,
       content,
@@ -491,6 +751,14 @@ export class AwarenessClient {
     taskId: string,
     status: string,
   ): Promise<unknown> {
+    if (this.isLocal) {
+      return this.mcpCall<unknown>("awareness_record", {
+        action: "update_task",
+        task_id: taskId,
+        status,
+      });
+    }
+
     return this.patch<unknown>(
       `/memories/${this.memoryId}/insights/action-items/${taskId}`,
       { status },
@@ -502,6 +770,19 @@ export class AwarenessClient {
   // -----------------------------------------------------------------------
 
   async closeSession(): Promise<{ session_id: string; events_processed: number }> {
+    if (this.isLocal) {
+      // For local daemon, record a session-end sentinel via MCP
+      try {
+        await this.record("[session-end]", {
+          event_type: "session_end",
+          source: "openclaw-plugin",
+        });
+      } catch {
+        // Ignore close errors
+      }
+      return { session_id: this.sessionId, events_processed: 0 };
+    }
+
     const body: Record<string, unknown> = {
       memory_id: this.memoryId,
       session_id: this.sessionId,
@@ -514,7 +795,6 @@ export class AwarenessClient {
         { ...body, steps: [], close_session: true },
       );
     } catch {
-      // Fallback: trigger summary via a lightweight sentinel event
       await this.record("[session-end]", {
         event_type: "session_end",
         source: "openclaw-plugin",
@@ -528,6 +808,14 @@ export class AwarenessClient {
   // -----------------------------------------------------------------------
 
   private async submitInsights(content: unknown): Promise<unknown> {
+    if (this.isLocal) {
+      return this.mcpCall<unknown>("awareness_record", {
+        action: "submit_insights",
+        insights: content,
+        session_id: this.sessionId,
+      });
+    }
+
     const body: Record<string, unknown> = {
       memory_id: this.memoryId,
       session_id: this.sessionId,
@@ -548,6 +836,19 @@ export class AwarenessClient {
     history: unknown,
     metadata?: Record<string, unknown>,
   ): Promise<IngestResponse> {
+    if (this.isLocal) {
+      // For local, batch-record each message as a memory
+      const messages = Array.isArray(history) ? history : [];
+      const steps = messages
+        .filter((m: unknown) => m && typeof m === "object")
+        .map((m: unknown) => {
+          const msg = m as Record<string, unknown>;
+          return `[${msg.role ?? "unknown"}] ${String(msg.content ?? "").slice(0, 500)}`;
+        });
+      if (steps.length === 0) return { status: "ok", written: 0 };
+      return this.rememberBatch(steps);
+    }
+
     const body: Record<string, unknown> = {
       memory_id: this.memoryId,
       session_id: this.sessionId,
@@ -566,6 +867,10 @@ export class AwarenessClient {
   // -----------------------------------------------------------------------
 
   async supersedeCard(cardId: string): Promise<SupersedeResponse> {
+    if (this.isLocal) {
+      // Local daemon doesn't have a supersede endpoint; no-op
+      return { id: cardId, status: "superseded" };
+    }
     return this.patch<SupersedeResponse>(
       `/memories/${this.memoryId}/insights/knowledge-cards/${cardId}/supersede`,
       {},
@@ -573,7 +878,7 @@ export class AwarenessClient {
   }
 
   // -----------------------------------------------------------------------
-  // Internal HTTP helpers
+  // Internal HTTP helpers (used for cloud mode only)
   // -----------------------------------------------------------------------
 
   private headers(): Record<string, string> {
@@ -581,7 +886,6 @@ export class AwarenessClient {
       "Content-Type": "application/json",
       Accept: "application/json",
     };
-    // Skip Authorization header for local daemon (empty apiKey + localhost)
     if (this.apiKey) {
       h.Authorization = `Bearer ${this.apiKey}`;
     }

@@ -1,5 +1,29 @@
-import type { PluginApi } from "./types";
+import type { PluginApi, PerceptionSignal } from "./types";
 import type { AwarenessClient } from "./client";
+import * as fs from "fs";
+import * as path from "path";
+import { syncRecordToOpenClaw } from "./sync";
+
+// Cache perception signals for next auto-recall injection
+function cachePerception(signals: PerceptionSignal[]): void {
+  if (!signals || signals.length === 0) return;
+  try {
+    const cacheFile = path.join(
+      process.env.HOME || process.env.USERPROFILE || "",
+      ".awareness",
+      "perception-cache.json",
+    );
+    const dir = path.dirname(cacheFile);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    let existing: Array<PerceptionSignal & { _ts?: number }> = [];
+    try { existing = JSON.parse(fs.readFileSync(cacheFile, "utf8")); } catch { /* empty */ }
+    const updated = [
+      ...signals.map((s) => ({ ...s, _ts: Date.now() })),
+      ...existing,
+    ].slice(0, 10);
+    fs.writeFileSync(cacheFile, JSON.stringify(updated), "utf8");
+  } catch { /* best-effort */ }
+}
 
 const LEGACY_FULL_TEXT_WEIGHT_KEY = ["full", "_text", "_weight"].join("");
 
@@ -316,10 +340,25 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       required: ["action"],
     },
     execute: async (input) => {
-      return client.write(
+      const result = await client.write(
         String(input.action ?? "remember"),
         input as Record<string, unknown>,
       );
+      // Cache perception signals for next auto-recall injection
+      const perception = (result as Record<string, unknown>)?.perception;
+      if (Array.isArray(perception) && perception.length > 0) {
+        cachePerception(perception as PerceptionSignal[]);
+      }
+      // Sync to OpenClaw Markdown files (daily log + MEMORY.md for knowledge cards)
+      const content = String(input.content ?? input.text ?? "");
+      if (content.length > 10) {
+        syncRecordToOpenClaw(
+          content,
+          input.insights as Record<string, unknown> | undefined,
+          "awareness-record",
+        );
+      }
+      return result;
     },
   });
 }

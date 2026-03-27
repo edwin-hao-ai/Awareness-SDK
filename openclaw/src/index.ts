@@ -2,6 +2,7 @@ import type { PluginApi, PluginConfig, HookContext, HookResult } from "./types";
 import { AwarenessClient } from "./client";
 import { registerTools } from "./tools";
 import { registerHooks } from "./hooks";
+import { importOpenClawHistory } from "./sync";
 
 // ---------------------------------------------------------------------------
 // Setup-only mode — registered when credentials are missing
@@ -168,6 +169,9 @@ export default async function register(api: PluginApi): Promise<void> {
         `url=${localUrl}, role=${config.agentRole}, ` +
         `autoRecall=${config.autoRecall}, autoCapture=${config.autoCapture}`,
     );
+
+    // Fire-and-forget: import OpenClaw history on first install
+    importOpenClawHistory(client, api.logger).catch(() => {});
     return;
   }
 
@@ -190,6 +194,9 @@ export default async function register(api: PluginApi): Promise<void> {
         `memory=${config.memoryId}, role=${config.agentRole}, ` +
         `autoRecall=${config.autoRecall}, autoCapture=${config.autoCapture}`,
     );
+
+    // Fire-and-forget: import OpenClaw history on first install
+    importOpenClawHistory(client, api.logger).catch(() => {});
     return;
   }
 

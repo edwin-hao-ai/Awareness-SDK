@@ -291,6 +291,22 @@ async function main() {
     parts.push("  </record-rule>");
     parts.push("</awareness-memory>");
     process.stdout.write(parts.join("\n"));
+
+    // Fire-and-forget: import OpenClaw history on first run (idempotent via marker file)
+    try {
+      const { resolveWorkspace } = require("./sync");
+      const workspace = resolveWorkspace();
+      if (workspace) {
+        const markerFile = require("path").join(workspace, ".awareness-openclaw-imported");
+        if (!require("fs").existsSync(markerFile)) {
+          const { spawn } = require("child_process");
+          spawn(process.execPath, [require("path").join(__dirname, "import.js")], {
+            detached: true,
+            stdio: "ignore",
+          }).unref();
+        }
+      }
+    } catch { /* best-effort */ }
   } catch (err) {
     process.stderr.write(`[awareness] recall failed: ${err.message}\n`);
   }
