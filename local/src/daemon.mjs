@@ -19,6 +19,14 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+// Force UTF-8 encoding on Windows (prevents Chinese/CJK text from becoming ????)
+if (process.platform === 'win32') {
+  try { process.stdout.setEncoding('utf8'); } catch { /* best-effort */ }
+  try { process.stderr.setEncoding('utf8'); } catch { /* best-effort */ }
+  // Set LANG to ensure downstream tools respect UTF-8
+  process.env.LANG = process.env.LANG || 'en_US.UTF-8';
+}
+
 import { MemoryStore } from './core/memory-store.mjs';
 import { Indexer } from './core/indexer.mjs';
 import { CloudSync } from './core/cloud-sync.mjs';

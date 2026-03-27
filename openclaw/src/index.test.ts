@@ -80,51 +80,51 @@ describe("register (plugin entry point)", () => {
     expect(logCalls.some((l) => l.includes("mem-integration-001"))).toBe(true);
   });
 
-  it("enters setup mode on missing apiKey (no crash)", () => {
+  it("registers full tools in local mode when apiKey missing (no crash)", () => {
     const { api, tools, hooks, logCalls } = makeApi({ apiKey: "" });
     register(api);
 
-    // Should register setup tool instead of full tools
-    expect(tools["awareness_setup"]).toBeDefined();
-    expect(tools["awareness_init"]).toBeUndefined();
-    expect(tools["awareness_recall"]).toBeUndefined();
+    // New behavior: optimistically register full tools for local daemon mode
+    expect(Object.keys(tools)).toHaveLength(6);
+    expect(tools["awareness_init"]).toBeDefined();
+    expect(tools["awareness_recall"]).toBeDefined();
+    expect(tools["awareness_record"]).toBeDefined();
 
-    // Should register a setup hint hook
-    expect(hooks).toHaveLength(1);
+    // 2 hooks: before_agent_start + agent_end (local mode, not setup mode)
+    expect(hooks).toHaveLength(2);
     expect(hooks[0].name).toBe("before_agent_start");
+    expect(hooks[1].name).toBe("agent_end");
 
-    // Should log warning
-    expect(logCalls.some((l) => l.includes("setup mode"))).toBe(true);
+    // Should log registration (daemon check happens in background)
+    expect(logCalls.some((l) => l.includes("registered"))).toBe(true);
   });
 
-  it("enters setup mode on missing memoryId (no crash)", () => {
+  it("registers full tools in local mode when memoryId missing (no crash)", () => {
     const { api, tools, hooks, logCalls } = makeApi({ memoryId: "" });
     register(api);
 
-    expect(tools["awareness_setup"]).toBeDefined();
-    expect(tools["awareness_init"]).toBeUndefined();
-    expect(hooks).toHaveLength(1);
-    expect(logCalls.some((l) => l.includes("setup mode"))).toBe(true);
+    // Full tools registered (local mode with memoryId="local")
+    expect(Object.keys(tools)).toHaveLength(6);
+    expect(tools["awareness_init"]).toBeDefined();
+    expect(hooks).toHaveLength(2);
+    expect(logCalls.some((l) => l.includes("registered"))).toBe(true);
   });
 
-  it("setup mode awareness_setup tool returns instructions", async () => {
-    const { api, tools } = makeApi({ apiKey: "", memoryId: "" });
+  it("registers full tools even with no credentials at all (local-first)", () => {
+    const { api, tools, hooks } = makeApi({ apiKey: "", memoryId: "" });
     register(api);
 
-    const result = (await tools["awareness_setup"].execute({})) as Record<string, unknown>;
-    expect(result.status).toBe("not_configured");
-    expect(result.setup_options).toBeDefined();
-    expect(Array.isArray(result.setup_options)).toBe(true);
+    // Even with zero config, local mode tools are registered optimistically
+    expect(Object.keys(tools)).toHaveLength(6);
+    expect(tools["awareness_init"]).toBeDefined();
+    expect(hooks).toHaveLength(2);
   });
 
-  it("setup mode hook injects setup hint into system prompt", async () => {
-    const { api, hooks } = makeApi({ apiKey: "", memoryId: "" });
-    register(api);
-
-    const hookResult = await hooks[0].handler({ prompt: "hello" });
-    expect(hookResult).toBeDefined();
-    expect(hookResult?.prependSystemContext).toContain("Not configured yet");
-    expect(hookResult?.prependSystemContext).toContain("npx @awareness-sdk/setup");
+  it("sync register returns immediately (no async blocking)", () => {
+    const { api } = makeApi({ apiKey: "" });
+    // register should be sync — if it returned a Promise, this would be truthy
+    const result = register(api);
+    expect(result).toBeUndefined(); // void, not Promise
   });
 
   it("applies default config values", () => {
@@ -249,10 +249,12 @@ describe("register (plugin entry point)", () => {
       expect(infoFn.mock.calls[0]?.[0]).toContain("mem-from-config");
     });
 
-    it("enters setup mode when entire openclaw.json is passed as config (no apiKey at root)", () => {
+    it("registers local mode when entire openclaw.json is passed as config (no apiKey at root)", () => {
+      const hooks: { name: string; handler: HookHandler; options?: HookOptions }[] = [];
       const api: PluginApi = {
         registerTool: vi.fn(),
         registerHook: vi.fn(),
+        on: (event, handler) => { hooks.push({ name: event, handler: handler as HookHandler }); },
         // Simulates the bug: config = whole openclaw.json, apiKey is nested inside plugins
         config: {
           "$schema": "https://openclaw.dev/schemas/openclaw.json",
@@ -267,14 +269,11 @@ describe("register (plugin entry point)", () => {
         logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       };
 
-      // apiKey is undefined at root level → should enter setup mode, not crash
+      // apiKey is undefined at root level → registers local mode tools (not crash)
       register(api);
-      // Setup tool registered (1 tool), plus 1 hook
-      expect(api.registerTool).toHaveBeenCalledTimes(1);
-      expect(api.registerHook).toHaveBeenCalledTimes(1);
-      // Warn about setup mode
-      const warnFn = api.logger.warn as ReturnType<typeof vi.fn>;
-      expect(warnFn.mock.calls[0]?.[0]).toContain("setup mode");
+      // 6 tools registered via registerTool, 2 hooks via api.on
+      expect(api.registerTool).toHaveBeenCalledTimes(6);
+      expect(hooks).toHaveLength(2);
     });
 
     it("handles config with string coercion for non-string values", () => {

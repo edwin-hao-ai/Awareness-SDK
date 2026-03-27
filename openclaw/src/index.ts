@@ -290,10 +290,69 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
 }
 
 // ---------------------------------------------------------------------------
-// Plugin entry point — called by the OpenClaw host to initialize the plugin
+// Background daemon health-check + auto-start (non-blocking)
 // ---------------------------------------------------------------------------
 
-export default async function register(api: PluginApi): Promise<void> {
+async function ensureLocalDaemon(
+  api: PluginApi,
+  localUrl: string,
+  termux: boolean,
+): Promise<boolean> {
+  // Quick health check
+  try {
+    const healthResp = await fetch(`${localUrl}/healthz`, {
+      method: "GET",
+      signal: AbortSignal.timeout(2000),
+    });
+    if (healthResp.ok) return true;
+  } catch {
+    // Not reachable — try auto-start below
+  }
+
+  if (termux) {
+    api.logger.info("Termux/Android detected — skipping local daemon auto-start");
+    return false;
+  }
+
+  // Daemon not reachable — try to auto-start it (desktop only)
+  api.logger.info("Local daemon not running, attempting auto-start...");
+  try {
+    const { spawn } = await import("child_process");
+    const child = spawn("npx", ["-y", "@awareness-sdk/local", "start"], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    // Poll healthz for up to 8 seconds
+    for (let i = 0; i < 16; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      try {
+        const retry = await fetch(`${localUrl}/healthz`, {
+          method: "GET",
+          signal: AbortSignal.timeout(1000),
+        });
+        if (retry.ok) {
+          api.logger.info("Local daemon auto-started successfully");
+          return true;
+        }
+      } catch {
+        // Keep polling
+      }
+    }
+  } catch {
+    // npx/spawn not available
+  }
+
+  api.logger.warn("Local daemon auto-start timed out");
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Plugin entry point — MUST be synchronous (OpenClaw ignores async register)
+// ---------------------------------------------------------------------------
+
+export default function register(api: PluginApi): void {
   // OpenClaw host may expose plugin-specific config as `pluginConfig`
   // while `config` can be the entire openclaw.json. Try pluginConfig first.
   const raw: Record<string, unknown> = api.pluginConfig ?? api.config ?? {};
@@ -314,83 +373,7 @@ export default async function register(api: PluginApi): Promise<void> {
   const localUrl = config.localUrl;
 
   // ---------------------------------------------------------------------------
-  // Priority 1: Check local daemon (auto-start if not running, skip on Termux/Android)
-  // ---------------------------------------------------------------------------
-  let localDaemonRunning = false;
-  const termux = isTermux();
-  if (termux) {
-    api.logger.info("Termux/Android detected — skipping local daemon auto-start (not supported on Android)");
-  }
-  try {
-    const healthResp = await fetch(`${localUrl}/healthz`, {
-      method: "GET",
-      signal: AbortSignal.timeout(2000),
-    });
-    localDaemonRunning = healthResp.ok;
-  } catch {
-    if (!termux) {
-      // Daemon not reachable — try to auto-start it (desktop only)
-      api.logger.info("Local daemon not running, attempting auto-start...");
-      try {
-        // AUDIT FIX: Use spawn+detached instead of exec (exec kills daemon after timeout)
-        const { spawn } = await import("child_process");
-        const child = spawn("npx", ["-y", "@awareness-sdk/local", "start"], {
-          cwd: process.cwd(),
-          detached: true,
-          stdio: "ignore",
-        });
-        child.unref();
-        // Wait for daemon to be ready (poll healthz for up to 8 seconds)
-        for (let i = 0; i < 16; i++) {
-          await new Promise((r) => setTimeout(r, 500));
-          try {
-            const retry = await fetch(`${localUrl}/healthz`, {
-              method: "GET",
-              signal: AbortSignal.timeout(1000),
-            });
-            if (retry.ok) {
-              localDaemonRunning = true;
-              api.logger.info("Local daemon auto-started successfully");
-              break;
-            }
-          } catch {
-            // Keep polling
-          }
-        }
-        if (!localDaemonRunning) {
-          api.logger.warn("Auto-start timed out — falling back to cloud or setup mode");
-        }
-      } catch {
-        // npx/spawn not available or other error — fall through silently
-      }
-    }
-  }
-
-  if (localDaemonRunning) {
-    // Local daemon is running — use it without auth headers
-    const client = new AwarenessClient(
-      `${localUrl}/api/v1`,
-      "", // No API key needed for local daemon
-      config.memoryId || "local", // memoryId may be empty for local
-      config.agentRole,
-    );
-
-    registerTools(api, client);
-    registerHooks(api, client, config);
-
-    api.logger.info(
-      `Awareness memory plugin initialized (local daemon) — ` +
-        `url=${localUrl}, role=${config.agentRole}, ` +
-        `autoRecall=${config.autoRecall}, autoCapture=${config.autoCapture}`,
-    );
-
-    // Fire-and-forget: import OpenClaw history on first install
-    importOpenClawHistory(client, api.logger).catch(() => {});
-    return;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Priority 2: Cloud mode — requires apiKey and memoryId
+  // Priority 1: Cloud mode — can be determined synchronously
   // ---------------------------------------------------------------------------
   if (config.apiKey && config.memoryId) {
     const client = new AwarenessClient(
@@ -409,15 +392,50 @@ export default async function register(api: PluginApi): Promise<void> {
         `autoRecall=${config.autoRecall}, autoCapture=${config.autoCapture}`,
     );
 
-    // Fire-and-forget: import OpenClaw history on first install
     importOpenClawHistory(client, api.logger).catch(() => {});
     return;
   }
 
   // ---------------------------------------------------------------------------
-  // Priority 3: No daemon, no cloud credentials → setup mode
+  // Priority 2: Local daemon mode — register tools/hooks immediately,
+  // check daemon availability in background (non-blocking)
   // ---------------------------------------------------------------------------
-  registerSetupMode(api, config.baseUrl);
+  const client = new AwarenessClient(
+    `${localUrl}/api/v1`,
+    "",
+    config.memoryId || "local",
+    config.agentRole,
+  );
+
+  registerTools(api, client);
+  registerHooks(api, client, config);
+
+  api.logger.info(
+    `Awareness memory plugin registered — ` +
+      `url=${localUrl}, role=${config.agentRole}, ` +
+      `autoRecall=${config.autoRecall}, autoCapture=${config.autoCapture}`,
+  );
+
+  // Background: verify daemon is running, auto-start if needed
+  const termux = isTermux();
+  ensureLocalDaemon(api, localUrl, termux)
+    .then((running) => {
+      if (running) {
+        api.logger.info(
+          `Awareness memory plugin initialized (local daemon) — ` +
+            `url=${localUrl}, role=${config.agentRole}`,
+        );
+        importOpenClawHistory(client, api.logger).catch(() => {});
+      } else if (!config.apiKey) {
+        // No daemon and no cloud creds — register setup mode as fallback
+        registerSetupMode(api, config.baseUrl);
+      }
+    })
+    .catch(() => {
+      if (!config.apiKey) {
+        registerSetupMode(api, config.baseUrl);
+      }
+    });
 }
 
 // Re-export types and client for programmatic usage

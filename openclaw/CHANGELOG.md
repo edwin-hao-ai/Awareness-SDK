@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.14] - 2026-03-27
+
+### Fixed
+- **Critical: async register bug** — OpenClaw host ignores async `register()` return values, causing plugin initialization to be silently skipped. Refactored to synchronous `register()` with background daemon health-check via `ensureLocalDaemon()`. Tools and hooks now register immediately (local-first optimistic mode), daemon availability verified asynchronously.
+- **Local-first default** — without cloud credentials, plugin now registers full tools/hooks for local daemon mode instead of entering setup-only mode. Setup mode only activates as fallback if daemon check fails in background.
+
+### Changed
+- Updated tests to reflect new sync register + local-first behavior (139 tests passing)
+
 ## [0.5.13] - 2026-03-27
 
 ### Fixed
