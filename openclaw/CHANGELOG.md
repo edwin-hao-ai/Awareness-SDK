@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.8] - 2026-03-27
+
+### Added
+- **Device Auth Flow** for mobile/Android users: call `awareness_setup(action='start_auth')` to get a URL+code for browser-based login — no manual config editing required
+  - Phase 1 (`start_auth`): calls `/auth/device/init`, spawns `poll-auth.js` as detached background process, returns `{auth_url, user_code}`
+  - Phase 2 (`check_auth`): reads `~/.awareness/device-auth-result.json`, returns success if approved
+  - `poll-auth.js`: background poller that writes `apiKey + memoryId` to `~/.openclaw/openclaw.json` when device is approved
+- **Termux/Android detection**: skips the 8-second daemon auto-start loop on Android (detects via `TERMUX_VERSION` env or `PREFIX` path), removing an 8s startup penalty for mobile users
+- Updated `prependSystemContext` hint to guide users toward `start_auth` action instead of command-line alternatives
+
 ## [0.5.7] - 2026-03-27
 
 ### Added
