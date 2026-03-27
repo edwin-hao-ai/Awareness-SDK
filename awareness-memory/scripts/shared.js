@@ -69,7 +69,11 @@ async function resolveEndpoint(config) {
     }
   } catch { /* local daemon not available — try to auto-start */ }
 
-  // Auto-start local daemon if not running
+  // Auto-start local daemon if not running (skip on Termux/Android — not supported)
+  const isTermux = Boolean(process.env.TERMUX_VERSION) ||
+    (typeof process.env.PREFIX === "string" && process.env.PREFIX.includes("com.termux"));
+  if (isTermux) return null;  // fast-fail on Android — caller handles device auth
+
   try {
     const { spawn } = require("child_process");
     const child = spawn("npx", ["-y", "@awareness-sdk/local", "start"], {

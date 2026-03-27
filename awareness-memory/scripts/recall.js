@@ -35,6 +35,74 @@ function esc(s) {
 }
 
 // ---------------------------------------------------------------------------
+// Device auth — auto-start when not configured
+// ---------------------------------------------------------------------------
+
+async function handleUnconfigured(baseUrl) {
+  const fs = require("fs");
+  const path = require("path");
+  const HOME = process.env.HOME || process.env.USERPROFILE || "";
+  const AUTH_CACHE_FILE = path.join(HOME, ".awareness", "device-auth-result.json");
+
+  // If already approved (poll-auth wrote the cache), just notify
+  if (fs.existsSync(AUTH_CACHE_FILE)) {
+    try {
+      const cached = JSON.parse(fs.readFileSync(AUTH_CACHE_FILE, "utf8"));
+      if (cached.status === "approved") {
+        process.stdout.write(
+          "<awareness-memory>\n" +
+          "  <setup-complete>Awareness Memory has been configured! Please restart this session to activate memory.</setup-complete>\n" +
+          "</awareness-memory>"
+        );
+        return;
+      }
+    } catch { /* continue */ }
+  }
+
+  // Auto-start device auth
+  try {
+    const resp = await fetch(`${baseUrl}/auth/device/init`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: "awareness-skill" }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!resp.ok) { process.exit(0); return; }
+
+    const data = await resp.json();
+    const deviceCode = String(data.device_code || "");
+    const userCode = String(data.user_code || "");
+    const verificationUri = String(data.verification_uri || "https://awareness.market/cli-auth");
+    const authUrl = `${verificationUri}?code=${encodeURIComponent(userCode)}`;
+    const intervalSec = Number(data.interval || 5);
+    const expiresIn = Number(data.expires_in || 600);
+
+    if (deviceCode) {
+      // Spawn poll-auth.js in background
+      const { spawn } = require("child_process");
+      const pollScript = path.join(__dirname, "poll-auth.js");
+      if (fs.existsSync(pollScript)) {
+        const child = spawn(process.execPath, [pollScript, deviceCode, baseUrl, String(intervalSec), String(expiresIn)], {
+          detached: true,
+          stdio: "ignore",
+        });
+        child.unref();
+      }
+
+      process.stdout.write(
+        "<awareness-memory>\n" +
+        "  <setup-required>\n" +
+        `    To enable persistent memory, visit this link and sign in (~30 seconds):\n` +
+        `    ${authUrl}\n` +
+        `    Once done, start a new session and memory will activate automatically.\n` +
+        "  </setup-required>\n" +
+        "</awareness-memory>"
+      );
+    }
+  } catch { /* network error — silent exit */ }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -47,7 +115,11 @@ async function main() {
 
   const config = loadConfig();
   const ep = await resolveEndpoint(config);
-  if (!ep) process.exit(0);
+  if (!ep) {
+    // Not configured — auto-start device auth and inject login URL into context
+    await handleUnconfigured(config.baseUrl || "https://awareness.market/api/v1");
+    return;
+  }
 
   try {
     let ctx, recall;
