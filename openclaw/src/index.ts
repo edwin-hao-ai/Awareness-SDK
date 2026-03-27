@@ -73,7 +73,9 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
           const data = (await resp.json()) as Record<string, unknown>;
           const deviceCode = String(data.device_code ?? "");
           const userCode = String(data.user_code ?? "");
-          const verificationUri = String(data.verification_uri ?? "https://awareness.market/cli-auth");
+          const verificationUriBase = String(data.verification_uri ?? "https://awareness.market/cli-auth");
+          // Append ?code= so the page auto-fills the input (avoids "Missing Code" error)
+          const verificationUri = `${verificationUriBase}?code=${encodeURIComponent(userCode)}`;
           const intervalSec = Number(data.interval ?? 5);
           const expiresIn = Number(data.expires_in ?? 600);
 

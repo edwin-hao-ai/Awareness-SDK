@@ -49,8 +49,9 @@ async function poll(
             headers: { Authorization: `Bearer ${apiKey}` },
             signal: AbortSignal.timeout(8000),
           });
-          const memData = (await memResp.json()) as Record<string, unknown>;
-          const memories = Array.isArray(memData.memories) ? memData.memories : [];
+          const memData = await memResp.json();
+          // API returns either an array directly or { memories: [...] }
+          const memories = Array.isArray(memData) ? memData : (Array.isArray(memData.memories) ? memData.memories : []);
           if (memories.length > 0) {
             memoryId = String((memories[0] as Record<string, unknown>).id ?? "");
           }

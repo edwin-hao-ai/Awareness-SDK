@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.9] - 2026-03-27
+
+### Fixed
+- **Device auth `memoryId` parsing**: `/memories` API returns a plain array, not `{ memories: [...] }` — poll-auth.js now handles both formats correctly
+- **Device auth URL**: `auth_url` now includes `?code=` query param so `cli-auth` page auto-fills the code (avoids "Missing Code" error)
+
 ## [0.5.8] - 2026-03-27
 
 ### Added
