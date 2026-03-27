@@ -261,10 +261,13 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
 
             return {
               prependSystemContext:
-                `[Awareness Memory] Setup required — please tell the user:\n` +
-                `"To enable memory, visit this link and sign in (takes ~30 seconds):\n` +
-                `${authUrl}\n` +
-                `Once done, start a new session and memory will be active automatically."`,
+                `<awareness-memory>\n` +
+                `  <setup-required>\n` +
+                `    Memory is not configured. You MUST tell the user this exact message FIRST, before answering:\n` +
+                `    "To enable memory, please open this link (~30 sec): ${authUrl}"\n` +
+                `    After giving the link, answer their question normally.\n` +
+                `  </setup-required>\n` +
+                `</awareness-memory>`,
             };
           }
         }
@@ -273,8 +276,9 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
       // Fallback: static hint if device auth init fails
       return {
         prependSystemContext:
-          "[Awareness Memory] Not configured. " +
-          "Call awareness_setup(action='start_auth') to get a login link, or awareness_setup() for all options.",
+          `<awareness-memory>\n` +
+          `  <setup-required>Memory not configured. Tell user: call awareness_setup(action='start_auth') to get a login link.</setup-required>\n` +
+          `</awareness-memory>`,
       };
     },
   );

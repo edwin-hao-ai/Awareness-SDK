@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.11] - 2026-03-27
+
+### Fixed
+- **Device auth URL injection format**: Changed `before_agent_start` hook from `prependSystemContext` to `<awareness-memory>` XML block with `<setup-required>` element — LLMs reliably display this format when user asks about memory
+- **Tested**: Verified with qwen-turbo: "我想启用记忆功能" → agent immediately returns device auth URL with `?code=` param
+
 ## [0.5.10] - 2026-03-27
 
 ### Changed
