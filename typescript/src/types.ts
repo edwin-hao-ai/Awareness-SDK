@@ -124,6 +124,10 @@ export interface KnowledgeCard {
   tags?: string[];
   confidence?: number;
   salience_score?: number; // intrinsic importance [0.5, 2.0]; higher = resists decay more
+  /** Zero-LLM generated instruction: "When [scenario], [action] because [reason]" */
+  actionable_rule?: string;
+  /** Number of times this card influenced LLM behavior */
+  influence_count?: number;
   status?: string; // open | in_progress | resolved | noted | superseded
   user_id?: string; // multi-user mode: the user this card belongs to
   /** Explainability metadata (decay_score, intent_boost, source_date, etc.) */
@@ -254,6 +258,8 @@ export interface SessionContextResponse extends JsonObject {
   proactive_alerts?: ProactiveAlert[];
   /** LLM-side attention summary — when needs_attention is true, review and act on stale tasks / high risks */
   attention_summary?: AttentionSummary;
+  /** Pre-assembled memory context — inject as system context verbatim if present */
+  rendered_context?: string;
   trace_id?: string;
 }
 

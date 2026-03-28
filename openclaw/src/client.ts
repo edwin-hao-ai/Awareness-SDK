@@ -411,6 +411,7 @@ export class AwarenessClient {
         last_sessions: raw.recent_sessions as SessionContext["last_sessions"],
         active_skills: raw.active_skills as SessionContext["active_skills"],
         attention_summary: raw.attention_summary as SessionContext["attention_summary"],
+        rendered_context: raw.rendered_context as string | undefined,
       };
     }
 

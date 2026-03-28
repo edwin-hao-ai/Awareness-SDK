@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 const { loadConfig, resolveEndpoint, mcpCall, apiPost, apiPatch, readStdin, parseArgs } = require("./shared");
+const { syncRecordToOpenClaw } = require("./sync");
 
 async function main() {
   const args = parseArgs();
@@ -79,6 +80,8 @@ async function main() {
       };
       if (input.insights) mcpArgs.insights = input.insights;
       const result = await mcpCall(ep.localUrl, "awareness_record", mcpArgs);
+      cachePerception(result);
+      syncRecordToOpenClaw(input.content || "", input.insights, "awareness-skill");
       console.log(JSON.stringify(result, null, 2));
     } else {
       const body = {
@@ -86,6 +89,7 @@ async function main() {
         content: input.content || "",
       };
       const result = await apiPost(ep.baseUrl, ep.apiKey, "/mcp/events", body);
+      syncRecordToOpenClaw(input.content || "", input.insights, "awareness-skill");
       console.log(JSON.stringify(result, null, 2));
     }
     return;
@@ -100,6 +104,8 @@ async function main() {
       action: "remember",
       content,
     });
+    cachePerception(result);
+    syncRecordToOpenClaw(content, undefined, "awareness-skill");
     console.log(JSON.stringify(result, null, 2));
   } else {
     const body = {
@@ -107,8 +113,29 @@ async function main() {
       content,
     };
     const result = await apiPost(ep.baseUrl, ep.apiKey, "/mcp/events", body);
+    syncRecordToOpenClaw(content, undefined, "awareness-skill");
     console.log(JSON.stringify(result, null, 2));
   }
+}
+
+/**
+ * Cache perception signals from daemon response for recall.js to surface on next prompt.
+ * @param {object} result — response from awareness_record MCP call
+ */
+function cachePerception(result) {
+  const perception = result?.perception?.perception || result?.perception;
+  if (!perception || !Array.isArray(perception) || perception.length === 0) return;
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const cacheDir = path.join(process.env.HOME || "", ".awareness");
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+    const cacheFile = path.join(cacheDir, "perception-cache.json");
+    let existing = [];
+    try { existing = JSON.parse(fs.readFileSync(cacheFile, "utf8")); } catch { /* empty */ }
+    const updated = [...perception.map(s => ({ ...s, _ts: Date.now() })), ...existing].slice(0, 10);
+    fs.writeFileSync(cacheFile, JSON.stringify(updated), "utf8");
+  } catch { /* best-effort */ }
 }
 
 main().catch(e => { console.error(`[awareness] record failed: ${e.message}`); process.exit(1); });

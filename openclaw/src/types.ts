@@ -151,6 +151,8 @@ export interface SessionContext {
   active_skills?: ActiveSkill[];
   /** Attention summary for stale tasks and high risks */
   attention_summary?: Record<string, unknown>;
+  /** Server-side rendered XML context — use directly when available to avoid client-side drift */
+  rendered_context?: string;
   trace_id?: string;
 }
 

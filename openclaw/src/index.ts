@@ -14,6 +14,13 @@ const HOME = process.env.HOME || process.env.USERPROFILE || "";
 const AUTH_CACHE_FILE = path.join(HOME, ".awareness", "device-auth-result.json");
 const DEFAULT_BASE_URL = "https://awareness.market/api/v1";
 
+// In-memory state for device auth (works on cloud where filesystem is ephemeral)
+let _pendingDeviceCode = "";
+let _pendingBaseUrl = "";
+let _pendingInterval = 5;
+
+const OPENCLAW_CONFIG_PATH = path.join(HOME, ".openclaw", "openclaw.json");
+
 // ---------------------------------------------------------------------------
 // Termux / Android detection
 // ---------------------------------------------------------------------------
@@ -83,26 +90,25 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
             return { status: "error", message: "No device_code returned from server" };
           }
 
-          // Spawn poll-auth.js as detached background process
-          const { spawn } = await import("child_process");
-          // Prefer compiled poll-auth.js next to this file, then fall back to ts-node source
-          const scriptCandidates = [
-            path.join(__dirname, "poll-auth.js"),
-            path.join(__dirname, "..", "dist", "poll-auth.js"),
-          ];
-          const pollScript = scriptCandidates.find(p => { try { return fs.existsSync(p); } catch { return false; } }) ?? scriptCandidates[0];
+          // Save device_code in memory for check_auth to poll directly
+          // This works on cloud servers where filesystem-based poll-auth.js can't run
+          _pendingDeviceCode = deviceCode;
+          _pendingBaseUrl = baseUrl;
+          _pendingInterval = intervalSec;
 
-          const child = spawn(process.execPath, [
-            pollScript,
-            deviceCode,
-            baseUrl,
-            String(intervalSec),
-            String(expiresIn),
-          ], {
-            detached: true,
-            stdio: "ignore",
-          });
-          child.unref();
+          // Also try to spawn poll-auth.js as background fallback (best-effort, desktop only)
+          try {
+            const { spawn } = await import("child_process");
+            const scriptCandidates = [
+              path.join(__dirname, "poll-auth.js"),
+              path.join(__dirname, "..", "dist", "poll-auth.js"),
+            ];
+            const pollScript = scriptCandidates.find(p => { try { return fs.existsSync(p); } catch { return false; } }) ?? scriptCandidates[0];
+            const child = spawn(process.execPath, [
+              pollScript, deviceCode, baseUrl, String(intervalSec), String(expiresIn),
+            ], { detached: true, stdio: "ignore" });
+            child.unref();
+          } catch { /* cloud/serverless: no spawn available, rely on check_auth polling */ }
 
           return {
             status: "pending",
@@ -110,10 +116,9 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
             user_code: userCode,
             expires_in_seconds: expiresIn,
             message:
-              `Device auth started. Please visit: ${verificationUri}\n` +
+              `Please visit: ${verificationUri}\n` +
               `Enter code: ${userCode}\n` +
-              `Authorization will be checked in the background. ` +
-              `Call awareness_setup(action='check_auth') after visiting the URL to confirm.`,
+              `After authorizing, call awareness_setup(action='check_auth') to complete setup.`,
           };
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -124,38 +129,98 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
       // --- Device auth: check ---
       if (action === "check_auth") {
         try {
-          if (!fs.existsSync(AUTH_CACHE_FILE)) {
+          // Strategy 1: Check local cache file (desktop mode — poll-auth.js writes here)
+          if (fs.existsSync(AUTH_CACHE_FILE)) {
+            const cached = JSON.parse(fs.readFileSync(AUTH_CACHE_FILE, "utf8")) as Record<string, unknown>;
+            if (cached.status === "approved") {
+              try { fs.unlinkSync(AUTH_CACHE_FILE); } catch { /* ok */ }
+              _pendingDeviceCode = "";
+              return {
+                status: "approved",
+                message:
+                  "Awareness Memory is now configured! Credentials saved to ~/.openclaw/openclaw.json. " +
+                  "Restart OpenClaw to activate memory.",
+              };
+            }
+            if (cached.status === "failed") {
+              _pendingDeviceCode = "";
+              return {
+                status: "failed",
+                reason: String(cached.reason ?? "unknown"),
+                message: `Auth failed: ${cached.reason ?? "unknown"}. Try again with action='start_auth'.`,
+              };
+            }
+          }
+
+          // Strategy 2: Poll server directly (cloud mode — no filesystem access)
+          if (_pendingDeviceCode) {
+            const pollResp = await fetch(`${_pendingBaseUrl}/auth/device/poll`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ device_code: _pendingDeviceCode }),
+              signal: AbortSignal.timeout(8000),
+            });
+            const pollData = (await pollResp.json()) as Record<string, unknown>;
+
+            if (pollData.status === "approved" && pollData.api_key) {
+              const apiKey = String(pollData.api_key);
+              // Fetch first memory
+              let memoryId = "";
+              try {
+                const memResp = await fetch(`${_pendingBaseUrl}/memories`, {
+                  headers: { Authorization: `Bearer ${apiKey}` },
+                  signal: AbortSignal.timeout(8000),
+                });
+                const memData = await memResp.json() as Record<string, unknown>;
+                const memories = Array.isArray(memData) ? memData : (Array.isArray((memData as any).memories) ? (memData as any).memories : []);
+                if (memories.length > 0) memoryId = String((memories[0] as Record<string, unknown>).id ?? "");
+              } catch { /* best-effort */ }
+
+              // Write to OpenClaw config
+              try {
+                let cfg: Record<string, unknown> = {};
+                try { cfg = JSON.parse(fs.readFileSync(OPENCLAW_CONFIG_PATH, "utf8")); } catch { /* new */ }
+                const plugins = (cfg.plugins ?? {}) as Record<string, unknown>;
+                const entries = (plugins.entries ?? {}) as Record<string, unknown>;
+                const pluginEntry = (entries["openclaw-memory"] ?? {}) as Record<string, unknown>;
+                const pluginConfig = (pluginEntry.config ?? {}) as Record<string, unknown>;
+                pluginConfig.apiKey = apiKey;
+                if (memoryId) pluginConfig.memoryId = memoryId;
+                pluginEntry.config = pluginConfig;
+                entries["openclaw-memory"] = pluginEntry;
+                plugins.entries = entries;
+                cfg.plugins = plugins;
+                fs.writeFileSync(OPENCLAW_CONFIG_PATH, JSON.stringify(cfg, null, 4), "utf8");
+              } catch { /* cloud: config write may fail, credentials still returned */ }
+
+              _pendingDeviceCode = "";
+              return {
+                status: "approved",
+                apiKey,
+                memoryId,
+                message:
+                  `Awareness Memory authorized! API key: ${apiKey.slice(0, 10)}..., Memory: ${memoryId || "(auto-create on first use)"}. ` +
+                  "Restart OpenClaw to activate memory.",
+              };
+            }
+            if (pollData.status === "expired") {
+              _pendingDeviceCode = "";
+              return { status: "failed", reason: "expired", message: "Auth code expired. Try again with action='start_auth'." };
+            }
+            // Still pending
             return {
               status: "pending",
-              message: "No auth result yet. Start auth first with action='start_auth', then visit the URL shown.",
+              message: "Auth not yet approved. Please visit the URL and enter the code, then call check_auth again.",
             };
           }
-          const cached = JSON.parse(fs.readFileSync(AUTH_CACHE_FILE, "utf8")) as Record<string, unknown>;
-          if (cached.status === "approved") {
-            // Clean up cache file
-            try { fs.unlinkSync(AUTH_CACHE_FILE); } catch { /* ok */ }
-            return {
-              status: "approved",
-              message:
-                "Awareness Memory is now configured! Your credentials have been saved to ~/.openclaw/openclaw.json. " +
-                "Restart OpenClaw (or the current session) to activate memory integration.",
-            };
-          }
-          if (cached.status === "failed") {
-            return {
-              status: "failed",
-              reason: String(cached.reason ?? "unknown"),
-              message: `Auth failed: ${cached.reason ?? "unknown"}. Start again with action='start_auth'.`,
-            };
-          }
-          // Still pending (poll-auth still running)
+
           return {
             status: "pending",
-            message: "Auth not yet approved. Please visit the URL shown earlier and enter the code, then call check_auth again.",
+            message: "No auth in progress. Start with action='start_auth' first.",
           };
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          return { status: "error", message: `Failed to check auth status: ${msg}` };
+          return { status: "error", message: `Failed to check auth: ${msg}` };
         }
       }
 
@@ -370,6 +435,12 @@ export default function register(api: PluginApi): void {
     embeddingLanguage: (raw.embeddingLanguage === "multilingual" ? "multilingual" : "english") as PluginConfig["embeddingLanguage"],
   };
 
+  // Environment variables take priority (for cloud/serverless deployments)
+  const envApiKey = process.env.AWARENESS_API_KEY || "";
+  const envMemoryId = process.env.AWARENESS_MEMORY_ID || "";
+  if (envApiKey) config.apiKey = envApiKey;
+  if (envMemoryId) config.memoryId = envMemoryId;
+
   const localUrl = config.localUrl;
 
   // ---------------------------------------------------------------------------
@@ -416,26 +487,32 @@ export default function register(api: PluginApi): void {
       `autoRecall=${config.autoRecall}, autoCapture=${config.autoCapture}`,
   );
 
-  // Background: verify daemon is running, auto-start if needed
-  const termux = isTermux();
-  ensureLocalDaemon(api, localUrl, termux)
-    .then((running) => {
-      if (running) {
-        api.logger.info(
-          `Awareness memory plugin initialized (local daemon) — ` +
-            `url=${localUrl}, role=${config.agentRole}`,
-        );
-        importOpenClawHistory(client, api.logger).catch(() => {});
-      } else if (!config.apiKey) {
-        // No daemon and no cloud creds — register setup mode as fallback
-        registerSetupMode(api, config.baseUrl);
-      }
-    })
-    .catch(() => {
-      if (!config.apiKey) {
-        registerSetupMode(api, config.baseUrl);
-      }
-    });
+  // Skip daemon auto-start if cloud credentials are available from env vars
+  const hasEnvCreds = Boolean(process.env.AWARENESS_API_KEY && process.env.AWARENESS_MEMORY_ID);
+  if (hasEnvCreds) {
+    api.logger.info("Cloud credentials from env vars — skipping local daemon auto-start");
+  } else {
+    // Background: verify daemon is running, auto-start if needed
+    const termux = isTermux();
+    ensureLocalDaemon(api, localUrl, termux)
+      .then((running) => {
+        if (running) {
+          api.logger.info(
+            `Awareness memory plugin initialized (local daemon) — ` +
+              `url=${localUrl}, role=${config.agentRole}`,
+          );
+          importOpenClawHistory(client, api.logger).catch(() => {});
+        } else if (!config.apiKey) {
+          // No daemon and no cloud creds — register setup mode as fallback
+          registerSetupMode(api, config.baseUrl);
+        }
+      })
+      .catch(() => {
+        if (!config.apiKey) {
+          registerSetupMode(api, config.baseUrl);
+        }
+      });
+  }
 }
 
 // Re-export types and client for programmatic usage

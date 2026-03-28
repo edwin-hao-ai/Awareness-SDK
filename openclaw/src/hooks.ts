@@ -9,11 +9,13 @@ import { syncDailyLog } from "./sync";
 // ---------------------------------------------------------------------------
 
 function escapeXml(str: string): string {
-  return str
+  if (!str) return "";
+  return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 function extractKeywords(text: string, maxKeywords: number = 8): string {
@@ -132,6 +134,58 @@ export function registerHooks(
             config.recallLimit,
           );
 
+          // Consume perception signals (client-side only, must happen before XML build)
+          const perceptionSignals = consumePerception();
+
+          // -----------------------------------------------------------------
+          // Fast path: use server-side rendered_context when available
+          // -----------------------------------------------------------------
+          if (sessionCtx.rendered_context) {
+            let xml = sessionCtx.rendered_context;
+
+            // Append perception signals (client-side only, not in server render)
+            if (perceptionSignals.length > 0) {
+              const pParts: string[] = [];
+              pParts.push("  <perception>");
+              pParts.push("    <action-required>BEFORE responding to the user, you MUST address each signal below. For contradictions: inform the user and ask if intentional. For resonance: mention the related past experience. For patterns: suggest a systematic fix. For staleness: warn knowledge may be outdated. For guards: STOP and warn about the known pitfall.</action-required>");
+              for (const s of perceptionSignals) {
+                pParts.push(`    <signal type="${escapeXml(s.type ?? "")}">${escapeXml(s.message ?? "")}</signal>`);
+              }
+              pParts.push("  </perception>");
+              xml = xml.replace("</awareness-memory>", pParts.join("\n") + "\n</awareness-memory>");
+            }
+
+            // Append record-rule for OpenClaw (tools.ts handles the actual save)
+            xml = xml.replace("</awareness-memory>", [
+              "  <record-rule>",
+              "    After significant work (decisions, solutions, pitfalls, user preferences), call awareness_record to persist.",
+              "    NOT every small edit — only meaningful changes worth remembering across sessions.",
+              "  </record-rule>",
+              "</awareness-memory>",
+            ].join("\n"));
+
+            // One-time dashboard welcome for local mode
+            const welcomeFile = path.join(
+              process.env.HOME || process.env.USERPROFILE || "",
+              ".awareness",
+              "dashboard-welcomed",
+            );
+            if (client.isLocal && !fs.existsSync(welcomeFile)) {
+              const dashUrl = config.localUrl.replace(/\/api\/v1$/, "");
+              xml = xml.replace("</awareness-memory>", `  <dashboard>Memory is running locally. View and search your memories at ${escapeXml(dashUrl)}</dashboard>\n</awareness-memory>`);
+              try { fs.writeFileSync(welcomeFile, "1", "utf8"); } catch { /* best-effort */ }
+            }
+
+            api.logger.info(
+              `Awareness auto-recall injected ${xml.length} chars (server-rendered, perception=${perceptionSignals.length})`,
+            );
+            return { prependSystemContext: xml };
+          }
+
+          // -----------------------------------------------------------------
+          // Fallback: build XML client-side (server didn't provide rendered_context)
+          // -----------------------------------------------------------------
+
           // Semantic search against the user prompt (with keyword extraction for full-text search)
           const keywords = extractKeywords(prompt);
           const recall = await client.search({
@@ -145,14 +199,11 @@ export function registerHooks(
           const parts: string[] = ["<awareness-memory>"];
 
           // Active skills (high-priority, placed first)
-          const activeSkills = (sessionCtx as any).active_skills ?? [];
+          const activeSkills = (sessionCtx as Record<string, unknown>).active_skills as Array<Record<string, string>> ?? [];
           if (activeSkills.length > 0) {
             parts.push("  <skills>");
             for (const skill of activeSkills) {
-              const title = escapeXml(skill.title ?? "");
-              parts.push(`    <skill title="${title}">`);
-              if (skill.summary) parts.push(`      ${skill.summary}`);
-              parts.push("    </skill>");
+              parts.push(`    <skill title="${escapeXml(skill.title ?? "")}">${escapeXml(skill.summary ?? "")}</skill>`);
             }
             parts.push("  </skills>");
           }
@@ -199,7 +250,7 @@ export function registerHooks(
           }
 
           // Attention protocol — instruct LLM to act on stale tasks / high risks
-          const attention = (sessionCtx as any).attention_summary;
+          const attention = (sessionCtx as Record<string, unknown>).attention_summary as Record<string, unknown> | undefined;
           if (attention?.needs_attention) {
             parts.push("  <attention-protocol>");
             parts.push(`    <summary stale_tasks="${attention.stale_tasks ?? 0}" high_risks="${attention.high_risks ?? 0}" total_open="${attention.total_open_tasks ?? 0}" />`);
@@ -216,7 +267,7 @@ export function registerHooks(
             parts.push("  <open-tasks>");
             for (const task of tasks) {
               parts.push(
-                `    <task priority="${task.priority ?? "medium"}" status="${task.status ?? "pending"}">${escapeXml(task.title ?? "")}</task>`,
+                `    <task priority="${escapeXml(task.priority ?? "medium")}" status="${escapeXml(task.status ?? "pending")}">${escapeXml(task.title ?? "")}</task>`,
               );
             }
             parts.push("  </open-tasks>");
@@ -234,34 +285,52 @@ export function registerHooks(
             parts.push("  </knowledge>");
           }
 
-          // Vector recall results (filter low-score noise)
+          // Vector recall results (filter low-score noise, with aha detection)
           const results = (recall.results ?? []).filter(
             (r) => r.score === undefined || r.score === null || r.score >= 0.5
           );
           if (results.length > 0) {
             parts.push("  <recall>");
+            const now = Date.now();
             for (const result of results) {
-              if (result.content) {
-                const score =
-                  result.score !== undefined
-                    ? ` score="${result.score.toFixed(3)}"`
-                    : "";
-                parts.push(`    <result${score}>${result.content}</result>`);
+              const content = escapeXml((result.content ?? "").slice(0, 300));
+              if (!content) continue;
+              const score = result.score ?? 0;
+
+              // Aha detection: high-score old result = rediscovered knowledge
+              let daysAgo = 0;
+              const createdAt = (result.metadata as Record<string, unknown> | undefined)?.created_at;
+              if (createdAt) {
+                try {
+                  daysAgo = Math.floor((now - new Date(String(createdAt)).getTime()) / 86400000);
+                } catch { /* ignore */ }
+              }
+
+              if (score > 0.8 && daysAgo > 3) {
+                parts.push(`    <aha score="${score.toFixed(2)}" days-ago="${daysAgo}">${content}</aha>`);
+              } else {
+                const scoreAttr = score ? ` score="${score.toFixed(2)}"` : "";
+                parts.push(`    <result${scoreAttr}>${content}</result>`);
               }
             }
             parts.push("  </recall>");
           }
 
           // Perception signals from previous records (Eywa Whisper)
-          const perceptionSignals = consumePerception();
           if (perceptionSignals.length > 0) {
             parts.push("  <perception>");
-            parts.push("    <action-required>BEFORE responding to the user, you MUST address each signal below. For contradiction: tell user about the conflict and ask if intentional. For resonance: mention the past experience. For pattern: suggest systematic fix. For staleness: warn knowledge may be outdated. For related_decision: mention prior decision.</action-required>");
+            parts.push("    <action-required>BEFORE responding to the user, you MUST address each signal below. For contradictions: inform the user and ask if intentional. For resonance: mention the related past experience. For patterns: suggest a systematic fix. For staleness: warn knowledge may be outdated. For guards: STOP and warn about the known pitfall.</action-required>");
             for (const s of perceptionSignals) {
               parts.push(`    <signal type="${escapeXml(s.type ?? "")}">${escapeXml(s.message ?? "")}</signal>`);
             }
             parts.push("  </perception>");
           }
+
+          // Record-rule — guide LLM on when to auto-save
+          parts.push("  <record-rule>");
+          parts.push("    After significant work (decisions, solutions, pitfalls, user preferences), call awareness_record to persist.");
+          parts.push("    NOT every small edit — only meaningful changes worth remembering across sessions.");
+          parts.push("  </record-rule>");
 
           // One-time dashboard welcome: tell user about the local dashboard on first use
           const welcomeFile = path.join(
@@ -271,7 +340,7 @@ export function registerHooks(
           );
           if (client.isLocal && !fs.existsSync(welcomeFile)) {
             const dashUrl = config.localUrl.replace(/\/api\/v1$/, "");
-            parts.push(`  <dashboard>Memory is running locally. View and search your memories at ${dashUrl}</dashboard>`);
+            parts.push(`  <dashboard>Memory is running locally. View and search your memories at ${escapeXml(dashUrl)}</dashboard>`);
             try { fs.writeFileSync(welcomeFile, "1", "utf8"); } catch { /* best-effort */ }
           }
 
@@ -279,7 +348,7 @@ export function registerHooks(
 
           const memoryBlock = parts.join("\n");
           api.logger.info(
-            `Awareness auto-recall injected ${memoryBlock.length} chars (skills=${activeSkills.length}, sessions=${lastSessions.length}, recall=${results.length}, perception=${perceptionSignals.length})`,
+            `Awareness auto-recall injected ${memoryBlock.length} chars (client-rendered, skills=${activeSkills.length}, sessions=${lastSessions.length}, recall=${results.length}, perception=${perceptionSignals.length})`,
           );
           return { prependSystemContext: memoryBlock };
         } catch (err) {

@@ -98,6 +98,8 @@ class KnowledgeCard(TypedDict, total=False):
     tags: List[str]
     confidence: float
     salience_score: float  # intrinsic importance [0.5, 2.0]; higher = resists decay more
+    actionable_rule: str   # "When [scenario], [action] because [reason]" — zero-LLM generated instruction
+    influence_count: int   # number of times this card influenced LLM behavior
     status: str     # open | in_progress | resolved | noted | superseded
     user_id: str    # multi-user mode: the user this card belongs to
     _attribution: Optional[Dict[str, Any]]  # explainability metadata (decay_score, intent_boost, etc.)
@@ -174,6 +176,7 @@ class SessionContextResult(TypedDict, total=False):
     active_skills: List[ActiveSkill]  # reusable skill prompts, pre-loaded at session start
     proactive_alerts: List[ProactiveAlert]  # actionable alerts (stale tasks, handoff, contradictions)
     attention_summary: AttentionSummary  # LLM-side attention summary
+    rendered_context: str  # pre-assembled memory context — inject as system context verbatim if present
     trace_id: str
 
 

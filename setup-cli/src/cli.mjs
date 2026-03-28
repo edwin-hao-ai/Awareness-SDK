@@ -17,6 +17,7 @@ import {
   getIdeMcpGlobalPath,
   getIdeMcpPath,
   getSupportedIdeIds,
+  loadRulesSpec,
   normalizeIdeId,
   syncIdeMcpConfig,
   syncIdeMcpGlobalConfig,
@@ -268,6 +269,18 @@ async function doctorCommand() {
       }
       if (rulesExist && hasMarker) {
         console.log(`       [OK] ${config.rules_file} (awareness rules injected)`);
+        // Check rules_version against spec.version
+        try {
+          const rulesContent = fs.default.readFileSync(rulesPath, "utf-8");
+          const versionMatch = rulesContent.match(/rules_version\s*[=:]\s*["']?(\d+)/);
+          const localVersion = versionMatch ? parseInt(versionMatch[1], 10) : 0;
+          const spec = loadRulesSpec();
+          const latestVersion = spec.version || 0;
+          if (localVersion < latestVersion) {
+            console.log(`       [\u26A0\uFE0F] Rules outdated (v${localVersion} \u2192 v${latestVersion}). Run: npx @awareness-sdk/setup rules --sync`);
+            issues++;
+          }
+        } catch { /* ignore version check errors */ }
       } else if (rulesExist) {
         console.log(`       [!!] ${config.rules_file} exists but NO awareness rules`);
         console.log(`            Fix: npx @awareness-sdk/setup --ide ${ideId}`);

@@ -11,15 +11,23 @@ const path = require("path");
 // ---------------------------------------------------------------------------
 
 function loadConfig() {
+  // Environment variables (read once; applied as highest-priority override at the end)
+  const envApiKey = process.env.AWARENESS_API_KEY || "";
+  const envMemoryId = process.env.AWARENESS_MEMORY_ID || "";
+  const envBaseUrl = process.env.AWARENESS_BASE_URL || "";
+  const envAgentRole = process.env.AWARENESS_AGENT_ROLE || "";
+  const envLocalUrl = process.env.AWARENESS_LOCAL_URL || "";
+
   const defaults = {
-    apiKey: process.env.AWARENESS_API_KEY || "",
-    baseUrl: process.env.AWARENESS_BASE_URL || "https://awareness.market/api/v1",
-    memoryId: process.env.AWARENESS_MEMORY_ID || "",
-    agentRole: process.env.AWARENESS_AGENT_ROLE || "builder_agent",
+    apiKey: "",
+    baseUrl: "https://awareness.market/api/v1",
+    memoryId: "",
+    agentRole: "builder_agent",
     recallLimit: 8,
-    localUrl: process.env.AWARENESS_LOCAL_URL || "http://localhost:37800",
+    localUrl: "http://localhost:37800",
   };
 
+  // --- Priority 3: ~/.openclaw/openclaw.json or ./openclaw.json (skill config) ---
   const home = process.env.HOME || process.env.USERPROFILE || "";
   const configPaths = [
     path.join(home, ".openclaw", "openclaw.json"),
@@ -45,6 +53,25 @@ function loadConfig() {
       }
     } catch { /* skip */ }
   }
+
+  // --- Priority 2: ~/.awareness/credentials.json (written by setup.js) ---
+  try {
+    const credsFile = path.join(home, ".awareness", "credentials.json");
+    if (fs.existsSync(credsFile)) {
+      const creds = JSON.parse(fs.readFileSync(credsFile, "utf-8"));
+      if (creds.apiKey) defaults.apiKey = creds.apiKey;
+      if (creds.baseUrl) defaults.baseUrl = creds.baseUrl;
+      if (creds.memoryId) defaults.memoryId = creds.memoryId;
+    }
+  } catch { /* skip */ }
+
+  // --- Priority 1 (highest): Environment variables override everything ---
+  if (envApiKey) defaults.apiKey = envApiKey;
+  if (envBaseUrl) defaults.baseUrl = envBaseUrl;
+  if (envMemoryId) defaults.memoryId = envMemoryId;
+  if (envAgentRole) defaults.agentRole = envAgentRole;
+  if (envLocalUrl) defaults.localUrl = envLocalUrl;
+
   return defaults;
 }
 
@@ -62,14 +89,30 @@ async function resolveEndpoint(config) {
       return {
         mode: "local",
         localUrl: config.localUrl,
-        baseUrl: config.baseUrl,   // kept for cloud fallback
-        apiKey: "",
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey || "",     // pass cloud key for hybrid recall
         memoryId: config.memoryId || "local",
       };
     }
   } catch { /* local daemon not available — try to auto-start */ }
 
-  // Auto-start local daemon if not running
+  // Skip daemon auto-start if env vars provide cloud credentials directly
+  const hasEnvCloudCreds = Boolean(process.env.AWARENESS_API_KEY && process.env.AWARENESS_MEMORY_ID);
+  if (hasEnvCloudCreds) {
+    return {
+      mode: "cloud",
+      localUrl: null,
+      baseUrl: config.baseUrl || "https://awareness.market/api/v1",
+      apiKey: config.apiKey,
+      memoryId: config.memoryId,
+    };
+  }
+
+  // Auto-start local daemon if not running (skip on Termux/Android — not supported)
+  const isTermux = Boolean(process.env.TERMUX_VERSION) ||
+    (typeof process.env.PREFIX === "string" && process.env.PREFIX.includes("com.termux"));
+  if (isTermux) return null;  // fast-fail on Android — caller handles device auth
+
   try {
     const { spawn } = require("child_process");
     const child = spawn("npx", ["-y", "@awareness-sdk/local", "start"], {
@@ -90,12 +133,19 @@ async function resolveEndpoint(config) {
             mode: "local",
             localUrl: config.localUrl,
             baseUrl: config.baseUrl,
-            apiKey: "",
+            apiKey: config.apiKey || "",
             memoryId: config.memoryId || "local",
           };
         }
       } catch { /* keep polling */ }
     }
+    // Daemon failed to start within 6 seconds
+    process.stderr.write(
+      "[awareness] Local daemon failed to start. Possible causes:\n" +
+      "  - missing 'better-sqlite3' native dependency (run: npm install -g @awareness-sdk/local)\n" +
+      "  - port 37800 already in use\n" +
+      "  Falling back to cloud mode...\n"
+    );
   } catch { /* npx/spawn not available */ }
 
   // Fall back to cloud
@@ -114,10 +164,8 @@ async function resolveEndpoint(config) {
 // ---------------------------------------------------------------------------
 
 function getSessionId() {
-  // Store in ~/.awareness/ (persistent) instead of /tmp (cleared on reboot)
-  const awarenessDir = path.join(process.env.HOME || process.env.USERPROFILE || "", ".awareness");
-  try { fs.mkdirSync(awarenessDir, { recursive: true }); } catch { /* ignore */ }
-  const pidFile = path.join(awarenessDir, "session-id");
+  const tmpDir = process.env.TMPDIR || process.env.TMP || "/tmp";
+  const pidFile = path.join(tmpDir, "awareness-session-id");
   try {
     const data = fs.readFileSync(pidFile, "utf-8").trim();
     const [id, ts] = data.split("|");
