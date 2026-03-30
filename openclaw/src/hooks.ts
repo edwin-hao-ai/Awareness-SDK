@@ -428,9 +428,14 @@ export function registerHooks(
           parts.push(`Turns: ${messageCount} messages`);
           const summary = parts.join("\n");
 
+          // Detect channel source from context (Gateway passes channel info)
+          const ctxAny = ctx as Record<string, unknown>;
+          const channel = (ctxAny.channel ?? ctxAny.channelId ?? ctxAny.source ?? "") as string;
+          const captureSource = channel ? `openclaw-${channel}` : "openclaw-plugin";
+
           const captureResult = await client.record(summary, {
             event_type: "turn_brief",
-            source: "openclaw-plugin",
+            source: captureSource,
           });
 
           // Cache perception signals for next recall injection
