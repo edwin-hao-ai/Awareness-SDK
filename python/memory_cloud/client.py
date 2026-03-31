@@ -1062,7 +1062,7 @@ class MemoryCloudClient:
             trace_id=trace_id,
         )
         recent_progress = [
-            f"{d['date']}: {d['narrative'][:300]}{'...' if len(d.get('narrative', '')) > 300 else ''}"
+            f"{d['date']}: {d.get('narrative', '')}"
             for d in ctx_data.get("recent_days", [])
             if d.get("narrative")
         ]
@@ -1073,8 +1073,7 @@ class MemoryCloudClient:
         key_knowledge = [
             {
                 "title": c.get("title"),
-                "summary": (c.get("summary") or "")[:200]
-                + ("..." if len(c.get("summary") or "") > 200 else ""),
+                "summary": c.get("summary") or "",
             }
             for c in ctx_data.get("knowledge_cards", [])
         ]

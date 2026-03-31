@@ -189,7 +189,9 @@ async function main() {
     // -----------------------------------------------------------------------
     let perceptionSignals = [];
     try {
-      const perceptionCacheFile = require("path").join(process.env.HOME || "", ".awareness", "perception-cache.json");
+      const _projAw = require("path").join(require("path").resolve(process.env.PWD || process.cwd()), ".awareness");
+      const _cacheBase = require("fs").existsSync(_projAw) ? _projAw : require("path").join(process.env.HOME || "", ".awareness");
+      const perceptionCacheFile = require("path").join(_cacheBase, "perception-cache.json");
       if (require("fs").existsSync(perceptionCacheFile)) {
         const cached = JSON.parse(require("fs").readFileSync(perceptionCacheFile, "utf8"));
         const cutoff = Date.now() - 30 * 60 * 1000;

@@ -128,7 +128,8 @@ function cachePerception(result) {
   try {
     const fs = require("fs");
     const path = require("path");
-    const cacheDir = path.join(process.env.HOME || "", ".awareness");
+    const projectAwareness = path.join(path.resolve(process.env.PWD || process.cwd()), ".awareness");
+    const cacheDir = fs.existsSync(projectAwareness) ? projectAwareness : path.join(process.env.HOME || "", ".awareness");
     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
     const cacheFile = path.join(cacheDir, "perception-cache.json");
     let existing = [];

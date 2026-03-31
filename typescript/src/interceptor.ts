@@ -151,17 +151,17 @@ function compactEventsForExtraction(
     maxTotalChars?: number;
   }
 ): string[] {
-  const maxEvents = options?.maxEvents ?? 12;
-  const maxCharsPerEvent = options?.maxCharsPerEvent ?? 480;
-  const maxTotalChars = options?.maxTotalChars ?? 3600;
+  const maxEvents = options?.maxEvents ?? 20;
+  const maxCharsPerEvent = options?.maxCharsPerEvent ?? 0;
+  const maxTotalChars = options?.maxTotalChars ?? 0;
   const compacted: string[] = [];
   let total = 0;
 
   for (const event of events.slice(0, maxEvents)) {
     const raw = String(event?.content ?? "").trim();
     if (!raw) continue;
-    const clipped = raw.slice(0, maxCharsPerEvent);
-    if (total + clipped.length > maxTotalChars) break;
+    const clipped = maxCharsPerEvent > 0 ? raw.slice(0, maxCharsPerEvent) : raw;
+    if (maxTotalChars > 0 && total + clipped.length > maxTotalChars) break;
     compacted.push(clipped);
     total += clipped.length;
   }

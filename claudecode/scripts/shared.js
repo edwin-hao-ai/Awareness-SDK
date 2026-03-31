@@ -65,12 +65,40 @@ function loadConfig() {
     }
   } catch { /* skip */ }
 
+  // --- Priority 1.5: Workspace registry (per-project port) + project config ---
+  const projectDir = path.resolve(process.env.PWD || process.cwd());
+  let wsPortOverride = false;
+  try {
+    const wsFile = path.join(home, ".awareness", "workspaces.json");
+    if (fs.existsSync(wsFile)) {
+      const workspaces = JSON.parse(fs.readFileSync(wsFile, "utf-8"));
+      const ws = workspaces[projectDir];
+      // Only read port from registry — memoryId comes from project config.json
+      if (ws && ws.port) {
+        defaults.localUrl = `http://localhost:${ws.port}`;
+        wsPortOverride = true;
+      }
+    }
+  } catch { /* skip */ }
+  // Project-level .awareness/config.json is the single source for cloud config
+  try {
+    const projConfig = path.join(projectDir, ".awareness", "config.json");
+    if (fs.existsSync(projConfig)) {
+      const pc = JSON.parse(fs.readFileSync(projConfig, "utf-8"));
+      if (pc.cloud?.api_key) defaults.apiKey = pc.cloud.api_key;
+      if (pc.cloud?.memory_id) defaults.memoryId = pc.cloud.memory_id;
+      if (pc.cloud?.api_base) defaults.baseUrl = pc.cloud.api_base;
+    }
+  } catch { /* skip */ }
+
   // --- Priority 1 (highest): Environment variables override everything ---
+  // Exception: AWARENESS_LOCAL_URL does NOT override workspace registry port,
+  // because the env var is global (written to .zshrc) while the registry is per-project.
   if (envApiKey) defaults.apiKey = envApiKey;
   if (envBaseUrl) defaults.baseUrl = envBaseUrl;
   if (envMemoryId) defaults.memoryId = envMemoryId;
   if (envAgentRole) defaults.agentRole = envAgentRole;
-  if (envLocalUrl) defaults.localUrl = envLocalUrl;
+  if (envLocalUrl && !wsPortOverride) defaults.localUrl = envLocalUrl;
 
   return defaults;
 }
@@ -164,15 +192,27 @@ async function resolveEndpoint(config) {
 // ---------------------------------------------------------------------------
 
 function getSessionId() {
-  const tmpDir = process.env.TMPDIR || process.env.TMP || "/tmp";
-  const pidFile = path.join(tmpDir, "awareness-session-id");
+  // Use project-local session file to isolate sessions across projects
+  const projectDir = path.resolve(process.env.PWD || process.cwd());
+  const awarenessDir = path.join(projectDir, ".awareness");
+  let sessionFile;
   try {
-    const data = fs.readFileSync(pidFile, "utf-8").trim();
+    if (fs.existsSync(awarenessDir)) {
+      sessionFile = path.join(awarenessDir, "session-id");
+    }
+  } catch { /* ignore */ }
+  // Fallback to global tmp if no .awareness dir
+  if (!sessionFile) {
+    const tmpDir = process.env.TMPDIR || process.env.TMP || "/tmp";
+    sessionFile = path.join(tmpDir, "awareness-session-id");
+  }
+  try {
+    const data = fs.readFileSync(sessionFile, "utf-8").trim();
     const [id, ts] = data.split("|");
     if (id && ts && Date.now() - Number(ts) < 4 * 60 * 60 * 1000) return id;
   } catch { /* expired or missing */ }
   const id = `openclaw-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  try { fs.writeFileSync(pidFile, `${id}|${Date.now()}`); } catch { /* ignore */ }
+  try { fs.writeFileSync(sessionFile, `${id}|${Date.now()}`); } catch { /* ignore */ }
   return id;
 }
 

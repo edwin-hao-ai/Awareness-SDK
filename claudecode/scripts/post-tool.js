@@ -44,7 +44,7 @@ async function main() {
 
     // For Edit, include old→new context
     if (toolName.toLowerCase() === "edit" && inputObj.old_string && inputObj.new_string) {
-      parts.push(`Changed: "${inputObj.old_string.slice(0, 100)}" → "${inputObj.new_string.slice(0, 100)}"`);
+      parts.push(`Changed: "${inputObj.old_string}" → "${inputObj.new_string}"`);
     }
 
     const content = parts.join("\n");

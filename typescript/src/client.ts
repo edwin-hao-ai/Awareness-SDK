@@ -956,7 +956,7 @@ export class MemoryCloudClient {
       .filter((d) => d.narrative)
       .map((d) => {
         const text = d.narrative ?? "";
-        return `${d.date ?? ""}: ${text.length > 300 ? text.slice(0, 300) + "..." : text}`;
+        return `${d.date ?? ""}: ${text}`;
       });
 
     const openTasks: HandoffTask[] = (ctx.open_tasks ?? []).map((t) => ({
@@ -967,7 +967,7 @@ export class MemoryCloudClient {
 
     const keyKnowledge: HandoffKnowledge[] = (ctx.knowledge_cards ?? []).map((c) => ({
       title: c.title,
-      summary: (c.summary ?? "").slice(0, 200),
+      summary: c.summary ?? "",
     }));
 
     const rawStr =
