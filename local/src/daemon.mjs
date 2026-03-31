@@ -1074,6 +1074,19 @@ export class AwarenessLocalDaemon {
       return this._apiSyncStatus(req, res);
     }
 
+    // GET /api/v1/workspaces
+    if (route === '/workspaces' && req.method === 'GET') {
+      try {
+        const { loadWorkspaces } = await import('./core/config.mjs');
+        const ws = loadWorkspaces();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(ws));
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end('{}');
+      }
+    }
+
     // GET /api/v1/config
     if (route === '/config' && req.method === 'GET') {
       return this._apiGetConfig(req, res);

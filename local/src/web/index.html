@@ -295,6 +295,7 @@ body {
   <header class="header">
     <h1><svg class="logo-svg" width="28" height="28" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="os" x1="30" y1="50" x2="490" y2="500" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#E0F2FE"/><stop offset=".35" stop-color="#7DD3FC"/><stop offset=".7" stop-color="#38BDF8"/><stop offset="1" stop-color="#0EA5E9"/></linearGradient><linearGradient id="is" x1="120" y1="80" x2="300" y2="260" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F0F9FF"/><stop offset=".4" stop-color="#BAE6FD"/><stop offset="1" stop-color="#38BDF8"/></linearGradient><radialGradient id="df" cx="200" cy="168" r="20" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F0F9FF"/><stop offset=".5" stop-color="#7DD3FC"/><stop offset="1" stop-color="#0EA5E9"/></radialGradient></defs><circle cx="262" cy="275" r="218" stroke="url(#os)" stroke-width="16" fill="none"/><circle cx="198" cy="168" r="68" stroke="url(#is)" stroke-width="13" fill="none"/><circle cx="198" cy="168" r="15" fill="url(#df)"/></svg> Awareness Local</h1>
     <div class="header-right">
+      <span id="project-name" style="color:var(--text-secondary);font-size:0.85rem;margin-right:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title=""></span>
       <div class="daemon-badge">
         <span class="dot" id="daemon-dot"></span>
         <span id="daemon-label">Checking...</span>
@@ -941,7 +942,41 @@ async function loadSettings() {
   html += settingRow('Branch', gitSync.branch || 'current branch');
   html += '</div>';
 
+  // Workspaces section (loaded async)
+  html += '<div class="settings-section"><h3>Workspaces</h3>';
+  html += '<div id="workspaces-list"><span style="color:var(--text-muted)">Loading...</span></div>';
+  html += '</div>';
+
   container.innerHTML = html;
+
+  // Load workspaces list
+  try {
+    var wsResp = await fetch('/api/v1/workspaces');
+    if (wsResp.ok) {
+      var ws = await wsResp.json();
+      var wsEl = document.getElementById('workspaces-list');
+      if (!ws || Object.keys(ws).length === 0) {
+        wsEl.innerHTML = '<span style="color:var(--text-muted)">No workspaces registered yet. Start a daemon in a project to register it.</span>';
+      } else {
+        var wsHtml = '';
+        for (var dir in ws) {
+          var w = ws[dir];
+          var name = dir.split('/').pop() || dir;
+          var isActive = location.port == w.port;
+          wsHtml += '<div class="setting-row" style="' + (isActive ? 'border-left:3px solid var(--accent);padding-left:9px;' : '') + '">'
+            + '<div class="setting-label" title="' + escapeHtml(dir) + '">'
+            + escapeHtml(name)
+            + '<small style="color:var(--text-muted);margin-left:8px">:' + w.port + '</small>'
+            + (isActive ? '<small style="color:var(--accent);margin-left:8px">current</small>' : '')
+            + '</div>'
+            + '<div class="setting-value">'
+            + (isActive ? '' : '<a href="http://localhost:' + w.port + '/" style="color:var(--accent);text-decoration:none;font-size:0.85rem" target="_blank">Open</a>')
+            + '</div></div>';
+        }
+        wsEl.innerHTML = wsHtml;
+      }
+    }
+  } catch(e) { /* workspaces endpoint not available */ }
 }
 
 function settingRow(label, value) {
@@ -1014,6 +1049,15 @@ async function checkDaemon() {
       dot.className = 'dot ok';
       label.textContent = 'Running (' + (d.uptime || 0) + 's)';
       statDaemon.textContent = 'Daemon: running';
+
+      // Show project name in header
+      if (d.project_dir) {
+        var projName = d.project_dir.split('/').pop() || d.project_dir;
+        var projEl = document.getElementById('project-name');
+        projEl.textContent = projName;
+        projEl.title = d.project_dir;
+        document.title = projName + ' — Awareness Local';
+      }
 
       // Cloud status
       var statCloud = document.getElementById('stat-cloud');
