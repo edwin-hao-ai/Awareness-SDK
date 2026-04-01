@@ -7,8 +7,8 @@
  *   Layer 2: Rule engine fallback (zero LLM dependency)
  *            Multilingual regex patterns for when agents write without insights
  *
- * Supports 13 knowledge card categories:
- *   Engineering: problem_solution, decision, workflow, key_point, pitfall, insight
+ * Supports 14 formal knowledge card categories (mirrors cloud VALID_CATEGORIES):
+ *   Engineering: problem_solution, decision, workflow, key_point, pitfall, insight, skill
  *   Personal:    personal_preference, important_detail, plan_intention,
  *                activity_preference, health_info, career_info, custom_misc
  */
@@ -17,7 +17,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-// Valid knowledge card categories (matches cloud backend VALID_CATEGORIES)
+// Valid knowledge card categories (matches cloud backend VALID_CATEGORIES).
+// We also accept a small alias set from local/tooling callers for compatibility.
 const VALID_CATEGORIES = new Set([
   'problem_solution', 'decision', 'workflow', 'key_point', 'pitfall', 'insight',
   'personal_preference', 'important_detail', 'plan_intention', 'activity_preference',
@@ -484,7 +485,8 @@ export class KnowledgeExtractor {
     return (
       (insights.knowledge_cards?.length > 0) ||
       (insights.action_items?.length > 0) ||
-      (insights.risks?.length > 0)
+      (insights.risks?.length > 0) ||
+      (insights.completed_tasks?.length > 0)
     );
   }
 

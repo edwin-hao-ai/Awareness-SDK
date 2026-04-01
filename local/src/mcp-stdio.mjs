@@ -18,6 +18,15 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import http from 'node:http';
+import {
+  describeKnowledgeCardCategories,
+  mcpError,
+  LOOKUP_TYPE_VALUES,
+  RECORD_ACTION_VALUES,
+  RECALL_DETAIL_VALUES,
+  RECALL_MODE_VALUES,
+  RECALL_SCOPE_VALUES,
+} from './daemon/mcp-contract.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -143,7 +152,7 @@ let _daemonChecked = false;
  * @param {number} port
  * @param {string} toolName  — MCP tool name (e.g. "awareness_init")
  * @param {object} args      — tool arguments
- * @returns {object} parsed result from daemon
+ * @returns {object} raw MCP result envelope from daemon
  */
 async function proxyCall(port, toolName, args) {
   // Lazy daemon startup — only check once per process
@@ -178,37 +187,12 @@ async function proxyCall(port, toolName, args) {
     );
   }
 
-  // The daemon wraps results as:
-  //   result.content[0].text = JSON.stringify(payload)
-  const result = response.result;
-  if (result?.content?.[0]?.text) {
-    try {
-      return JSON.parse(result.content[0].text);
-    } catch {
-      // If it's not parseable JSON, return as-is
-      return result;
-    }
-  }
-  return result;
+  return response.result;
 }
 
 // ---------------------------------------------------------------------------
 // Tool registration helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Wrap a proxy result in the standard MCP content envelope.
- */
-function mcpResult(data) {
-  return { content: [{ type: 'text', text: JSON.stringify(data) }] };
-}
-
-function mcpError(message) {
-  return {
-    content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
-    isError: true,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Register tools — schemas match mcp-server.mjs exactly
@@ -224,6 +208,7 @@ function registerTools(server, port) {
         'Memory identifier (ignored in local mode, uses project dir)',
       ),
       source: z.string().optional().describe('Client source identifier'),
+      query: z.string().optional().describe('Current user request or task focus for context shaping'),
       days: z.number().optional().default(7).describe(
         'Days of history to load',
       ),
@@ -232,7 +217,7 @@ function registerTools(server, port) {
     },
     async (params) => {
       try {
-        return mcpResult(await proxyCall(port, 'awareness_init', params));
+        return await proxyCall(port, 'awareness_init', params);
       } catch (err) {
         return mcpError(`awareness_init failed: ${err.message}`);
       }
@@ -250,15 +235,15 @@ function registerTools(server, port) {
       keyword_query: z.string().optional().default('').describe(
         'Exact keyword match for BM25 full-text search',
       ),
-      scope: z.enum(['all', 'timeline', 'knowledge', 'insights'])
+      scope: z.enum(RECALL_SCOPE_VALUES)
         .optional().default('all')
         .describe('Search scope'),
-      recall_mode: z.enum(['precise', 'session', 'structured', 'hybrid', 'auto'])
+      recall_mode: z.enum(RECALL_MODE_VALUES)
         .optional().default('hybrid')
         .describe('Search mode (hybrid recommended)'),
       limit: z.number().min(1).max(30).optional().default(10)
         .describe('Max results'),
-      detail: z.enum(['summary', 'full']).optional().default('summary')
+      detail: z.enum(RECALL_DETAIL_VALUES).optional().default('summary')
         .describe(
           'summary = lightweight index (~50-100 tokens each); ' +
           'full = complete content for specified ids',
@@ -267,10 +252,22 @@ function registerTools(server, port) {
         'Item IDs to expand when detail=full (from a prior detail=summary call)',
       ),
       agent_role: z.string().optional().default('').describe('Agent role filter'),
+      multi_level: z.boolean().optional().describe(
+        'Enable broader context retrieval across sessions and time ranges',
+      ),
+      cluster_expand: z.boolean().optional().describe(
+        'Enable topic-based context expansion for deeper exploration',
+      ),
+      include_installed: z.boolean().optional().default(true).describe(
+        'Also search installed market memories',
+      ),
+      source_exclude: z.array(z.string()).optional().describe(
+        'Exclude memories from these source identifiers (e.g. ["mcp"] to hide Claude Code dev memories)',
+      ),
     },
     async (params) => {
       try {
-        return mcpResult(await proxyCall(port, 'awareness_recall', params));
+        return await proxyCall(port, 'awareness_recall', params);
       } catch (err) {
         return mcpError(`awareness_recall failed: ${err.message}`);
       }
@@ -282,9 +279,7 @@ function registerTools(server, port) {
   server.tool(
     'awareness_record',
     {
-      action: z.enum([
-        'remember', 'remember_batch', 'update_task', 'submit_insights',
-      ]).describe('Record action type'),
+      action: z.enum(RECORD_ACTION_VALUES).describe('Record action type'),
       content: z.string().optional().describe('Memory content (markdown)'),
       title: z.string().optional().describe('Memory title'),
       items: z.array(z.object({
@@ -300,9 +295,7 @@ function registerTools(server, port) {
           summary: z.string().optional().describe('Detailed summary (also accepted as "content")'),
           content: z.string().optional().describe('Alias for summary'),
           category: z.string().optional().describe(
-            'MUST be one of: problem_solution, decision, workflow, key_point, pitfall, insight, ' +
-            'personal_preference, important_detail, plan_intention, activity_preference, ' +
-            'health_info, career_info, custom_misc. Unknown values default to key_point.'
+            describeKnowledgeCardCategories()
           ),
           tags: z.array(z.string()).optional(),
           confidence: z.number().optional(),
@@ -317,10 +310,11 @@ function registerTools(server, port) {
       // Task update fields
       task_id: z.string().optional(),
       status: z.string().optional(),
+      source: z.string().optional().describe('Client source identifier (e.g. desktop, openclaw-plugin, mcp)'),
     },
     async (params) => {
       try {
-        return mcpResult(await proxyCall(port, 'awareness_record', params));
+        return await proxyCall(port, 'awareness_record', params);
       } catch (err) {
         return mcpError(`awareness_record failed: ${err.message}`);
       }
@@ -332,13 +326,11 @@ function registerTools(server, port) {
   server.tool(
     'awareness_lookup',
     {
-      type: z.enum([
-        'context', 'tasks', 'knowledge', 'risks',
-        'session_history', 'timeline',
-      ]).describe(
+      type: z.enum(LOOKUP_TYPE_VALUES).describe(
         'Data type to look up. ' +
         'context = full dump, tasks = open tasks, knowledge = cards, ' +
-        'risks = risk items, session_history = past sessions, timeline = events',
+        'risks = risk items, session_history = past sessions, timeline = events, ' +
+        'perception = signals (contradictions, patterns, staleness)',
       ),
       limit: z.number().optional().default(10).describe('Max items'),
       status: z.string().optional().describe('Status filter'),
@@ -350,7 +342,7 @@ function registerTools(server, port) {
     },
     async (params) => {
       try {
-        return mcpResult(await proxyCall(port, 'awareness_lookup', params));
+        return await proxyCall(port, 'awareness_lookup', params);
       } catch (err) {
         return mcpError(`awareness_lookup failed: ${err.message}`);
       }
@@ -366,7 +358,7 @@ function registerTools(server, port) {
     },
     async (params) => {
       try {
-        return mcpResult(await proxyCall(port, 'awareness_get_agent_prompt', params));
+        return await proxyCall(port, 'awareness_get_agent_prompt', params);
       } catch (err) {
         return mcpError(`awareness_get_agent_prompt failed: ${err.message}`);
       }

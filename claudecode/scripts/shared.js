@@ -222,6 +222,38 @@ function getSessionId() {
 
 let _mcpIdCounter = 1;
 
+function parseRecallSummaryText(text, ids = []) {
+  const cleaned = String(text || "").replace(/^Found \d+ memories:\n\n/, "").trim();
+  if (!cleaned) return [];
+
+  const chunks = cleaned
+    .split(/\n\n(?=\d+\.\s+\[[^\]]*\]\s+)/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+
+  return chunks.map((chunk, index) => {
+    const match = chunk.match(/^\d+\.\s+\[([^\]]*)\]\s+([^\n]+?)(?:\n\s+([\s\S]*))?$/);
+    if (!match) {
+      return {
+        id: ids[index],
+        content: chunk,
+      };
+    }
+
+    const [, type, title, rawSummary = ""] = match;
+    const summary = rawSummary.trim();
+    const prefix = type ? `[${type}] ` : "";
+    const content = summary ? `${prefix}${title.trim()}\n${summary}` : `${prefix}${title.trim()}`;
+    return {
+      id: ids[index],
+      type: type || undefined,
+      title: title.trim(),
+      summary: summary || undefined,
+      content,
+    };
+  });
+}
+
 async function mcpCall(localUrl, toolName, args, timeoutMs = 10000) {
   const res = await fetch(`${localUrl}/mcp`, {
     method: "POST",
@@ -237,7 +269,25 @@ async function mcpCall(localUrl, toolName, args, timeoutMs = 10000) {
   if (!res.ok) throw new Error(`MCP ${toolName} → ${res.status}`);
   const json = await res.json();
   if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
-  const text = json.result?.content?.[0]?.text;
+  const content = json.result?.content || [];
+  if (content.length > 1) {
+    const text = content[0]?.text || "";
+    try {
+      const extra = JSON.parse(content[1]?.text || "{}");
+      if (Array.isArray(extra._ids) || extra._meta) {
+        const ids = Array.isArray(extra._ids) ? extra._ids.map((id) => String(id)) : [];
+        return {
+          results: parseRecallSummaryText(text, ids),
+          _ids: ids,
+          _meta: extra._meta || {},
+          readable_text: text,
+        };
+      }
+    } catch {
+      // Fall through to first-block parsing
+    }
+  }
+  const text = content[0]?.text;
   if (!text) return json.result;
   try { return JSON.parse(text); } catch { return text; }
 }

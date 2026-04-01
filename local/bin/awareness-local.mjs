@@ -205,12 +205,17 @@ async function cmdStart(flags) {
     // Run in foreground — import daemon and start
     const { AwarenessLocalDaemon } = await import('../src/daemon.mjs');
     const daemon = new AwarenessLocalDaemon({ port, projectDir });
+    let shuttingDown = false;
 
     // Handle termination signals
     const shutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       console.log('\n[awareness-local] shutting down...');
       await daemon.stop();
-      process.exit(0);
+      process.off('SIGINT', shutdown);
+      process.off('SIGTERM', shutdown);
+      process.exitCode = 0;
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
@@ -330,7 +335,7 @@ async function cmdStop(flags) {
  */
 async function cmdStatus(flags) {
   const projectDir = resolveProjectDir(flags);
-  const port = resolvePort(flags);
+  const port = resolvePort(flags, projectDir);
   const pid = readPid(projectDir);
 
   if (!pid || !processExists(pid)) {
@@ -399,7 +404,7 @@ async function cmdStatus(flags) {
  */
 async function cmdReindex(flags) {
   const projectDir = resolveProjectDir(flags);
-  const port = resolvePort(flags);
+  const port = resolvePort(flags, projectDir);
 
   // Check if daemon is running — if so, it holds a lock on index.db
   const pid = readPid(projectDir);

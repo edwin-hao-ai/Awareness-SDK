@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.5.0] - 2026-04-01
+
+### Changed
+- **Major daemon refactor**: Extracted 1500+ lines from monolithic `daemon.mjs` into 12 focused modules under `daemon/` directory — constants, helpers, loaders, MCP contract/handlers, HTTP handlers, API handlers, tool bridge, cloud HTTP, file watcher, embedding helpers.
+- **MCP server simplified**: `mcp-server.mjs` now delegates result building to `daemon/mcp-handlers.mjs`, reducing duplication between HTTP and stdio transports.
+- **MCP stdio cleanup**: `mcp-stdio.mjs` uses shared enum constants and error helpers from `daemon/mcp-contract.mjs`.
+
+### Added
+- **Noise filter**: New `core/noise-filter.mjs` filters low-signal events (empty session checkpoints, terse untitled content) before storage, reducing memory clutter.
+- **Knowledge card evolution**: Semantic dedup via embedding cosine similarity during card extraction — detects duplicates, updates, and contradictions.
+- **Test suite**: 14 unit tests covering MCP contract, HTTP dispatch, noise filter, recall regressions, and embedding compatibility.
+
+### Fixed
+- **Port resolution bug**: `cmdStatus` and `cmdReindex` now correctly pass `projectDir` to `resolvePort()` for workspace registry lookup.
+
+## [0.4.6] - 2026-04-01
+
+### Added
+- **CJK auto-detection + multilingual embedding lazy loading**: `detectNeedsCJK()` samples text for CJK character ratio (>5% threshold). When CJK content is detected, automatically loads `multilingual-e5-small` model on demand. English-only `all-MiniLM-L6-v2` remains the fast default.
+- **Shared lang-detect module**: Extracted `detectNeedsCJK()` to `core/lang-detect.mjs` to avoid logic drift between daemon and search.
+- **Model-aware vector search**: `search.mjs` now reads `model_id` from stored embeddings and matches each against the correct query vector — no more cross-model-space similarity comparisons.
+- **Status endpoint enhancements**: `/status` now reports `multilingual_model` name and `auto_cjk_detection: true`.
+
+### Changed
+- `indexer.mjs`: `getAllEmbeddings()` now returns `model_id` field for each embedding.
+
+## [0.4.5] - 2026-03-31
+
+### Fixed
+- **26-issue audit**: Data safety, dedup, i18n, and test fixes.
+
+## [0.4.4] - 2026-03-31
+
+### Fixed
+- **Source isolation and sourceExclude filtering**.
+
+## [0.4.3] - 2026-03-30
+
+### Fixed
+- **Content truncation removed**: Added 20k token budget, multi-project workspace isolation.
+
 ## [0.4.2] - 2026-03-30
 
 ### Added

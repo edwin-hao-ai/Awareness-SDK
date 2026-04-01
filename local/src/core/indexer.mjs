@@ -428,7 +428,7 @@ export class Indexer {
     );
 
     this._stmtGetAllEmbeddings = this.db.prepare(
-      `SELECT memory_id, vector FROM embeddings`
+      `SELECT memory_id, vector, model_id FROM embeddings`
     );
   }
 
@@ -931,7 +931,9 @@ export class Indexer {
   getAllEmbeddings() {
     const rows = this._stmtGetAllEmbeddings.all();
     return rows.map((row) => ({
+      id: row.memory_id,
       memory_id: row.memory_id,
+      model_id: row.model_id || '',
       vector: new Float32Array(
         row.vector.buffer,
         row.vector.byteOffset,

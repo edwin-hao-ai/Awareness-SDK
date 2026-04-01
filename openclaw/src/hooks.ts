@@ -160,6 +160,7 @@ export function registerHooks(
             7,
             config.recallLimit,
             config.recallLimit,
+            prompt,
           );
 
           // Consume perception signals (client-side only, must happen before XML build)
@@ -170,6 +171,13 @@ export function registerHooks(
           // -----------------------------------------------------------------
           if (sessionCtx.rendered_context) {
             let xml = sessionCtx.rendered_context;
+
+            if (prompt) {
+              xml = xml.replace(
+                "<awareness-memory>",
+                `<awareness-memory>\n  <current-focus>\n    ${escapeXml(prompt)}\n  </current-focus>`,
+              );
+            }
 
             // Append perception signals (client-side only, not in server render)
             if (perceptionSignals.length > 0) {
@@ -225,6 +233,10 @@ export function registerHooks(
 
           // Build the XML memory block to prepend
           const parts: string[] = ["<awareness-memory>"];
+
+          parts.push("  <current-focus>");
+          parts.push(`    ${escapeXml(prompt)}`);
+          parts.push("  </current-focus>");
 
           // Active skills (high-priority, placed first)
           const activeSkills = (sessionCtx as Record<string, unknown>).active_skills as Array<Record<string, string>> ?? [];

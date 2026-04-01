@@ -144,6 +144,12 @@ export function buildContextXml(ctx, recallResults, perceptionSignals, options =
   const totalBudget = options.tokenBudget || DEFAULT_TOKEN_BUDGET;
   const parts = ["<awareness-memory>"];
 
+  if (options.currentFocus) {
+    parts.push("  <current-focus>");
+    parts.push(`    ${esc(String(options.currentFocus))}`);
+    parts.push("  </current-focus>");
+  }
+
   // Fixed-cost sections (skills, attention, dashboard, record-rule) are small
   // and always included. We reserve ~500 tokens for them.
   const fixedReserve = 500;

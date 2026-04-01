@@ -114,8 +114,16 @@ export interface HookResult {
 // ---------------------------------------------------------------------------
 
 export interface VectorResult {
+  id?: string;
+  type?: string;
+  title?: string;
+  summary?: string;
   content?: string;
   score?: number;
+  tags?: string[];
+  source?: string;
+  created_at?: string;
+  tokens_est?: number;
   metadata?: Record<string, unknown>;
 }
 

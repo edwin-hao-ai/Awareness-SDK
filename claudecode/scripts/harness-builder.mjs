@@ -318,11 +318,25 @@ export function buildContextXml(ctx, recallResults, perceptionSignals, options =
  * @returns {object[]} Filtered results array
  */
 export function parseRecallResults(recall) {
+  const normalize = (items, threshold) => (items || [])
+    .filter(r => !r.score || r.score >= threshold)
+    .map((r) => {
+      if (r.content) return r;
+      const prefix = r.type ? `[${r.type}] ` : "";
+      const title = r.title || "";
+      const summary = r.summary || "";
+      return {
+        ...r,
+        content: summary ? `${prefix}${title}\n${summary}`.trim() : `${prefix}${title}`.trim(),
+      };
+    })
+    .filter(r => r.content);
+
   if (!recall) return [];
   if (typeof recall === "string") {
     try {
       const parsed = JSON.parse(recall);
-      return (parsed.results || parsed.items || []).filter(r => !r.score || r.score >= 0.4);
+      return normalize(parsed.results || parsed.items || [], 0.4);
     } catch {
       if (recall.trim().length > 20) {
         return [{ content: recall.trim(), score: 0.5 }];
@@ -330,5 +344,5 @@ export function parseRecallResults(recall) {
       return [];
     }
   }
-  return (recall.results || []).filter(r => !r.score || r.score >= 0.5);
+  return normalize(recall.results || [], 0.5);
 }

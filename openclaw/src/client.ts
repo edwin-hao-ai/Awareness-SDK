@@ -12,6 +12,59 @@ import type {
 
 const LEGACY_FULL_TEXT_WEIGHT_KEY = ["full", "_text", "_weight"].join("");
 
+function buildRecallContent(result: {
+  type?: string;
+  title?: string;
+  summary?: string;
+  content?: string;
+}): string {
+  if (result.content) return result.content;
+  const prefix = result.type ? `[${result.type}] ` : "";
+  const title = result.title || "";
+  const summary = result.summary || "";
+  if (title && summary) return `${prefix}${title}\n${summary}`;
+  return `${prefix}${title || summary}`.trim();
+}
+
+function parseRecallSummaryBlocks(
+  summaryText: string,
+  ids: string[] = [],
+): VectorResult[] {
+  const cleaned = summaryText.replace(/^Found \d+ memories:\n\n/, "").trim();
+  if (!cleaned) return [];
+
+  const chunks = cleaned
+    .split(/\n\n(?=\d+\.\s+\[[^\]]*\]\s+)/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+
+  const results: VectorResult[] = [];
+  for (let index = 0; index < chunks.length; index++) {
+    const chunk = chunks[index];
+    const match = chunk.match(/^\d+\.\s+\[([^\]]*)\]\s+([^\n]+?)(?:\n\s+([\s\S]*))?$/);
+    if (!match) {
+      results.push({
+        id: ids[index],
+        content: chunk,
+      });
+      continue;
+    }
+
+    const [, type, title, rawSummary = ""] = match;
+    const summary = rawSummary.trim();
+    const result: VectorResult = {
+      id: ids[index],
+      type: type || undefined,
+      title: title.trim(),
+      summary: summary || undefined,
+    };
+    result.content = buildRecallContent(result);
+    results.push(result);
+  }
+
+  return results;
+}
+
 // ---------------------------------------------------------------------------
 // Search options for the awareness_recall interface
 // ---------------------------------------------------------------------------
@@ -153,8 +206,9 @@ export class AwarenessClient {
     days?: number,
     maxCards?: number,
     maxTasks?: number,
+    query?: string,
   ): Promise<{ session_id: string; context: SessionContext }> {
-    const ctx = await this.getSessionContext(days, maxCards, maxTasks);
+    const ctx = await this.getSessionContext(days, maxCards, maxTasks, query);
     return {
       session_id: this.sessionId,
       context: ctx,
@@ -237,7 +291,6 @@ export class AwarenessClient {
 
     // Parse MCP response into RecallResult
     // summary mode: block[0] = readable text, block[1] = JSON {_ids, _meta}
-    // full mode with ids: single JSON block {results: [...]}
     if (blocks.length === 0) return { results: [] };
 
     // Try to parse the first block as JSON (full mode or error)
@@ -249,23 +302,22 @@ export class AwarenessClient {
       // Not JSON — it's the readable summary text
     }
 
-    // summary mode: convert text + _ids into VectorResult[]
-    const results: VectorResult[] = [];
     const summaryText = blocks[0]?.text ?? "";
-
-    // Parse numbered items: "1. [type] title\n   content\n\n2. ..."
-    const itemRegex = /\d+\.\s+\[([^\]]*)\]\s+(.*)\n\s+([\s\S]*?)(?=\n\n\d+\.|$)/g;
-    let match: RegExpExecArray | null;
-    while ((match = itemRegex.exec(summaryText)) !== null) {
-      results.push({
-        content: `[${match[1]}] ${match[2]}\n${match[3].trim()}`,
-        score: 0.75, // local FTS doesn't return cosine scores; use placeholder
-      });
+    let ids: string[] = [];
+    try {
+      const parsedMeta = JSON.parse(blocks[1]?.text ?? "{}");
+      if (Array.isArray(parsedMeta._ids)) {
+        ids = parsedMeta._ids.map((id: unknown) => String(id));
+      }
+    } catch {
+      // No metadata block — keep best-effort parsing only
     }
+
+    const results = parseRecallSummaryBlocks(summaryText, ids);
 
     // If regex didn't match (format changed), use the raw text as single result
     if (results.length === 0 && summaryText.length > 20) {
-      results.push({ content: summaryText, score: 0.75 });
+      results.push({ content: summaryText });
     }
 
     return { results };
@@ -396,6 +448,7 @@ export class AwarenessClient {
     days?: number,
     maxCards?: number,
     maxTasks?: number,
+    query?: string,
   ): Promise<SessionContext> {
     if (this.isLocal) {
       // Use MCP awareness_init which returns full session context
@@ -404,6 +457,7 @@ export class AwarenessClient {
         days: days ?? 7,
         max_cards: maxCards ?? 8,
         max_tasks: maxTasks ?? 8,
+        ...(query && { query }),
       });
       // Map MCP response to SessionContext interface
       return {
@@ -422,6 +476,7 @@ export class AwarenessClient {
     if (days !== undefined) params.set("days", String(days));
     if (maxCards !== undefined) params.set("max_cards", String(maxCards));
     if (maxTasks !== undefined) params.set("max_tasks", String(maxTasks));
+    if (query) params.set("query", query);
     if (this.agentRole) params.set("agent_role", this.agentRole);
     return this.get<SessionContext>(
       `/memories/${this.memoryId}/context`,

@@ -12,6 +12,7 @@
  */
 
 import { embed, cosineSimilarity } from './embedder.mjs';
+import { detectNeedsCJK } from './lang-detect.mjs';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -66,6 +67,9 @@ export class SearchEngine {
    * @param {string}  [params.agent_role]
    * @param {string}  [params.detail='summary'] - 'summary' | 'full'
    * @param {string[]} [params.ids]            - Specific IDs for full content
+   * @param {boolean} [params.multi_level]
+   * @param {boolean} [params.cluster_expand]
+   * @param {boolean} [params.include_installed=true]
    * @returns {Promise<object[]>}
    */
   async recall(params) {
@@ -78,6 +82,10 @@ export class SearchEngine {
       agent_role,
       detail = 'summary',
       ids,
+      source_exclude,
+      multi_level = false,
+      cluster_expand = false,
+      include_installed = true,
     } = params;
 
     // Progressive disclosure Phase 2: return full content for specified IDs
@@ -93,6 +101,10 @@ export class SearchEngine {
       recall_mode,
       limit,
       agent_role,
+      source_exclude,
+      multi_level,
+      cluster_expand,
+      include_installed,
     };
 
     // Dual-channel: local (always) + cloud (optional, with timeout protection)
@@ -103,7 +115,12 @@ export class SearchEngine {
         : Promise.resolve([]),
     ]);
 
-    const merged = this.mergeResults(localResults, cloudResults, normalizedParams);
+    let merged = this.mergeResults(localResults, cloudResults, normalizedParams);
+
+    // Apply source exclusion filter if requested
+    if (source_exclude && source_exclude.length > 0) {
+      merged = merged.filter((r) => !source_exclude.includes(r.source));
+    }
 
     // Return summary format
     return merged.map((r) => ({
@@ -222,9 +239,9 @@ export class SearchEngine {
               scope: params.scope || 'all',
               recall_mode: 'hybrid',
               limit: params.limit || 10,
-              multi_level: true,
-              cluster_expand: true,
-              include_installed: true,
+              multi_level: !!params.multi_level,
+              cluster_expand: !!params.cluster_expand,
+              include_installed: params.include_installed !== false,
               reconstruct_chunks: true,
             },
           },
@@ -514,21 +531,47 @@ export class SearchEngine {
    * @returns {Promise<object[]>}
    */
   async _embeddingSearch(queryText, scope, opts) {
-    const queryVec = await embed(queryText, 'query');
-    if (!queryVec) return [];
+    const isCJK = detectNeedsCJK(queryText);
 
-    // Retrieve all stored embeddings from the indexer
+    // Retrieve all stored embeddings from the indexer (includes model_id)
     const allEmbeddings = this.indexer.getAllEmbeddings?.(scope) || [];
     if (allEmbeddings.length === 0) return [];
 
-    // Compute cosine similarity for each
+    // Determine which models have stored embeddings
+    const modelIds = new Set(allEmbeddings.map((e) => e.model_id || ''));
+    const hasEnglish = modelIds.has('Xenova/all-MiniLM-L6-v2') || modelIds.has('all-MiniLM-L6-v2') || modelIds.has('');
+    const hasMultilingual = modelIds.has('Xenova/multilingual-e5-small') || modelIds.has('multilingual-e5-small');
+
+    // Build query vectors — only load models that have stored embeddings
+    const queryVecs = new Map(); // modelPattern -> vector
+    if (hasEnglish) {
+      try {
+        queryVecs.set('english', await embed(queryText, 'query', 'english'));
+      } catch { /* english model unavailable */ }
+    }
+    if (isCJK || hasMultilingual) {
+      try {
+        queryVecs.set('multilingual', await embed(queryText, 'query', 'multilingual'));
+      } catch { /* multilingual model not yet downloaded — will lazy-load on next CJK write */ }
+    }
+
+    if (queryVecs.size === 0) return [];
+
+    // Score each stored embedding using the matching query vector
     const scored = [];
     for (const item of allEmbeddings) {
       if (!item.vector) continue;
-      const similarity = cosineSimilarity(queryVec, item.vector);
+      const itemId = item.id || item.memory_id;
+      if (!itemId) continue;
+      const mid = item.model_id || '';
+      const isMulti = mid.includes('multilingual') || mid.includes('e5-small');
+      const qvec = isMulti ? queryVecs.get('multilingual') : queryVecs.get('english');
+      if (!qvec) continue; // no matching query vector for this model
+      const similarity = cosineSimilarity(qvec, item.vector);
       if (similarity > 0.1) {
         scored.push({
           ...item,
+          id: itemId,
           embeddingScore: similarity,
           rank: similarity,
         });
