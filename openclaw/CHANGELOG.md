@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.17] - 2026-04-01
+
+### Fixed
+- **Hook migration with backward compatibility**: Migrated `before_agent_start` → `before_prompt_build` for OpenClaw v2026.3.22+. Both hooks are registered simultaneously with prompt-based dedup guard, ensuring the plugin works on both old and new OpenClaw versions.
+- **Hash dedup collision fix**: Replaced simple JSHash with `content.slice(0,120)|length` composite key — near-zero collision probability for short messages.
+- **Test copy-paste bug**: `hookLegacy` assertion was checking `before_prompt_build` instead of `before_agent_start`.
+
+### Changed
+- **Recall threshold lowered**: Score filter reduced from 0.5 → 0.35 to improve recall rate, especially for CJK content with cross-language semantic matching.
+
+## [0.5.16] - 2026-03-31
+
+### Fixed
+- **26-issue audit**: Data safety, dedup, i18n, and test fixes across the SDK.
+
+## [0.5.15] - 2026-03-31
+
+### Fixed
+- **Local-mode plugin init**: Source isolation and sourceExclude filtering improvements.
+
 ## [0.5.14] - 2026-03-27
 
 ### Fixed

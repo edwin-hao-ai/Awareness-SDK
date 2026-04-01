@@ -59,6 +59,26 @@ function extractKeywords(text: string, maxKeywords: number = 8): string {
 }
 
 // ---------------------------------------------------------------------------
+// Capture dedup — prevent recording identical summaries within a time window
+// ---------------------------------------------------------------------------
+
+const _captureHashCache = new Map<string, number>();
+const CAPTURE_DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+function shouldCapture(content: string): boolean {
+  const now = Date.now();
+  // Clean expired entries
+  for (const [k, ts] of _captureHashCache) {
+    if (now - ts > CAPTURE_DEDUP_WINDOW_MS) _captureHashCache.delete(k);
+  }
+  // Composite key: first 120 chars + length — near-zero collision probability
+  const key = `${content.slice(0, 120)}|${content.length}`;
+  if (_captureHashCache.has(key)) return false;
+  _captureHashCache.set(key, now);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Perception cache — bridge between record (write) and recall (read)
 // Signals are written by auto-capture / tool calls, read by auto-recall.
 // ---------------------------------------------------------------------------
@@ -114,10 +134,15 @@ export function registerHooks(
   config: PluginConfig,
 ): void {
   // -----------------------------------------------------------------------
-  // before_agent_start — auto-recall context when a session begins
+  // Auto-recall context when a session begins.
+  // Register on BOTH hook names for compatibility:
+  //   - "before_prompt_build" (OpenClaw >= 2026.3.22, preferred)
+  //   - "before_agent_start" (OpenClaw < 2026.3.22, deprecated but still works)
+  // Only one will fire per session — a dedup flag prevents double execution.
   // -----------------------------------------------------------------------
   if (config.autoRecall) {
-    api.on("before_agent_start", async (context: unknown): Promise<HookResult | void> => {
+    let _recallFiredForPrompt = "";
+    const autoRecallHandler = async (context: unknown): Promise<HookResult | void> => {
         const ctx = context as HookContext | undefined;
         // Guard: context may be undefined in non-agent calls (e.g. plugins list)
         if (!ctx) return;
@@ -125,6 +150,9 @@ export function registerHooks(
         if (!prompt) {
           return;
         }
+        // Dedup: both hooks may fire in transition versions — only run once per prompt
+        if (_recallFiredForPrompt === prompt) return;
+        _recallFiredForPrompt = prompt;
 
         try {
           // Initialize session and load context
@@ -287,7 +315,7 @@ export function registerHooks(
 
           // Vector recall results (filter low-score noise, with aha detection)
           const results = (recall.results ?? []).filter(
-            (r) => r.score === undefined || r.score === null || r.score >= 0.5
+            (r) => r.score === undefined || r.score === null || r.score >= 0.35
           );
           if (results.length > 0) {
             parts.push("  <recall>");
@@ -358,8 +386,10 @@ export function registerHooks(
           );
           return;
         }
-      },
-    );
+    };
+    // Register on both hook names — only one will fire per session (dedup above)
+    api.on("before_prompt_build", autoRecallHandler);
+    api.on("before_agent_start", autoRecallHandler);
   }
 
   // -----------------------------------------------------------------------
@@ -417,6 +447,11 @@ export function registerHooks(
             return;
           }
 
+          // captureMinTurns: skip capture if conversation is too short
+          if (config.captureMinTurns && messageCount < config.captureMinTurns) {
+            return;
+          }
+
           // Build structured turn brief
           const parts: string[] = [];
           if (firstUserContent) {
@@ -427,6 +462,11 @@ export function registerHooks(
           }
           parts.push(`Turns: ${messageCount} messages`);
           const summary = parts.join("\n");
+
+          // Content-hash dedup: skip if identical summary was captured recently
+          if (!shouldCapture(summary)) {
+            return;
+          }
 
           // Detect channel source from context (Gateway passes channel info)
           const ctxAny = ctx as Record<string, unknown>;

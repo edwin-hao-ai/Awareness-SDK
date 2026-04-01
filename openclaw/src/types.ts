@@ -12,6 +12,10 @@ export interface PluginConfig {
   recallLimit: number;
   localUrl: string;
   embeddingLanguage: "english" | "multilingual";
+  /** Minimum message count before auto-capture fires. Default: 0 (capture all). */
+  captureMinTurns?: number;
+  /** Only capture conversations matching these categories. Default: [] (all). */
+  captureCategories?: string[];
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 {
   "id": "openclaw-memory",
   "name": "Awareness Memory",
-  "version": "0.5.15",
+  "version": "0.5.17",
   "kind": "memory",
   "configSchema": {
     "type": "object",
@@ -13,6 +13,8 @@
       "autoRecall": { "type": "boolean", "default": true },
       "autoCapture": { "type": "boolean", "default": true },
       "recallLimit": { "type": "integer", "default": 8 },
+      "captureMinTurns": { "type": "integer", "default": 0, "minimum": 0 },
+      "captureCategories": { "type": "array", "items": { "type": "string" }, "default": [] },
       "localUrl": { "type": "string", "default": "http://localhost:37800" },
       "embeddingLanguage": {
         "type": "string",

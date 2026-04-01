@@ -40,6 +40,8 @@ export interface SearchOptions {
   detail?: "summary" | "full";
   /** Item IDs to expand (used with detail='full'). IDs come from a prior detail='summary' call. */
   ids?: string[];
+  /** Exclude memories from these sources (e.g. ['mcp'] to hide Claude Code dev memories during chat recall). */
+  sourceExclude?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +231,7 @@ export class AwarenessClient {
     if (opts.recallMode) args.recall_mode = opts.recallMode;
     const agentRole = opts.agentRole ?? this.agentRole;
     if (agentRole) args.agent_role = agentRole;
+    if (opts.sourceExclude && opts.sourceExclude.length > 0) args.source_exclude = opts.sourceExclude;
 
     const blocks = await this.mcpCallRaw("awareness_recall", args);
 
@@ -772,15 +775,8 @@ export class AwarenessClient {
 
   async closeSession(): Promise<{ session_id: string; events_processed: number }> {
     if (this.isLocal) {
-      // For local daemon, record a session-end sentinel via MCP
-      try {
-        await this.record("[session-end]", {
-          event_type: "session_end",
-          source: "openclaw-plugin",
-        });
-      } catch {
-        // Ignore close errors
-      }
+      // Local daemon doesn't do insight extraction on session close,
+      // so skip the sentinel record — it's just noise in the timeline.
       return { session_id: this.sessionId, events_processed: 0 };
     }
 

@@ -148,10 +148,12 @@ describe("memory-awareness (native OpenClaw adapter)", () => {
   // Hook Registration
   // =========================================================================
   describe("hook registration", () => {
-    it("registers before_agent_start when autoRecall=true", () => {
+    it("registers before_prompt_build and before_agent_start when autoRecall=true", () => {
       const { api, hooks } = makeMockApi(VALID_CONFIG);
 
       awarenessPlugin.register(api);
+      expect(hooks["before_prompt_build"]).toBeDefined();
+      expect(hooks["before_prompt_build"]).toHaveLength(1);
       expect(hooks["before_agent_start"]).toBeDefined();
       expect(hooks["before_agent_start"]).toHaveLength(1);
     });
@@ -172,6 +174,7 @@ describe("memory-awareness (native OpenClaw adapter)", () => {
       });
 
       awarenessPlugin.register(api);
+      expect(hooks["before_prompt_build"]).toBeUndefined();
       expect(hooks["before_agent_start"]).toBeUndefined();
       expect(hooks["agent_end"]).toBeUndefined();
     });
@@ -181,11 +184,11 @@ describe("memory-awareness (native OpenClaw adapter)", () => {
   // Hook Null Guards
   // =========================================================================
   describe("hook null guards", () => {
-    it("before_agent_start handles undefined event without crashing", async () => {
+    it("before_prompt_build handles undefined event without crashing", async () => {
       const { api, hooks } = makeMockApi(VALID_CONFIG);
 
       awarenessPlugin.register(api);
-      const handler = hooks["before_agent_start"][0];
+      const handler = hooks["before_prompt_build"][0];
 
       // Should not throw
       const result = await handler(undefined);
@@ -193,22 +196,22 @@ describe("memory-awareness (native OpenClaw adapter)", () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("before_agent_start handles null event without crashing", async () => {
+    it("before_prompt_build handles null event without crashing", async () => {
       const { api, hooks } = makeMockApi(VALID_CONFIG);
 
       awarenessPlugin.register(api);
-      const handler = hooks["before_agent_start"][0];
+      const handler = hooks["before_prompt_build"][0];
 
       const result = await handler(null);
       expect(result).toBeUndefined();
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("before_agent_start skips very short prompts (< 5 chars)", async () => {
+    it("before_prompt_build skips very short prompts (< 5 chars)", async () => {
       const { api, hooks } = makeMockApi(VALID_CONFIG);
 
       awarenessPlugin.register(api);
-      const handler = hooks["before_agent_start"][0];
+      const handler = hooks["before_prompt_build"][0];
 
       const result = await handler({ prompt: "hi" });
       expect(result).toBeUndefined();
@@ -250,7 +253,7 @@ describe("memory-awareness (native OpenClaw adapter)", () => {
   // =========================================================================
   // Auto-Recall Integration
   // =========================================================================
-  describe("before_agent_start auto-recall", () => {
+  describe("before_prompt_build auto-recall", () => {
     it("injects memory context for valid prompt", async () => {
       mockFetch.mockReturnValueOnce(
         jsonResponse({
@@ -269,7 +272,7 @@ describe("memory-awareness (native OpenClaw adapter)", () => {
 
       const { api, hooks } = makeMockApi(VALID_CONFIG);
       awarenessPlugin.register(api);
-      const handler = hooks["before_agent_start"][0];
+      const handler = hooks["before_prompt_build"][0];
 
       const result = await handler({ prompt: "How does auth work in this project?" });
       expect(result).toBeDefined();
@@ -282,7 +285,7 @@ describe("memory-awareness (native OpenClaw adapter)", () => {
 
       const { api, hooks } = makeMockApi(VALID_CONFIG);
       awarenessPlugin.register(api);
-      const handler = hooks["before_agent_start"][0];
+      const handler = hooks["before_prompt_build"][0];
 
       // Should not throw
       const result = await handler({ prompt: "This should fail gracefully with a long enough prompt" });

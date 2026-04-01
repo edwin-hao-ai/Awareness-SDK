@@ -70,10 +70,11 @@ describe("register (plugin entry point)", () => {
     expect(tools["awareness_lookup"]).toBeDefined();
     expect(tools["awareness_record"]).toBeDefined();
 
-    // 2 hooks: before_agent_start, agent_end
-    expect(hooks).toHaveLength(2);
-    expect(hooks[0].name).toBe("before_agent_start");
-    expect(hooks[1].name).toBe("agent_end");
+    // 3 hooks: before_prompt_build, before_agent_start (dual registration), agent_end
+    expect(hooks).toHaveLength(3);
+    expect(hooks[0].name).toBe("before_prompt_build");
+    expect(hooks[1].name).toBe("before_agent_start");
+    expect(hooks[2].name).toBe("agent_end");
 
     // Logs initialization
     expect(logCalls.some((l) => l.includes("initialized"))).toBe(true);
@@ -90,10 +91,11 @@ describe("register (plugin entry point)", () => {
     expect(tools["awareness_recall"]).toBeDefined();
     expect(tools["awareness_record"]).toBeDefined();
 
-    // 2 hooks: before_agent_start + agent_end (local mode, not setup mode)
-    expect(hooks).toHaveLength(2);
-    expect(hooks[0].name).toBe("before_agent_start");
-    expect(hooks[1].name).toBe("agent_end");
+    // 3 hooks: before_prompt_build + before_agent_start (dual) + agent_end (local mode, not setup mode)
+    expect(hooks).toHaveLength(3);
+    expect(hooks[0].name).toBe("before_prompt_build");
+    expect(hooks[1].name).toBe("before_agent_start");
+    expect(hooks[2].name).toBe("agent_end");
 
     // Should log registration (daemon check happens in background)
     expect(logCalls.some((l) => l.includes("registered"))).toBe(true);
@@ -106,7 +108,7 @@ describe("register (plugin entry point)", () => {
     // Full tools registered (local mode with memoryId="local")
     expect(Object.keys(tools)).toHaveLength(6);
     expect(tools["awareness_init"]).toBeDefined();
-    expect(hooks).toHaveLength(2);
+    expect(hooks).toHaveLength(3);
     expect(logCalls.some((l) => l.includes("registered"))).toBe(true);
   });
 
@@ -117,7 +119,7 @@ describe("register (plugin entry point)", () => {
     // Even with zero config, local mode tools are registered optimistically
     expect(Object.keys(tools)).toHaveLength(6);
     expect(tools["awareness_init"]).toBeDefined();
-    expect(hooks).toHaveLength(2);
+    expect(hooks).toHaveLength(3);
   });
 
   it("sync register returns immediately (no async blocking)", () => {
@@ -136,8 +138,8 @@ describe("register (plugin entry point)", () => {
     // Should not throw — defaults are applied internally
     register(api);
     expect(Object.keys(tools)).toHaveLength(6);
-    // 2 hooks registered via api.on() from registerHooks
-    expect(hooks).toHaveLength(2);
+    // 3 hooks registered via api.on() from registerHooks (before_prompt_build + before_agent_start + agent_end)
+    expect(hooks).toHaveLength(3);
   });
 
   it("skips hooks when autoRecall=false and autoCapture=false", () => {
@@ -151,16 +153,17 @@ describe("register (plugin entry point)", () => {
     expect(hooks).toHaveLength(0);
   });
 
-  it("only registers recall hook when autoCapture=false", () => {
+  it("only registers recall hooks when autoCapture=false", () => {
     const { api, hooks } = makeApi({
       autoRecall: true,
       autoCapture: false,
     });
 
     register(api);
-    // Only before_agent_start registered via api.on()
-    expect(hooks).toHaveLength(1);
-    expect(hooks[0].name).toBe("before_agent_start");
+    // before_prompt_build + before_agent_start (dual registration), no agent_end
+    expect(hooks).toHaveLength(2);
+    expect(hooks[0].name).toBe("before_prompt_build");
+    expect(hooks[1].name).toBe("before_agent_start");
   });
 
   // =========================================================================
@@ -271,9 +274,9 @@ describe("register (plugin entry point)", () => {
 
       // apiKey is undefined at root level → registers local mode tools (not crash)
       register(api);
-      // 6 tools registered via registerTool, 2 hooks via api.on
+      // 6 tools registered via registerTool, 3 hooks via api.on (before_prompt_build + before_agent_start + agent_end)
       expect(api.registerTool).toHaveBeenCalledTimes(6);
-      expect(hooks).toHaveLength(2);
+      expect(hooks).toHaveLength(3);
     });
 
     it("handles config with string coercion for non-string values", () => {

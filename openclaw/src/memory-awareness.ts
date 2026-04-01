@@ -28,6 +28,8 @@ interface AwarenessPluginConfig {
   autoRecall: boolean;
   autoCapture: boolean;
   recallLimit: number;
+  /** Local daemon URL (e.g. http://localhost:37800). When set, apiKey/memoryId are optional. */
+  localUrl?: string;
 }
 
 const awarenessConfigSchema = {
@@ -39,21 +41,28 @@ const awarenessConfigSchema = {
     }
     const cfg = value as Record<string, unknown>;
 
-    if (typeof cfg.apiKey !== "string" || !cfg.apiKey) {
-      throw new Error("apiKey is required in Awareness plugin config");
-    }
-    if (typeof cfg.memoryId !== "string" || !cfg.memoryId) {
-      throw new Error("memoryId is required in Awareness plugin config");
+    const localUrl = typeof cfg.localUrl === "string" && cfg.localUrl ? cfg.localUrl : undefined;
+    const isLocalMode = !!localUrl;
+
+    // In local mode, apiKey and memoryId are optional — the daemon handles auth internally.
+    if (!isLocalMode) {
+      if (typeof cfg.apiKey !== "string" || !cfg.apiKey) {
+        throw new Error("apiKey is required in Awareness plugin config (or set localUrl for local daemon mode)");
+      }
+      if (typeof cfg.memoryId !== "string" || !cfg.memoryId) {
+        throw new Error("memoryId is required in Awareness plugin config (or set localUrl for local daemon mode)");
+      }
     }
 
     return {
-      apiKey: String(cfg.apiKey),
+      apiKey: typeof cfg.apiKey === "string" ? cfg.apiKey : "",
       baseUrl: typeof cfg.baseUrl === "string" ? cfg.baseUrl : "https://awareness.market/api/v1",
-      memoryId: String(cfg.memoryId),
+      memoryId: typeof cfg.memoryId === "string" ? cfg.memoryId : "local",
       agentRole: typeof cfg.agentRole === "string" ? cfg.agentRole : "builder_agent",
       autoRecall: cfg.autoRecall !== false,
       autoCapture: cfg.autoCapture !== false,
       recallLimit: typeof cfg.recallLimit === "number" ? cfg.recallLimit : 8,
+      localUrl,
     };
   },
 };
@@ -215,10 +224,18 @@ const awarenessPlugin = {
   register(api: any) {
     // pluginConfig = plugin-specific config; config may be entire openclaw.json
     const cfg = awarenessConfigSchema.parse(api.pluginConfig ?? api.config);
-    const client = new AwarenessClient(cfg.baseUrl, cfg.apiKey, cfg.memoryId, cfg.agentRole);
+
+    // Local mode: route through the daemon's API (no cloud auth required).
+    // AwarenessClient auto-detects local mode when apiKey is empty + URL is localhost.
+    const effectiveBaseUrl = cfg.localUrl
+      ? `${cfg.localUrl.replace(/\/$/, "")}/api/v1`
+      : cfg.baseUrl;
+    const effectiveApiKey = cfg.localUrl ? "" : cfg.apiKey;
+
+    const client = new AwarenessClient(effectiveBaseUrl, effectiveApiKey, cfg.memoryId, cfg.agentRole);
 
     api.logger.info(
-      `awareness: plugin registered (memory=${cfg.memoryId}, role=${cfg.agentRole}, ` +
+      `awareness: plugin registered (mode=${cfg.localUrl ? "local" : "cloud"}, memory=${cfg.memoryId}, role=${cfg.agentRole}, ` +
         `autoRecall=${cfg.autoRecall}, autoCapture=${cfg.autoCapture})`,
     );
 
@@ -377,11 +394,15 @@ const awarenessPlugin = {
     // Auto-recall hook
     // =====================================================================
     if (cfg.autoRecall) {
-      api.on("before_agent_start", async (event: any) => {
+      let _recallFired = "";
+      const autoRecallHandler = async (event: any) => {
         // Guard: event may be undefined in non-agent calls (e.g. plugins list)
         if (!event) return;
         const prompt = (event.prompt ?? "").trim();
         if (!prompt || prompt.length < 5) return;
+        // Dedup: both hooks may fire in transition versions
+        if (_recallFired === prompt) return;
+        _recallFired = prompt;
 
         try {
           const { context: sessionCtx } = await client.init(
@@ -395,6 +416,8 @@ const awarenessPlugin = {
             semanticQuery: prompt,
             keywordQuery: keywords || undefined,
             limit: cfg.recallLimit,
+            // Exclude Claude Code MCP dev memories from chat context injection
+            sourceExclude: ['mcp'],
           });
 
           const memoryBlock = buildMemoryBlock(sessionCtx, recall.results ?? []);
@@ -407,7 +430,10 @@ const awarenessPlugin = {
         } catch (err) {
           api.logger.warn(`awareness: auto-recall failed: ${String(err)}`);
         }
-      });
+      };
+      // Register on both hook names for old/new OpenClaw compatibility
+      api.on("before_prompt_build", autoRecallHandler);
+      api.on("before_agent_start", autoRecallHandler);
     }
 
     // =====================================================================

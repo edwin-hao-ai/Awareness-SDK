@@ -272,9 +272,11 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
 
   // On every session start: auto-initiate device auth and inject the URL directly
   // into system context so the agent presents it without any tool call needed.
-  api.on(
-    "before_agent_start",
-    async (_context: unknown): Promise<HookResult | void> => {
+  // Register on both hook names for old/new OpenClaw compatibility.
+  let _setupRecallFired = false;
+  const setupRecallHandler = async (_context: unknown): Promise<HookResult | void> => {
+      if (_setupRecallFired) return;
+      _setupRecallFired = true;
       // Check if a fresh device auth was already started this session
       // (cache file may exist from a previous approval attempt)
       if (fs.existsSync(AUTH_CACHE_FILE)) {
@@ -345,8 +347,9 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
           `  <setup-required>Memory not configured. Tell user: call awareness_setup(action='start_auth') to get a login link.</setup-required>\n` +
           `</awareness-memory>`,
       };
-    },
-  );
+  };
+  api.on("before_prompt_build", setupRecallHandler);
+  api.on("before_agent_start", setupRecallHandler);
 
   api.logger.warn(
     "Awareness memory plugin loaded in setup mode — no local daemon and no cloud credentials. " +

@@ -70,8 +70,9 @@ function setupHooks(configOverrides?: Partial<PluginConfig>): RegisteredHook[] {
 
 describe("registerHooks", () => {
   describe("hook registration", () => {
-    it("registers before_agent_start when autoRecall=true", () => {
+    it("registers before_prompt_build and before_agent_start when autoRecall=true", () => {
       const hooks = setupHooks({ autoRecall: true });
+      expect(hooks.some((h) => h.name === "before_prompt_build")).toBe(true);
       expect(hooks.some((h) => h.name === "before_agent_start")).toBe(true);
     });
 
@@ -80,8 +81,9 @@ describe("registerHooks", () => {
       expect(hooks.some((h) => h.name === "agent_end")).toBe(true);
     });
 
-    it("does NOT register before_agent_start when autoRecall=false", () => {
+    it("does NOT register before_prompt_build or before_agent_start when autoRecall=false", () => {
       const hooks = setupHooks({ autoRecall: false });
+      expect(hooks.some((h) => h.name === "before_prompt_build")).toBe(false);
       expect(hooks.some((h) => h.name === "before_agent_start")).toBe(false);
     });
 
@@ -90,11 +92,14 @@ describe("registerHooks", () => {
       expect(hooks.some((h) => h.name === "agent_end")).toBe(false);
     });
 
-    it("before_agent_start is registered via api.on()", () => {
+    it("before_prompt_build and before_agent_start are both registered via api.on()", () => {
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start");
-      expect(hook).toBeDefined();
-      expect(typeof hook!.handler).toBe("function");
+      const hookNew = hooks.find((h) => h.name === "before_prompt_build");
+      const hookLegacy = hooks.find((h) => h.name === "before_agent_start");
+      expect(hookNew).toBeDefined();
+      expect(hookLegacy).toBeDefined();
+      expect(typeof hookNew!.handler).toBe("function");
+      expect(typeof hookLegacy!.handler).toBe("function");
     });
 
     it("agent_end is registered via api.on()", () => {
@@ -106,12 +111,12 @@ describe("registerHooks", () => {
   });
 
   // =========================================================================
-  // Auto-Recall Hook (before_agent_start)
+  // Auto-Recall Hook (before_prompt_build / before_agent_start)
   // =========================================================================
-  describe("before_agent_start (auto-recall)", () => {
+  describe("before_prompt_build (auto-recall)", () => {
     it("returns void when context is undefined (e.g. plugins list)", async () => {
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
 
       // OpenClaw may call hooks with undefined context during non-agent calls
       const result = await hook.handler(undefined as unknown);
@@ -121,7 +126,7 @@ describe("registerHooks", () => {
 
     it("returns void when context is null", async () => {
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
 
       const result = await hook.handler(null as unknown);
       expect(result).toBeUndefined();
@@ -130,7 +135,7 @@ describe("registerHooks", () => {
 
     it("returns void for empty prompt", async () => {
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
 
       const result = await hook.handler({ prompt: "" });
       expect(result).toBeUndefined();
@@ -164,7 +169,7 @@ describe("registerHooks", () => {
       );
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
 
       const result = (await hook.handler({
         prompt: "What auth method are we using?",
@@ -194,7 +199,7 @@ describe("registerHooks", () => {
       // Should contain recall results
       expect(result.prependSystemContext).toContain("<recall>");
       expect(result.prependSystemContext).toContain("Decided JWT over session cookies");
-      expect(result.prependSystemContext).toContain("score=\"0.950\"");
+      expect(result.prependSystemContext).toContain("score=\"0.95\"");
 
       // prependSystemContext is the primary output
       expect(result.prependSystemContext).toBeTruthy();
@@ -220,7 +225,7 @@ describe("registerHooks", () => {
       );
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
       const result = (await hook.handler({
         prompt: "test query",
       })) as HookResult;
@@ -235,7 +240,7 @@ describe("registerHooks", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
       await hook.handler({
         prompt: 'Fix the bug in auth_service.py related to JWT "token expiry"',
       });
@@ -252,7 +257,7 @@ describe("registerHooks", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ error: "timeout" }, 500));
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
 
       // Should not throw, just return undefined
       const result = await hook.handler({ prompt: "test" });
@@ -272,7 +277,7 @@ describe("registerHooks", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
 
       const result = (await hook.handler({
         prompt: "First time setup",
@@ -450,7 +455,7 @@ describe("registerHooks", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
       await hook.handler({
         prompt: "Check the bugs in main.py and config.yml and package.json",
       });
@@ -466,7 +471,7 @@ describe("registerHooks", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
       await hook.handler({
         prompt: 'Fix the "connection timeout" error in the "auth service"',
       });
@@ -481,7 +486,7 @@ describe("registerHooks", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
       await hook.handler({
         prompt: "Check the JWT_SECRET and API_KEY environment variables",
       });
@@ -496,7 +501,7 @@ describe("registerHooks", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
       await hook.handler({
         prompt: "The getUserProfile function and user_preferences table need fixing",
       });
@@ -511,7 +516,7 @@ describe("registerHooks", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       const hooks = setupHooks();
-      const hook = hooks.find((h) => h.name === "before_agent_start")!;
+      const hook = hooks.find((h) => h.name === "before_prompt_build")!;
       await hook.handler({
         prompt:
           'Check "bug1" "bug2" "bug3" "bug4" "bug5" "bug6" "bug7" "bug8" "bug9" "bug10" extra',
