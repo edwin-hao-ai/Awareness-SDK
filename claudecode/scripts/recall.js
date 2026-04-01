@@ -271,6 +271,7 @@ async function main() {
       }
 
       xmlOutput = buildContextXml(ctx, recallResults, perceptionSignals, {
+        currentFocus: prompt,
         localUrl,
         recordRuleScript: resolvedScript,
       });
