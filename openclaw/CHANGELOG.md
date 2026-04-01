@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.18] - 2026-04-02
+
+### Changed
+- **Context-first local recall**: local daemon auto-recall now forwards the current prompt into `awareness_init(query)` so rendered context stays aligned with the user's current focus.
+- **Progressive disclosure parsing**: local MCP recall summary blocks are parsed into structured results before expansion, matching the daemon's summary-first recall contract.
+
+### Fixed
+- **Local summary recall handling**: OpenClaw local-mode client now understands the daemon's two-block summary response shape instead of treating it as opaque text.
+- **Hook context continuity**: recall hooks now preserve current-focus metadata across local fallback paths, keeping prompt injection consistent with other clients.
+
 ## [0.5.17] - 2026-04-01
 
 ### Fixed
