@@ -441,8 +441,14 @@ export default function register(api: PluginApi): void {
   // Environment variables take priority (for cloud/serverless deployments)
   const envApiKey = process.env.AWARENESS_API_KEY || "";
   const envMemoryId = process.env.AWARENESS_MEMORY_ID || "";
+  const envBaseUrl = process.env.AWARENESS_BASE_URL || "";
+  const envAgentRole = process.env.AWARENESS_AGENT_ROLE || "";
+  const envLocalUrl = process.env.AWARENESS_LOCAL_URL || "";
   if (envApiKey) config.apiKey = envApiKey;
   if (envMemoryId) config.memoryId = envMemoryId;
+  if (envBaseUrl) config.baseUrl = envBaseUrl;
+  if (envAgentRole) config.agentRole = envAgentRole;
+  if (envLocalUrl) config.localUrl = envLocalUrl;
 
   const localUrl = config.localUrl;
 

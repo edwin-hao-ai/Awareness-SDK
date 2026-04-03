@@ -54,6 +54,16 @@ Edit `~/.openclaw/openclaw.json`:
 }
 ```
 
+For cloud or bot deployments, you can skip device-auth and config file edits by pre-setting environment variables on the server:
+
+```bash
+export AWARENESS_API_KEY="aw_your-api-key"
+export AWARENESS_MEMORY_ID="your-memory-id"
+export AWARENESS_BASE_URL="https://awareness.market/api/v1"
+```
+
+When these variables are present, the plugin will use them as the highest-priority cloud configuration.
+
 ## Available Tools
 
 | Tool | Description |

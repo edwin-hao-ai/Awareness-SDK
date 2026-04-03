@@ -10,8 +10,17 @@ const mockFetch = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("fetch", mockFetch);
   mockFetch.mockReset();
+  vi.unstubAllEnvs();
+  vi.stubEnv("AWARENESS_API_KEY", "");
+  vi.stubEnv("AWARENESS_MEMORY_ID", "");
+  vi.stubEnv("AWARENESS_BASE_URL", "");
+  vi.stubEnv("AWARENESS_AGENT_ROLE", "");
+  vi.stubEnv("AWARENESS_LOCAL_URL", "");
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 // ===========================================================================
 // Plugin Entry Point Tests
@@ -250,6 +259,32 @@ describe("register (plugin entry point)", () => {
       register(api);
       const infoFn = api.logger.info as ReturnType<typeof vi.fn>;
       expect(infoFn.mock.calls[0]?.[0]).toContain("mem-from-config");
+    });
+
+    it("prefers environment overrides over plugin config in cloud mode", () => {
+      vi.stubEnv("AWARENESS_API_KEY", "env-key");
+      vi.stubEnv("AWARENESS_MEMORY_ID", "env-mem");
+      vi.stubEnv("AWARENESS_BASE_URL", "https://env.awareness.test/api/v1");
+      vi.stubEnv("AWARENESS_AGENT_ROLE", "env_agent");
+
+      const api: PluginApi = {
+        registerTool: vi.fn(),
+        registerHook: vi.fn(),
+        on: vi.fn(),
+        pluginConfig: {
+          apiKey: "config-key",
+          memoryId: "config-mem",
+          baseUrl: "https://config.awareness.test/api/v1",
+          agentRole: "builder_agent",
+        },
+        config: {},
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      };
+
+      register(api);
+      const infoFn = api.logger.info as ReturnType<typeof vi.fn>;
+      expect(infoFn.mock.calls[0]?.[0]).toContain("env-mem");
+      expect(infoFn.mock.calls[0]?.[0]).toContain("env_agent");
     });
 
     it("registers local mode when entire openclaw.json is passed as config (no apiKey at root)", () => {

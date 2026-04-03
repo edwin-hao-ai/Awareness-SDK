@@ -32,6 +32,16 @@ interface AwarenessPluginConfig {
   localUrl?: string;
 }
 
+function applyEnvironmentOverrides(cfg: Record<string, unknown>): Record<string, unknown> {
+  const merged = { ...cfg };
+  if (process.env.AWARENESS_API_KEY) merged.apiKey = process.env.AWARENESS_API_KEY;
+  if (process.env.AWARENESS_MEMORY_ID) merged.memoryId = process.env.AWARENESS_MEMORY_ID;
+  if (process.env.AWARENESS_BASE_URL) merged.baseUrl = process.env.AWARENESS_BASE_URL;
+  if (process.env.AWARENESS_AGENT_ROLE) merged.agentRole = process.env.AWARENESS_AGENT_ROLE;
+  if (process.env.AWARENESS_LOCAL_URL) merged.localUrl = process.env.AWARENESS_LOCAL_URL;
+  return merged;
+}
+
 const awarenessConfigSchema = {
   parse(value: unknown): AwarenessPluginConfig {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -39,7 +49,7 @@ const awarenessConfigSchema = {
         "Awareness config required. Set plugins.entries.openclaw-memory.config in openclaw.json",
       );
     }
-    const cfg = value as Record<string, unknown>;
+    const cfg = applyEnvironmentOverrides(value as Record<string, unknown>);
 
     const localUrl = typeof cfg.localUrl === "string" && cfg.localUrl ? cfg.localUrl : undefined;
     const isLocalMode = !!localUrl;

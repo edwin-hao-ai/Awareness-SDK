@@ -9,8 +9,17 @@ const mockFetch = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("fetch", mockFetch);
   mockFetch.mockReset();
+  vi.unstubAllEnvs();
+  vi.stubEnv("AWARENESS_API_KEY", "");
+  vi.stubEnv("AWARENESS_MEMORY_ID", "");
+  vi.stubEnv("AWARENESS_BASE_URL", "");
+  vi.stubEnv("AWARENESS_AGENT_ROLE", "");
+  vi.stubEnv("AWARENESS_LOCAL_URL", "");
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 function jsonResponse(data: unknown, status = 200) {
   return Promise.resolve({
@@ -96,6 +105,19 @@ describe("memory-awareness (native OpenClaw adapter)", () => {
 
       awarenessPlugin.register(api);
       expect(logCalls.some((l) => l.includes("mem-001"))).toBe(true);
+    });
+
+    it("prefers environment overrides over pluginConfig", () => {
+      vi.stubEnv("AWARENESS_API_KEY", "env-key");
+      vi.stubEnv("AWARENESS_MEMORY_ID", "env-mem");
+      vi.stubEnv("AWARENESS_BASE_URL", "https://env.awareness.test/api/v1");
+      vi.stubEnv("AWARENESS_AGENT_ROLE", "env_agent");
+
+      const { api, logCalls } = makeMockApi(VALID_CONFIG);
+
+      awarenessPlugin.register(api);
+      expect(logCalls.some((l) => l.includes("env-mem"))).toBe(true);
+      expect(logCalls.some((l) => l.includes("env_agent"))).toBe(true);
     });
 
     it("throws when apiKey is missing", () => {
