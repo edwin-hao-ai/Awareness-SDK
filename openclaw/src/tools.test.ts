@@ -59,16 +59,18 @@ function setupTools(): Record<string, ToolDefinition> {
 // ===========================================================================
 
 describe("registerTools", () => {
-  it("registers exactly 6 tools", () => {
+  it("registers exactly 8 tools (6 awareness + 2 memory-core compatible)", () => {
     const tools = setupTools();
     const ids = Object.keys(tools);
-    expect(ids).toHaveLength(6);
+    expect(ids).toHaveLength(8);
     expect(ids).toContain("__awareness_workflow__");
     expect(ids).toContain("awareness_init");
     expect(ids).toContain("awareness_get_agent_prompt");
     expect(ids).toContain("awareness_recall");
     expect(ids).toContain("awareness_lookup");
     expect(ids).toContain("awareness_record");
+    expect(ids).toContain("memory_search");
+    expect(ids).toContain("memory_get");
   });
 
   // =========================================================================

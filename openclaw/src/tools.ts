@@ -361,4 +361,86 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       return result;
     },
   });
+
+  // -----------------------------------------------------------------------
+  // 5. memory_search — OpenClaw standard memory tool (replaces memory-core)
+  //    This makes Awareness compatible with plugins.slots.memory replacement.
+  // -----------------------------------------------------------------------
+  api.registerTool({
+    id: "memory_search",
+    name: "memory_search",
+    description:
+      "Search across your persistent memory using semantic + keyword hybrid retrieval.\n" +
+      "Powered by Awareness Memory — structured knowledge cards, cross-session recall.\n" +
+      "Returns relevant snippets with file path, score, and context.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Natural language search query." },
+        limit: { type: "integer", description: "Maximum number of results (default 10).", default: 10 },
+      },
+      required: ["query"],
+    },
+    execute: async (input) => {
+      const query = String(input.query || "");
+      const limit = Number(input.limit) || 10;
+      const results = await client.search({
+        semanticQuery: query,
+        limit,
+        detail: "summary",
+      });
+
+      // Format results to match memory-core's expected output
+      const items: Array<{ path: string; score: number; snippet: string; startLine: number; endLine: number }> = [];
+      const rawResults = results?.results ?? [];
+      for (const r of rawResults) {
+        items.push({
+          path: (r as any).filepath || r.source || "awareness-memory",
+          score: r.score || 0,
+          snippet: String(r.content || r.summary || "").slice(0, 700),
+          startLine: 1,
+          endLine: 1,
+        });
+      }
+
+      if (items.length === 0) {
+        return { result: "No matching memories found." };
+      }
+
+      return items;
+    },
+  });
+
+  // -----------------------------------------------------------------------
+  // 6. memory_get — OpenClaw standard memory get (replaces memory-core)
+  // -----------------------------------------------------------------------
+  api.registerTool({
+    id: "memory_get",
+    name: "memory_get",
+    description:
+      "Retrieve the full content of a specific memory item by ID.\n" +
+      "Use after memory_search to get complete details of a relevant result.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Memory item ID to retrieve." },
+      },
+      required: ["id"],
+    },
+    execute: async (input) => {
+      const id = String(input.id || "");
+      if (!id) return { error: "ID is required" };
+
+      const results = await client.search({
+        semanticQuery: id,
+        limit: 1,
+        detail: "full",
+        ids: [id],
+      });
+
+      const content = results?.results?.[0]?.content;
+      if (!content) return { result: "Memory item not found." };
+      return { content };
+    },
+  });
 }

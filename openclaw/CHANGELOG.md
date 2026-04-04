@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0] - 2026-04-04
+
+### Added
+- **memory_search tool**: OpenClaw-standard `memory_search` tool for `plugins.slots.memory` replacement. When Awareness is set as the memory slot, agents can use `memory_search` just like with memory-core, but backed by hybrid vector+BM25 retrieval with structured knowledge cards.
+- **memory_get tool**: OpenClaw-standard `memory_get` tool for retrieving full memory content by ID.
+- Both tools are registered alongside the existing 6 awareness tools (total 8 tools).
+
+### Changed
+- Plugin now fully supports `plugins.slots.memory: "openclaw-memory"` to replace OpenClaw's built-in memory-core.
+- memory-core and memory-lancedb are automatically disabled when Awareness occupies the memory slot.
+
 ## [0.5.18] - 2026-04-02
 
 ### Changed

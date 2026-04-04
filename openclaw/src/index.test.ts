@@ -70,8 +70,8 @@ describe("register (plugin entry point)", () => {
     const { api, tools, hooks, logCalls } = makeApi();
     register(api);
 
-    // 6 tools: workflow, init, get_agent_prompt, recall, lookup, record
-    expect(Object.keys(tools)).toHaveLength(6);
+    // 8 tools: workflow, init, get_agent_prompt, recall, lookup, record, memory_search, memory_get
+    expect(Object.keys(tools)).toHaveLength(8);
     expect(tools["__awareness_workflow__"]).toBeDefined();
     expect(tools["awareness_init"]).toBeDefined();
     expect(tools["awareness_get_agent_prompt"]).toBeDefined();
@@ -95,7 +95,7 @@ describe("register (plugin entry point)", () => {
     register(api);
 
     // New behavior: optimistically register full tools for local daemon mode
-    expect(Object.keys(tools)).toHaveLength(6);
+    expect(Object.keys(tools)).toHaveLength(8);
     expect(tools["awareness_init"]).toBeDefined();
     expect(tools["awareness_recall"]).toBeDefined();
     expect(tools["awareness_record"]).toBeDefined();
@@ -115,7 +115,7 @@ describe("register (plugin entry point)", () => {
     register(api);
 
     // Full tools registered (local mode with memoryId="local")
-    expect(Object.keys(tools)).toHaveLength(6);
+    expect(Object.keys(tools)).toHaveLength(8);
     expect(tools["awareness_init"]).toBeDefined();
     expect(hooks).toHaveLength(3);
     expect(logCalls.some((l) => l.includes("registered"))).toBe(true);
@@ -126,7 +126,7 @@ describe("register (plugin entry point)", () => {
     register(api);
 
     // Even with zero config, local mode tools are registered optimistically
-    expect(Object.keys(tools)).toHaveLength(6);
+    expect(Object.keys(tools)).toHaveLength(8);
     expect(tools["awareness_init"]).toBeDefined();
     expect(hooks).toHaveLength(3);
   });
@@ -146,7 +146,7 @@ describe("register (plugin entry point)", () => {
 
     // Should not throw — defaults are applied internally
     register(api);
-    expect(Object.keys(tools)).toHaveLength(6);
+    expect(Object.keys(tools)).toHaveLength(8);
     // 3 hooks registered via api.on() from registerHooks (before_prompt_build + before_agent_start + agent_end)
     expect(hooks).toHaveLength(3);
   });
@@ -309,8 +309,8 @@ describe("register (plugin entry point)", () => {
 
       // apiKey is undefined at root level → registers local mode tools (not crash)
       register(api);
-      // 6 tools registered via registerTool, 3 hooks via api.on (before_prompt_build + before_agent_start + agent_end)
-      expect(api.registerTool).toHaveBeenCalledTimes(6);
+      // 8 tools registered via registerTool, 3 hooks via api.on (before_prompt_build + before_agent_start + agent_end)
+      expect(api.registerTool).toHaveBeenCalledTimes(8);
       expect(hooks).toHaveLength(3);
     });
 
