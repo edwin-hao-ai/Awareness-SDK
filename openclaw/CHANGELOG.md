@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1] - 2026-04-05
+
+### Fixed
+- **Title metadata leakage**: `parseRecallSummaryBlocks` regex now strips trailing `(85%, 3d ago, ~120tok)` from title capture, preventing metadata from leaking into display text.
+
 ## [0.6.0] - 2026-04-04
 
 ### Added
