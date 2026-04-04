@@ -232,7 +232,7 @@ function parseRecallSummaryText(text, ids = []) {
     .filter(Boolean);
 
   return chunks.map((chunk, index) => {
-    const match = chunk.match(/^\d+\.\s+\[([^\]]*)\]\s+([^\n]+?)(?:\n\s+([\s\S]*))?$/);
+    const match = chunk.match(/^\d+\.\s+\[([^\]]*)\]\s+([^\n]+?)(?:\s+\([^)]*\))?(?:\n\s+([\s\S]*))?$/);
     if (!match) {
       return {
         id: ids[index],
@@ -240,10 +240,12 @@ function parseRecallSummaryText(text, ids = []) {
       };
     }
 
-    const [, type, title, rawSummary = ""] = match;
+    const [, type, rawTitle, rawSummary = ""] = match;
+    // Strip trailing metadata like (85%, 3d ago, ~120tok) from title
+    const title = rawTitle.replace(/\s*\([^)]*%[^)]*\)\s*$/, "").trim();
     const summary = rawSummary.trim();
     const prefix = type ? `[${type}] ` : "";
-    const content = summary ? `${prefix}${title.trim()}\n${summary}` : `${prefix}${title.trim()}`;
+    const content = summary ? `${prefix}${title}\n${summary}` : `${prefix}${title}`;
     return {
       id: ids[index],
       type: type || undefined,

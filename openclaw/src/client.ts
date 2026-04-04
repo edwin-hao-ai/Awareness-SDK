@@ -41,7 +41,7 @@ function parseRecallSummaryBlocks(
   const results: VectorResult[] = [];
   for (let index = 0; index < chunks.length; index++) {
     const chunk = chunks[index];
-    const match = chunk.match(/^\d+\.\s+\[([^\]]*)\]\s+([^\n]+?)(?:\n\s+([\s\S]*))?$/);
+    const match = chunk.match(/^\d+\.\s+\[([^\]]*)\]\s+([^\n]+?)(?:\s+\([^)]*\))?(?:\n\s+([\s\S]*))?$/);
     if (!match) {
       results.push({
         id: ids[index],
@@ -50,7 +50,9 @@ function parseRecallSummaryBlocks(
       continue;
     }
 
-    const [, type, title, rawSummary = ""] = match;
+    const [, type, rawTitle, rawSummary = ""] = match;
+    // Strip trailing metadata like (85%, 3d ago, ~120tok) from title
+    const title = rawTitle.replace(/\s*\([^)]*%[^)]*\)\s*$/, "").trim();
     const summary = rawSummary.trim();
     const result: VectorResult = {
       id: ids[index],
