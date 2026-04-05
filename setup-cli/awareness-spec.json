@@ -50,6 +50,7 @@
     "  - career_info = job, skills, career goals.",
     "  - custom_misc = anything personal that doesn't fit above.",
     "  Never default everything to workflow.",
+    "  DO NOT record: greetings, confirmations, debug logs, news/search results, sender metadata, API keys/tokens/credentials, system bootstrap instructions, or trivial interactions.",
     "",
     "STEP 5 - SESSION END:",
     "  awareness_record(content=[step1, step2, ...], insights={...}) with final summary.",
