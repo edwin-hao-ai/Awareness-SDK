@@ -249,7 +249,7 @@ async function main() {
       base += `\n    Save significant work SILENTLY: node "${resolvedScript}" '<JSON>'`;
       base += '\n    JSON: {"content":"what+why","cards":[{"title":"...","summary":"...","category":"decision|problem_solution|workflow|pitfall|insight|key_point|personal_preference|important_detail"}]}';
       base += "\n    Save decisions, solutions, pitfalls, user preferences. NOT every tool call.";
-      base += "\n    DO NOT SAVE: greetings, confirmations, debug logs, news/search results, sender metadata, trivial interactions.";
+      base += "\n    DO NOT SAVE: greetings, confirmations, debug logs, news/search results, sender metadata, trivial interactions, API keys/tokens/credentials, system bootstrap instructions.";
       base += "\n    Categories: [Tech] decision|problem_solution|workflow|pitfall|insight|key_point|skill";
       base += "\n    [Personal] personal_preference|important_detail|plan_intention|activity_preference|health_info|career_info|custom_misc";
       base += "\n  </record-rule>";
