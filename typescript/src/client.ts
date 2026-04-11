@@ -30,8 +30,77 @@ function isRecord(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * The four MCP tools that the local daemon implements (`@awareness-sdk/local`).
+ * Anything outside this set must go to the cloud — `mode="local"` clients calling
+ * unsupported methods get a `MemoryCloudError("LOCAL_NOT_SUPPORTED")`.
+ */
+const DAEMON_SUPPORTED_TOOLS = new Set([
+  "awareness_init",
+  "awareness_recall",
+  "awareness_record",
+  "awareness_lookup",
+]);
+
+/**
+ * Parse the markdown summary that the local daemon's `awareness_recall` returns into a
+ * structured list of items the SDK can return as `RetrieveResponse.results`.
+ *
+ * Daemon format example:
+ *   Found N memories:
+ *   1. [event_type] Title (95%, 3d ago, ~120tok)
+ *      Snippet line 1
+ *      Snippet line 2
+ *   2. [event_type] Title 2 ...
+ */
+function parseRecallMarkdown(text: string): JsonObject[] {
+  if (!text) return [];
+  const items: JsonObject[] = [];
+  const lines = text.split("\n");
+  let current: { id: string; type: string; title: string; score?: number; snippet: string[] } | null = null;
+  // Header pattern: "1. [type] Title (95%, 3d ago, ~120tok)"
+  const headerRe = /^\s*(\d+)\.\s*\[([^\]]+)\]\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/;
+  for (const line of lines) {
+    const m = line.match(headerRe);
+    if (m) {
+      if (current) items.push({
+        id: `local_${current.id}`,
+        type: current.type,
+        title: current.title,
+        snippet: current.snippet.join(" ").trim(),
+        ...(current.score !== undefined ? { score: current.score } : {}),
+      } as JsonObject);
+      const meta = m[4] ?? "";
+      const scoreMatch = meta.match(/(\d+(?:\.\d+)?)%/);
+      current = {
+        id: m[1],
+        type: m[2],
+        title: m[3].trim(),
+        score: scoreMatch ? Number(scoreMatch[1]) / 100 : undefined,
+        snippet: [],
+      };
+    } else if (current && line.trim()) {
+      // Snippet lines are indented
+      current.snippet.push(line.trim());
+    }
+  }
+  if (current) items.push({
+    id: `local_${current.id}`,
+    type: current.type,
+    title: current.title,
+    snippet: current.snippet.join(" ").trim(),
+    ...(current.score !== undefined ? { score: current.score } : {}),
+  } as JsonObject);
+  return items;
+}
+
+const DEFAULT_CLOUD_BASE_URL = "https://awareness.market/api/v1";
+const DEFAULT_LOCAL_DAEMON_URL = "http://localhost:37800";
+
 export class MemoryCloudClient {
   private readonly baseUrl: string;
+  private readonly localDaemonUrl: string;
+  private readonly mode: "cloud" | "local" | "auto";
   private readonly apiKey?: string;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
@@ -39,8 +108,8 @@ export class MemoryCloudClient {
   private readonly sessionPrefix: string;
   private readonly defaultSource: string;
   private readonly sessionCache = new Map<string, string>();
-  private _localUrl?: string;
-  private _cloudUrl?: string;
+  /** Cached daemon liveness for `mode="auto"` */
+  private _daemonAlive: boolean | null = null;
 
   // Auto-extraction config
   private readonly enableExtraction: boolean;
@@ -52,7 +121,11 @@ export class MemoryCloudClient {
   private readonly llmType?: "openai" | "anthropic";
 
   constructor(config: MemoryCloudClientConfig) {
-    this.baseUrl = this.resolveBaseUrl(config);
+    this.mode = (config.mode ?? "cloud") as "cloud" | "local" | "auto";
+    // Cloud REST base URL — defaults to the public Awareness Cloud, NEVER to a local dev server.
+    this.baseUrl = (config.baseUrl || DEFAULT_CLOUD_BASE_URL).replace(/\/$/, "");
+    // Local daemon root URL (used for /healthz probe and /mcp JSON-RPC).
+    this.localDaemonUrl = (config.localUrl || DEFAULT_LOCAL_DAEMON_URL).replace(/\/$/, "");
     this.apiKey = config.apiKey;
     this.timeoutMs = config.timeoutMs ?? 30000;
     this.maxRetries = Math.max(0, config.maxRetries ?? 2);
@@ -77,6 +150,7 @@ export class MemoryCloudClient {
   // Memory CRUD
   // ----------------------------
   async createMemory(input: { payload: JsonObject; traceId?: string }): Promise<JsonObject> {
+    this.requireCloudMode("createMemory");
     return this.requestJson<JsonObject>({
       method: "POST",
       path: "/memories",
@@ -91,6 +165,7 @@ export class MemoryCloudClient {
     limit?: number;
     traceId?: string;
   }): Promise<JsonObject[]> {
+    this.requireCloudMode("listMemories");
     const query = new URLSearchParams();
     query.set("skip", String(Math.max(0, input?.skip ?? 0)));
     query.set("limit", String(Math.max(1, input?.limit ?? 100)));
@@ -266,6 +341,28 @@ export class MemoryCloudClient {
     }
     if (input.detail) body["detail"] = input.detail;
     if (input.ids && input.ids.length > 0) body["ids"] = input.ids;
+
+    // Local daemon bridge: use awareness_recall when in local/auto mode.
+    if (await this.shouldUseDaemon()) {
+      const daemonArgs: JsonObject = {
+        semantic_query: input.query,
+        limit: input.limit ?? 12,
+        detail: input.detail ?? "summary",
+      };
+      if (effectiveKeyword) daemonArgs.keyword_query = effectiveKeyword;
+      if (input.scope) daemonArgs.scope = input.scope;
+      if (input.recallMode) daemonArgs.recall_mode = input.recallMode;
+      if (input.agentRole) daemonArgs.agent_role = input.agentRole;
+      if (input.ids && input.ids.length > 0) daemonArgs.ids = input.ids;
+      const daemonResult = await this.callLocalDaemon("awareness_recall", daemonArgs);
+      // Daemon returns either an array of summary items or { items: [...] }
+      const items = Array.isArray(daemonResult)
+        ? daemonResult
+        : (daemonResult as { items?: JsonObject[]; results?: JsonObject[] }).items
+          ?? (daemonResult as { results?: JsonObject[] }).results
+          ?? [];
+      return { results: items as JsonObject[] };
+    }
 
     return this.requestJson<RetrieveResponse>({
       method: "POST",
@@ -459,6 +556,33 @@ export class MemoryCloudClient {
    * - Both `content` and `insights` can be provided together.
    */
   async record(input: RecordInput): Promise<Record<string, any>> {
+    // Local daemon bridge: route through awareness_record MCP tool when in local/auto mode.
+    if (await this.shouldUseDaemon()) {
+      const args: JsonObject = { action: "remember" };
+      if (typeof input.content === "string") {
+        args.content = input.content;
+      } else if (Array.isArray(input.content)) {
+        args.action = "remember_batch";
+        args.items = input.content.map((c) =>
+          typeof c === "string" ? { content: c } : (c as JsonObject),
+        );
+      } else if (input.content && typeof input.content === "object") {
+        args.content = (input.content as { content?: string }).content ?? "";
+      }
+      if (input.insights) args.insights = input.insights as JsonObject;
+      if (input.sessionId) args.session_id = input.sessionId;
+      if (input.source) args.source = input.source;
+      if (input.agentRole) args.agent_role = input.agentRole;
+      const daemonResult = await this.callLocalDaemon("awareness_record", args);
+      return {
+        memory_id: input.memoryId,
+        source: input.source ?? this.defaultSource,
+        session_id: input.sessionId ?? "",
+        ingest: daemonResult,
+        events_count: typeof input.content === "string" ? 1 : Array.isArray(input.content) ? input.content.length : 1,
+      };
+    }
+
     const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
     const activeSession = this.resolveSession({
       memoryId: input.memoryId,
@@ -841,6 +965,16 @@ export class MemoryCloudClient {
     userId?: string;
     traceId?: string;
   }): Promise<SessionContextResponse> {
+    // Local daemon bridge: use awareness_init when in local/auto mode.
+    if (await this.shouldUseDaemon()) {
+      const args: JsonObject = {
+        source: this.defaultSource,
+        days: input.days ?? 7,
+        max_cards: input.maxCards ?? 10,
+        max_tasks: input.maxTasks ?? 20,
+      };
+      return (await this.callLocalDaemon("awareness_init", args)) as SessionContextResponse;
+    }
     const query = new URLSearchParams({
       days: String(Math.max(1, input.days ?? 7)),
       max_cards: String(Math.max(1, input.maxCards ?? 10)),
@@ -869,6 +1003,24 @@ export class MemoryCloudClient {
     userId?: string;
     traceId?: string;
   }): Promise<KnowledgeBaseResponse> {
+    // Local daemon bridge: use awareness_lookup type=knowledge.
+    if (await this.shouldUseDaemon()) {
+      const args: JsonObject = {
+        type: "knowledge",
+        limit: input.limit ?? 20,
+      };
+      if (input.category) args.category = input.category;
+      if (input.status) args.status = input.status;
+      if (input.query) args.query = input.query;
+      const daemonResult = await this.callLocalDaemon("awareness_lookup", args);
+      const cards = (daemonResult as { knowledge_cards?: KnowledgeCard[] }).knowledge_cards
+        ?? (daemonResult as { cards?: KnowledgeCard[] }).cards
+        ?? (daemonResult as { items?: KnowledgeCard[] }).items
+        ?? [];
+      const totalRaw = (daemonResult as { total?: number }).total;
+      return { total: typeof totalRaw === "number" ? totalRaw : cards.length, cards };
+    }
+
     const params = new URLSearchParams({
       limit: String(Math.max(1, input.limit ?? 20)),
     });
@@ -905,6 +1057,22 @@ export class MemoryCloudClient {
     userId?: string;
     traceId?: string;
   }): Promise<PendingTasksResponse> {
+    // Local daemon bridge: awareness_lookup type=tasks.
+    if (await this.shouldUseDaemon()) {
+      const args: JsonObject = { type: "tasks", limit: input.limit ?? 30 };
+      if (input.priority) args.priority = input.priority;
+      const daemonResult = await this.callLocalDaemon("awareness_lookup", args);
+      const tasks = (daemonResult as { items?: OpenTask[] }).items
+        ?? (daemonResult as { tasks?: OpenTask[] }).tasks
+        ?? [];
+      return {
+        total: tasks.length,
+        in_progress: tasks.filter((task) => task.status === "in_progress").length,
+        pending: tasks.filter((task) => task.status === "pending" || task.status === "open").length,
+        tasks,
+      };
+    }
+
     const limit = Math.max(1, input.limit ?? 30);
     const buildQuery = (status: string): string => {
       const p = new URLSearchParams({ limit: String(limit), status });
@@ -1296,22 +1464,100 @@ export class MemoryCloudClient {
     });
   }
 
-  private resolveBaseUrl(config: MemoryCloudClientConfig): string {
-    const localUrl = (config.localUrl || "http://localhost:8765").replace(/\/$/, "");
-    const cloudUrl = (config.baseUrl || "").replace(/\/$/, "");
+  // ----------------------------
+  // Local daemon bridge (mode="local" / "auto")
+  // ----------------------------
 
-    if (config.mode === "local") {
-      return localUrl;
+  /** Probe the local daemon's `/healthz` endpoint. Cached after first call. */
+  private async probeDaemon(): Promise<boolean> {
+    if (this._daemonAlive !== null) return this._daemonAlive;
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 1500);
+      const r = await fetch(`${this.localDaemonUrl}/healthz`, { signal: controller.signal });
+      clearTimeout(t);
+      this._daemonAlive = r.ok;
+    } catch {
+      this._daemonAlive = false;
     }
-    if (config.mode === "auto") {
-      // Note: auto mode health check happens lazily on first request failure
-      // Store both for fallback logic
-      this._localUrl = localUrl;
-      this._cloudUrl = cloudUrl;
-      return localUrl; // start with local, _request will fallback on error
+    return this._daemonAlive;
+  }
+
+  /**
+   * Call one of the four local-daemon-supported MCP tools via JSON-RPC.
+   * Throws if `toolName` is not in the allow-list.
+   *
+   * Daemon tool responses come back as MCP `content[0].text`. Some tools (init, lookup,
+   * record) return JSON in that text; `awareness_recall` returns a markdown summary plus
+   * a JSON sidecar `{_ids:[...], _meta:[...]}`. We try JSON.parse first, then look for an
+   * embedded JSON block, then fall back to `{text}` so callers always get a stable shape.
+   */
+  async callLocalDaemon(toolName: string, args: JsonObject): Promise<JsonObject> {
+    if (!DAEMON_SUPPORTED_TOOLS.has(toolName)) {
+      throw new MemoryCloudError(
+        "LOCAL_NOT_SUPPORTED",
+        `Tool '${toolName}' is not supported by the local daemon. ` +
+          `Supported: ${[...DAEMON_SUPPORTED_TOOLS].join(", ")}.`,
+      );
     }
-    // Default "cloud" mode
-    return cloudUrl || localUrl;
+    const body = {
+      jsonrpc: "2.0",
+      id: Date.now(),
+      method: "tools/call",
+      params: { name: toolName, arguments: args },
+    };
+    const response = await fetch(`${this.localDaemonUrl}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new MemoryCloudError(
+        "LOCAL_DAEMON_ERROR",
+        `Daemon HTTP ${response.status}: ${await response.text()}`,
+      );
+    }
+    const json = (await response.json()) as JsonObject;
+    if ((json as { error?: unknown }).error) {
+      const err = (json as { error: { message?: string } }).error;
+      throw new MemoryCloudError("LOCAL_DAEMON_ERROR", err.message ?? "Daemon RPC error");
+    }
+    const result = (json as { result?: { content?: Array<{ text?: string }> } }).result;
+    const text = result?.content?.[0]?.text ?? "";
+
+    // Try whole-text JSON first (init/record/lookup typically use this).
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === "object") return parsed as JsonObject;
+    } catch { /* fall through */ }
+
+    // For awareness_recall: parse the markdown summary into structured items.
+    if (toolName === "awareness_recall") {
+      return { items: parseRecallMarkdown(text), text } as JsonObject;
+    }
+
+    // Fallback: return raw text wrapped in a stable shape.
+    return { text } as JsonObject;
+  }
+
+  /** True iff this client should route a daemon-supported tool through the daemon. */
+  private async shouldUseDaemon(): Promise<boolean> {
+    if (this.mode === "local") return true;
+    if (this.mode === "auto") return this.probeDaemon();
+    return false;
+  }
+
+  /**
+   * Throw if the configured mode is "local" — used by methods that have no daemon equivalent.
+   */
+  private requireCloudMode(method: string): void {
+    if (this.mode === "local") {
+      throw new MemoryCloudError(
+        "LOCAL_NOT_SUPPORTED",
+        `${method}() requires cloud mode — the local daemon does not implement this endpoint. ` +
+          `Use mode:"cloud" or mode:"auto", or call the daemon directly via @awareness-sdk/local.`,
+      );
+    }
   }
 
   private async requestJson<T>(input: {

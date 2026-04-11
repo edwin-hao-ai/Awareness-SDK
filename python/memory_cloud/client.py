@@ -19,11 +19,62 @@ RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 
 _DEFAULT_EXTRACTION_MAX_TOKENS = 16384
 
+# Cloud REST default — public Awareness Cloud, NEVER a local dev server.
+DEFAULT_CLOUD_BASE_URL = "https://awareness.market/api/v1"
+# Local daemon root — `@awareness-sdk/local` (single-tenant) listens here.
+DEFAULT_LOCAL_DAEMON_URL = "http://localhost:37800"
+
+# The four MCP tools the local daemon exposes via JSON-RPC at /mcp.
+DAEMON_SUPPORTED_TOOLS = frozenset(
+    {"awareness_init", "awareness_recall", "awareness_record", "awareness_lookup"}
+)
+
+
+def _parse_recall_markdown(text: str) -> List[Dict[str, Any]]:
+    """Parse the markdown summary that the local daemon's `awareness_recall` returns
+    into structured items.
+
+    Daemon format example:
+        Found N memories:
+        1. [event_type] Title (95%, 3d ago, ~120tok)
+           Snippet line 1
+           Snippet line 2
+        2. [event_type] Title 2 ...
+    """
+    if not text:
+        return []
+    items: List[Dict[str, Any]] = []
+    current: Optional[Dict[str, Any]] = None
+    header_re = re.compile(r"^\s*(\d+)\.\s*\[([^\]]+)\]\s*(.+?)(?:\s*\(([^)]+)\))?\s*$")
+    score_re = re.compile(r"(\d+(?:\.\d+)?)%")
+    for raw_line in text.splitlines():
+        m = header_re.match(raw_line)
+        if m:
+            if current is not None:
+                items.append(current)
+            meta = m.group(4) or ""
+            sm = score_re.search(meta)
+            current = {
+                "id": f"local_{m.group(1)}",
+                "type": m.group(2),
+                "title": m.group(3).strip(),
+                "snippet_lines": [],
+            }
+            if sm:
+                current["score"] = float(sm.group(1)) / 100.0
+        elif current is not None and raw_line.strip():
+            current["snippet_lines"].append(raw_line.strip())
+    if current is not None:
+        items.append(current)
+    for it in items:
+        it["snippet"] = " ".join(it.pop("snippet_lines"))
+    return items
+
 
 class MemoryCloudClient:
     def __init__(
         self,
-        base_url: str,
+        base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         timeout: float = 30.0,
         max_retries: int = 2,
@@ -39,9 +90,20 @@ class MemoryCloudClient:
         user_id: Optional[str] = None,
         agent_role: Optional[str] = None,
         mode: str = "cloud",          # "cloud" | "local" | "auto"
-        local_url: str = "http://localhost:8765",
+        # `mode="local"` routes the four daemon-supported tools (awareness_init,
+        # awareness_recall, awareness_record, awareness_lookup) through the local
+        # `@awareness-sdk/local` daemon at port 37800 via MCP JSON-RPC. Cloud-only
+        # endpoints (createMemory, listMemories, …) raise LOCAL_NOT_SUPPORTED.
+        # `mode="cloud"` (default) talks REST to the public Awareness Cloud.
+        # `mode="auto"` probes the daemon first and falls back to cloud.
+        local_url: str = DEFAULT_LOCAL_DAEMON_URL,
     ):
-        self.base_url = self._resolve_base_url(base_url, mode, local_url)
+        self.mode = mode
+        # Cloud REST base URL — defaults to the public Awareness Cloud, NEVER to a local dev server.
+        self.base_url = (base_url or DEFAULT_CLOUD_BASE_URL).rstrip("/")
+        # Local daemon root URL (used for /healthz probe and /mcp JSON-RPC).
+        self.local_daemon_url = (local_url or DEFAULT_LOCAL_DAEMON_URL).rstrip("/")
+        self._daemon_alive: Optional[bool] = None
         self.api_key = api_key
         self.timeout = timeout
         self.max_retries = max(0, max_retries)
@@ -67,27 +129,107 @@ class MemoryCloudClient:
         if self._extraction_llm is not None:
             self._llm_type = _detect_llm_type(self._extraction_llm)
 
-    def _resolve_base_url(self, base_url: str, mode: str, local_url: str) -> str:
-        """Resolve the effective base URL based on mode."""
-        if base_url and mode == "cloud":
-            return base_url.rstrip("/")
-        if mode == "local":
-            return local_url.rstrip("/")
-        if mode == "auto":
-            # Try local first, fallback to cloud
-            import urllib.request
+    # ----------------------------
+    # Local daemon bridge (mode="local" / "auto")
+    # ----------------------------
+    def _probe_daemon(self) -> bool:
+        """Best-effort daemon liveness check, cached for the lifetime of the client."""
+        if self._daemon_alive is not None:
+            return self._daemon_alive
+        try:
+            r = self.session.get(f"{self.local_daemon_url}/", timeout=1.0)
+            self._daemon_alive = r.status_code == 200
+        except Exception:
+            self._daemon_alive = False
+        return self._daemon_alive
+
+    def _should_use_daemon(self) -> bool:
+        if self.mode == "local":
+            return True
+        if self.mode == "auto":
+            return self._probe_daemon()
+        return False
+
+    def _require_cloud_mode(self, method: str) -> None:
+        if self.mode == "local":
+            raise MemoryCloudError(
+                "LOCAL_NOT_SUPPORTED",
+                f"{method}() requires cloud mode — the local daemon does not implement "
+                f"this endpoint. Use mode='cloud'/'auto', or call the daemon directly via "
+                f"@awareness-sdk/local.",
+            )
+
+    def call_local_daemon(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Call one of the four daemon-supported MCP tools via JSON-RPC.
+
+        Daemon tool responses come back as MCP `content[0].text`. init/record/lookup
+        typically return JSON in that text; awareness_recall returns a markdown summary
+        which we parse via `_parse_recall_markdown` so the SDK shape stays stable.
+        """
+        if tool_name not in DAEMON_SUPPORTED_TOOLS:
+            raise MemoryCloudError(
+                "LOCAL_NOT_SUPPORTED",
+                f"Tool '{tool_name}' is not supported by the local daemon. "
+                f"Supported: {sorted(DAEMON_SUPPORTED_TOOLS)}.",
+            )
+        body = {
+            "jsonrpc": "2.0",
+            "id": int(time.time() * 1000),
+            "method": "tools/call",
+            "params": {"name": tool_name, "arguments": args},
+        }
+        try:
+            response = self.session.post(
+                f"{self.local_daemon_url}/mcp",
+                json=body,
+                timeout=self.timeout,
+                headers={"Content-Type": "application/json"},
+            )
+        except requests.RequestException as exc:
+            raise MemoryCloudError("LOCAL_DAEMON_ERROR", f"Daemon RPC failed: {exc}") from exc
+        if response.status_code >= 400:
+            raise MemoryCloudError(
+                "LOCAL_DAEMON_ERROR",
+                f"Daemon HTTP {response.status_code}: {response.text[:200]}",
+            )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise MemoryCloudError("LOCAL_DAEMON_ERROR", f"Daemon returned non-JSON: {exc}") from exc
+        if isinstance(payload, dict) and payload.get("error"):
+            err = payload["error"]
+            msg = err.get("message") if isinstance(err, dict) else str(err)
+            raise MemoryCloudError("LOCAL_DAEMON_ERROR", msg or "Daemon RPC error")
+        result = (payload or {}).get("result") or {}
+        content = result.get("content") or []
+        text = ""
+        if content and isinstance(content, list):
+            first = content[0] or {}
+            if isinstance(first, dict):
+                text = first.get("text", "") or ""
+
+        # Try whole-text JSON first (init/record/lookup typically use this).
+        if text:
             try:
-                urllib.request.urlopen(f"{local_url.rstrip('/')}/health", timeout=1)
-                return local_url.rstrip("/")
-            except Exception:
-                return base_url.rstrip("/") if base_url else local_url.rstrip("/")
-        # Default: use base_url if provided, else local_url
-        return (base_url or local_url).rstrip("/")
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    return parsed
+                if isinstance(parsed, list):
+                    return {"items": parsed, "text": text}
+            except (ValueError, TypeError):
+                pass
+
+        # awareness_recall: parse markdown summary into structured items.
+        if tool_name == "awareness_recall":
+            return {"items": _parse_recall_markdown(text), "text": text}
+
+        return {"text": text}
 
     # ----------------------------
     # Memory CRUD
     # ----------------------------
     def create_memory(self, payload: Dict[str, Any], trace_id: Optional[str] = None) -> Dict[str, Any]:
+        self._require_cloud_mode("create_memory")
         data, resolved_trace = self._request(
             method="POST",
             path="/memories",
@@ -103,6 +245,7 @@ class MemoryCloudClient:
         limit: int = 100,
         trace_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
+        self._require_cloud_mode("list_memories")
         params: Dict[str, Any] = {"skip": max(0, skip), "limit": max(1, limit)}
         if owner_id:
             params["owner_id"] = owner_id
@@ -277,6 +420,27 @@ class MemoryCloudClient:
         if ids is not None:
             body["ids"] = ids
 
+        # Local daemon bridge: route through awareness_recall MCP tool.
+        if self._should_use_daemon():
+            daemon_args: Dict[str, Any] = {
+                "semantic_query": query,
+                "limit": limit,
+                "detail": detail or "summary",
+            }
+            if effective_keyword:
+                daemon_args["keyword_query"] = effective_keyword
+            if scope:
+                daemon_args["scope"] = scope
+            if recall_mode:
+                daemon_args["recall_mode"] = recall_mode
+            if agent_role:
+                daemon_args["agent_role"] = agent_role
+            if ids:
+                daemon_args["ids"] = ids
+            daemon_result = self.call_local_daemon("awareness_recall", daemon_args)
+            items = daemon_result.get("items") or daemon_result.get("results") or []
+            return {"results": items}
+
         payload, resolved_trace_id = self._request(
             method="POST",
             path=f"/memories/{memory_id}/retrieve",
@@ -448,6 +612,43 @@ class MemoryCloudClient:
         Returns:
             Dict with ingest result and/or insights submission result.
         """
+        # Local daemon bridge: route through awareness_record MCP tool.
+        if self._should_use_daemon():
+            args: Dict[str, Any] = {"action": "remember"}
+            events_count = 0
+            if isinstance(content, str):
+                args["content"] = content
+                events_count = 1
+            elif isinstance(content, list):
+                args["action"] = "remember_batch"
+                args["items"] = [
+                    item if isinstance(item, dict) else {"content": str(item)}
+                    for item in content
+                ]
+                events_count = len(content)
+            elif isinstance(content, dict):
+                args["content"] = content.get("content", "")
+                events_count = 1
+            if insights is not None:
+                args["insights"] = insights
+            if scope:
+                args["scope"] = scope
+            if session_id:
+                args["session_id"] = session_id
+            if source:
+                args["source"] = source
+            if user_id:
+                args["user_id"] = user_id
+            if agent_role:
+                args["agent_role"] = agent_role
+            daemon_result = self.call_local_daemon("awareness_record", args)
+            return {
+                "memory_id": memory_id,
+                "session_id": daemon_result.get("session_id", session_id or ""),
+                "events_count": events_count,
+                "ingest": daemon_result,
+            }
+
         source_label = self._clean_source(source or self.default_source)
         active_session = self._resolve_session(
             memory_id=memory_id,
@@ -903,6 +1104,18 @@ class MemoryCloudClient:
         Returns:
             {memory_id, generated_at, recent_days, open_tasks, knowledge_cards}
         """
+        # Local daemon bridge: route through awareness_init MCP tool.
+        if self._should_use_daemon():
+            args: Dict[str, Any] = {
+                "source": self.default_source or "sdk",
+                "days": days,
+                "max_cards": max_cards,
+                "max_tasks": max_tasks,
+            }
+            if user_id:
+                args["user_id"] = user_id
+            return self.call_local_daemon("awareness_init", args)
+
         params: Dict[str, Any] = {"days": days, "max_cards": max_cards, "max_tasks": max_tasks}
         if user_id:
             params["user_id"] = user_id
@@ -946,6 +1159,27 @@ class MemoryCloudClient:
         Returns:
             {total, cards: [{category, title, summary, tags, confidence, status}]}
         """
+        # Local daemon bridge: route through awareness_lookup type=knowledge.
+        if self._should_use_daemon():
+            args: Dict[str, Any] = {"type": "knowledge", "limit": limit}
+            if category:
+                args["category"] = category
+            if status:
+                args["status"] = status
+            if query:
+                args["query"] = query
+            if user_id:
+                args["user_id"] = user_id
+            daemon_result = self.call_local_daemon("awareness_lookup", args)
+            cards = (
+                daemon_result.get("knowledge_cards")
+                or daemon_result.get("cards")
+                or daemon_result.get("items")
+                or []
+            )
+            total = daemon_result.get("total")
+            return {"total": total if total is not None else len(cards), "cards": cards}
+
         params: Dict[str, Any] = {"limit": limit}
         if category:
             params["category"] = category
@@ -992,6 +1226,24 @@ class MemoryCloudClient:
         Returns:
             {total, in_progress, pending, tasks: [{title, priority, status, detail, context}]}
         """
+        # Local daemon bridge: route through awareness_lookup type=tasks.
+        if self._should_use_daemon():
+            args: Dict[str, Any] = {"type": "tasks", "limit": limit}
+            if priority:
+                args["priority"] = priority
+            if user_id:
+                args["user_id"] = user_id
+            daemon_result = self.call_local_daemon("awareness_lookup", args)
+            tasks = daemon_result.get("tasks") or daemon_result.get("items") or []
+            in_progress_count = sum(1 for t in tasks if (t or {}).get("status") == "in_progress")
+            pending_count = sum(1 for t in tasks if (t or {}).get("status") == "pending")
+            return {
+                "total": len(tasks),
+                "in_progress": in_progress_count,
+                "pending": pending_count,
+                "tasks": tasks,
+            }
+
         params: Dict[str, Any] = {"limit": limit, "status": "pending"}
         if priority:
             params["priority"] = priority

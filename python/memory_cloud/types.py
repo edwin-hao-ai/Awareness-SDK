@@ -15,7 +15,18 @@ class WriteResult(TypedDict, total=False):
 
 
 class PerceptionSignal(TypedDict, total=False):
-    type: str           # "contradiction" | "resonance" | "pattern" | "staleness" | "related_decision"
+    """A perception signal surfaced by the memory system.
+
+    Signal types:
+      - guard: a known pitfall the agent is about to repeat (highest priority — blocks)
+      - contradiction: new content conflicts with an existing belief
+      - resonance: similar past experience worth noting
+      - pattern: recurring theme (3+ occurrences) suggesting systematic action
+      - staleness: related knowledge may be outdated
+      - related_decision: prior decision in the same domain
+      - crystallization: F-034 hint that repeated cards should be synthesized into a skill
+    """
+    type: str           # "guard" | "contradiction" | "resonance" | "pattern" | "staleness" | "related_decision" | "crystallization"
     title: str
     summary: str        # human-readable summary (max 150 chars)
     category: str
@@ -23,7 +34,24 @@ class PerceptionSignal(TypedDict, total=False):
     message: str        # human-readable message with emoji
     days_ago: int       # (resonance) days since the original memory
     days_since_update: int  # (staleness) days since last update
-    count: int          # (pattern) number of occurrences
+    count: int          # (pattern / crystallization) number of occurrences
+    signal_id: str      # stable ID used by the perception lifecycle (exposure cap, snooze, dismiss)
+    state: str          # "active" | "snoozed" | "dismissed" | "auto_resolved" | "dormant"
+    exposure_count: int # times this signal has been surfaced to the agent
+    current_weight: float  # decayed weight (0..1). Below 0.3 the signal is auto-hidden.
+
+
+class SkillCrystallizationHint(TypedDict, total=False):
+    """F-034 hint that several similar cards should be synthesized into a reusable skill.
+
+    When this is present in an ingest response, the agent should build a skill definition
+    from the listed similar_cards and submit it via
+    `record(insights={"skills": [{"name", "summary", "methods", "trigger_conditions",
+    "tags", "source_card_ids"}]})`.
+    """
+    reason: str
+    similar_cards: List[Dict[str, Any]]  # [{id, title, category, summary}, ...]
+    suggested_name: str
 
 
 class IngestResult(TypedDict, total=False):
@@ -37,6 +65,9 @@ class IngestResult(TypedDict, total=False):
     status: str
     trace_id: str
     perception: List[PerceptionSignal]  # perception signals triggered by this ingest
+    # F-034: emitted when ≥3 similar cards have accumulated. Synthesize them into a skill
+    # and submit via `record(insights={"skills": [...]})`.
+    _skill_crystallization_hint: SkillCrystallizationHint
 
 
 class RecordResult(TypedDict, total=False):
@@ -92,7 +123,12 @@ class OpenTask(TypedDict, total=False):
 
 
 class KnowledgeCard(TypedDict, total=False):
-    category: str   # problem_solution | decision | workflow | key_point | pitfall | insight | skill | personal_preference | important_detail | plan_intention | activity_preference | health_info | career_info | custom_misc
+    # Engineering: problem_solution | decision | workflow | key_point | pitfall | insight
+    # Personal: personal_preference | important_detail | plan_intention | activity_preference |
+    #           health_info | career_info | custom_misc
+    # NOTE: `skill` category is DEPRECATED (F-032) — skills now live in a dedicated skills table.
+    # Any `skill`-category cards are kept for legacy display only.
+    category: str
     title: str
     summary: str
     tags: List[str]
@@ -113,9 +149,18 @@ class SessionSummary(TypedDict, total=False):
 
 
 class ActiveSkill(TypedDict, total=False):
+    """A reusable skill pre-loaded at session start (F-032 skills table).
+
+    When a task matches a skill's domain, apply its summary as behavioral guidance
+    and follow methods as execution steps. Skills are decay-weighted — `decay_score`
+    above 0.3 means the skill is still considered active.
+    """
+    id: str             # stable skill ID (from the `skills` table)
     title: str
-    summary: str    # injectable skill prompt (2-5 sentences, imperative mood)
+    summary: str        # injectable skill prompt (2-5 sentences, imperative mood)
     methods: List[str]  # numbered execution steps
+    decay_score: float  # (0..1) higher = more recently used / more relevant
+    usage_count: int    # total times this skill has been marked used
 
 
 class VectorAttribution(TypedDict, total=False):

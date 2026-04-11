@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.2] - 2026-04-11
+
+Same as 0.3.1. Version bumped because 0.3.1 was already reserved on ClawHub from an earlier test publish.
+
 ## [0.3.1] - 2026-04-11
 
 ### Added

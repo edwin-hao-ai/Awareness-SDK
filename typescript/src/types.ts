@@ -18,9 +18,23 @@ export interface MemoryCloudClientConfig {
   userId?: string;
   /** Agent role identifier. */
   agentRole?: string;
-  /** Deployment mode: "cloud" (default) | "local" | "auto". */
+  /**
+   * Deployment mode:
+   *   - `"cloud"` (default): Awareness Cloud at `https://awareness.market/api/v1`.
+   *   - `"local"`: route through the `@awareness-sdk/local` daemon at `http://localhost:37800`
+   *     via its MCP JSON-RPC endpoint. **Only the four core MCP tools are supported**
+   *     (`init`, `recall`, `record`, `lookup`). Cloud-only methods (`createMemory`,
+   *     `listMemories`, `getSkills`, …) throw `MemoryCloudError` in this mode — call them
+   *     against the cloud or use `@awareness-sdk/local` directly.
+   *   - `"auto"`: try the local daemon `/healthz` first; on success use the daemon for the
+   *     four supported tools and the cloud for everything else; on failure use cloud only.
+   */
   mode?: "cloud" | "local" | "auto";
-  /** Local server URL for "local" or "auto" mode. Default: "http://localhost:8765". */
+  /**
+   * URL of the `@awareness-sdk/local` daemon. Default: `http://localhost:37800`.
+   * NOTE: this is the daemon root, NOT a `/api/v1` path. The SDK appends `/mcp` for
+   * JSON-RPC calls and `/healthz` for the auto-mode probe.
+   */
   localUrl?: string;
 }
 
@@ -37,7 +51,19 @@ export interface WriteResponse extends JsonObject {
 }
 
 export interface PerceptionSignal {
-  type?: "contradiction" | "resonance" | "pattern" | "staleness" | "related_decision";
+  /**
+   * Signal type. `guard` = a known pitfall the agent is about to repeat (highest priority —
+   * blocks the agent), `crystallization` = F-034 hint that repeated patterns should be
+   * synthesized into a skill.
+   */
+  type?:
+    | "guard"
+    | "contradiction"
+    | "resonance"
+    | "pattern"
+    | "staleness"
+    | "related_decision"
+    | "crystallization";
   title?: string;
   /** Human-readable summary (max 150 chars) */
   summary?: string;
@@ -49,8 +75,33 @@ export interface PerceptionSignal {
   days_ago?: number;
   /** (staleness) Days since last update */
   days_since_update?: number;
-  /** (pattern) Number of occurrences */
+  /** (pattern / crystallization) Number of occurrences */
   count?: number;
+  /** Stable signal ID used by the perception lifecycle (exposure cap, snooze, dismiss) */
+  signal_id?: string;
+  /** Lifecycle state — `active` signals should be shown; others are hidden by the daemon */
+  state?: "active" | "snoozed" | "dismissed" | "auto_resolved" | "dormant";
+  /** Number of times this signal has already been surfaced to the agent */
+  exposure_count?: number;
+  /** Decayed weight (0..1). Below 0.3 the signal is auto-hidden. */
+  current_weight?: number;
+}
+
+/**
+ * F-034 hint that several similar knowledge cards have accumulated and should be
+ * crystallized into a reusable skill. When this is present in an ingest response,
+ * the agent should synthesize the listed `similar_cards` into a skill definition and
+ * submit it via `awareness_record(insights={skills:[...]})`.
+ */
+export interface SkillCrystallizationHint {
+  reason?: string;
+  similar_cards?: Array<{
+    id?: string;
+    title?: string;
+    category?: string;
+    summary?: string;
+  }>;
+  suggested_name?: string;
 }
 
 export interface IngestEventsResponse extends JsonObject {
@@ -65,6 +116,14 @@ export interface IngestEventsResponse extends JsonObject {
   trace_id?: string;
   /** Perception signals triggered by this ingest */
   perception?: PerceptionSignal[];
+  /**
+   * F-034 skill crystallization hint — emitted when ≥3 similar knowledge cards
+   * have accumulated and the agent should synthesize them into a reusable skill.
+   * When present, the agent should submit a skill via
+   * `awareness_record(insights={skills:[{name, summary, methods, trigger_conditions,
+   * tags, source_card_ids}]})`.
+   */
+  _skill_crystallization_hint?: SkillCrystallizationHint;
 }
 
 export interface ExportPackageResponse {
@@ -118,7 +177,14 @@ export interface UpdateTaskResult {
 }
 
 export interface KnowledgeCard {
-  category?: string; // problem_solution | decision | workflow | key_point | pitfall | insight | skill | personal_preference | important_detail | plan_intention | activity_preference | health_info | career_info | custom_misc
+  /**
+   * Card category. Engineering: problem_solution | decision | workflow | key_point | pitfall | insight.
+   * Personal: personal_preference | important_detail | plan_intention | activity_preference | health_info |
+   * career_info | custom_misc.
+   * NOTE: `skill` category is DEPRECATED (F-032) — skills now live in a dedicated skills table.
+   * Any `skill`-category cards are kept for legacy display only.
+   */
+  category?: string;
   title?: string;
   summary?: string;
   tags?: string[];
@@ -156,14 +222,21 @@ export interface SessionSummary {
  * A reusable skill extracted from memory.
  * Skills are injected at session start for token-efficient reuse.
  * When a task matches a skill's domain, apply its summary as behavioral guidance.
+ * Since F-032 skills live in a dedicated skills table (not in knowledge_cards).
  */
 export interface ActiveSkill {
+  /** Stable skill ID (from the `skills` table) */
+  id?: string;
   /** Short skill name (e.g. "Deploy with Docker Compose") */
   title?: string;
   /** Injectable skill prompt — 2-5 sentences of behavioral guidance in imperative mood */
   summary?: string;
   /** Step-by-step execution instructions */
   methods?: string[];
+  /** Decay score (0..1) — higher = more recently used / more relevant */
+  decay_score?: number;
+  /** Total times this skill has been marked used */
+  usage_count?: number;
 }
 
 /** Explainability metadata for a vector search result. */
