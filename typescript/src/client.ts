@@ -18,6 +18,8 @@ import {
   RecordInput,
   RetrieveResponse,
   SessionContextResponse,
+  Skill,
+  SkillListResponse,
   UpdateTaskResult,
   WriteResponse,
 } from "./types";
@@ -1083,6 +1085,47 @@ export class MemoryCloudClient {
     return this.requestJson<MemoryUsersResult>({
       method: "GET",
       path: `/memories/${input.memoryId}/users?${params.toString()}`,
+      traceId: input.traceId,
+    });
+  }
+
+  // ----------------------------
+  // Skills
+  // ----------------------------
+
+  /**
+   * List skills for a memory.
+   * Supports filtering by status and sorting by decay_score, usage_count, etc.
+   */
+  async getSkills(input: {
+    memoryId: string;
+    status?: string;
+    sort?: string;
+    limit?: number;
+    traceId?: string;
+  }): Promise<SkillListResponse> {
+    const params = new URLSearchParams();
+    params.set("status", input.status ?? "active");
+    params.set("sort", input.sort ?? "decay_score");
+    params.set("limit", String(Math.max(1, input.limit ?? 50)));
+    return this.requestJson<SkillListResponse>({
+      method: "GET",
+      path: `/memories/${input.memoryId}/skills?${params.toString()}`,
+      traceId: input.traceId,
+    });
+  }
+
+  /**
+   * Mark a skill as used, resetting its decay timer.
+   */
+  async markSkillUsed(input: {
+    memoryId: string;
+    skillId: string;
+    traceId?: string;
+  }): Promise<Skill> {
+    return this.requestJson<Skill>({
+      method: "POST",
+      path: `/memories/${input.memoryId}/skills/${input.skillId}/use`,
       traceId: input.traceId,
     });
   }

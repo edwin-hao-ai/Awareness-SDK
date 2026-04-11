@@ -10,6 +10,7 @@
 //        node lookup.js type=rules [format=markdown]
 //        node lookup.js type=graph [entity_id=xxx] [search=auth]
 //        node lookup.js type=agents
+//        node lookup.js type=skills [query=auth] [category=skill] [status=active]
 // ---------------------------------------------------------------------------
 
 const { loadConfig, resolveEndpoint, mcpCall, apiGet, parseArgs } = require("./shared");
@@ -19,7 +20,7 @@ async function main() {
   const type = args.type;
   if (!type) {
     console.log(JSON.stringify({ error: "Usage: node lookup.js type=<type> [params...]", types: [
-      "context", "tasks", "knowledge", "risks", "timeline", "session_history", "handoff", "rules", "graph", "agents"
+      "context", "tasks", "knowledge", "risks", "timeline", "session_history", "handoff", "rules", "graph", "agents", "skills"
     ]}));
     return;
   }
@@ -122,6 +123,14 @@ async function main() {
     }
     case "agents": {
       result = await apiGet(ep.baseUrl, ep.apiKey, `/memories/${ep.memoryId}/agents`, params);
+      break;
+    }
+    case "skills": {
+      if (args.query) params.set("query", args.query);
+      if (args.category) params.set("category", args.category);
+      if (args.status) params.set("status", args.status);
+      if (args.limit) params.set("limit", String(args.limit));
+      result = await apiGet(ep.baseUrl, ep.apiKey, `/memories/${ep.memoryId}/skills`, params);
       break;
     }
     default:

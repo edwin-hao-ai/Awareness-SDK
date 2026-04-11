@@ -144,6 +144,12 @@ export function buildContextXml(ctx, recallResults, perceptionSignals, options =
   const totalBudget = options.tokenBudget || DEFAULT_TOKEN_BUDGET;
   const parts = ["<awareness-memory>"];
 
+  if (options.currentFocus) {
+    parts.push("  <current-focus>");
+    parts.push(`    ${esc(String(options.currentFocus))}`);
+    parts.push("  </current-focus>");
+  }
+
   // Fixed-cost sections (skills, attention, dashboard, record-rule) are small
   // and always included. We reserve ~500 tokens for them.
   const fixedReserve = 500;
@@ -302,7 +308,11 @@ export function buildContextXml(ctx, recallResults, perceptionSignals, options =
   if (options.recordRuleScript) {
     parts.push("  <record-rule>");
     parts.push(`    Save significant work SILENTLY: node "${esc(options.recordRuleScript)}" '<JSON>'`);
-    parts.push('    JSON: {"content":"what+why","cards":[{"title":"...","summary":"...","category":"decision|problem_solution|workflow|pitfall|insight|key_point|personal_preference|important_detail"}]}');
+    parts.push('    JSON: {"content":"what+why","cards":[{"title":"...","summary":"...","category":"<see guide>"}]}');
+    parts.push("    Category guide (pick ONE, ask: is this about the USER or about TECH?):");
+    parts.push("      Personal (user info, non-technical): personal_preference (likes/dislikes/style), important_detail (name/role/facts), career_info, activity_preference, plan_intention, health_info");
+    parts.push("      Technical: decision (chose between options), problem_solution (bug+fix), workflow (process/setup/config steps), pitfall (warning/limitation), insight (reusable pattern), key_point (other tech fact)");
+    parts.push("    WRONG: 'My name is X, I like Y' → workflow. RIGHT: → personal_preference or important_detail");
     parts.push("    Save decisions, solutions, pitfalls, user preferences. NOT every tool call.");
     parts.push("  </record-rule>");
   }
@@ -318,25 +328,11 @@ export function buildContextXml(ctx, recallResults, perceptionSignals, options =
  * @returns {object[]} Filtered results array
  */
 export function parseRecallResults(recall) {
-  const normalize = (items, threshold) => (items || [])
-    .filter(r => !r.score || r.score >= threshold)
-    .map((r) => {
-      if (r.content) return r;
-      const prefix = r.type ? `[${r.type}] ` : "";
-      const title = r.title || "";
-      const summary = r.summary || "";
-      return {
-        ...r,
-        content: summary ? `${prefix}${title}\n${summary}`.trim() : `${prefix}${title}`.trim(),
-      };
-    })
-    .filter(r => r.content);
-
   if (!recall) return [];
   if (typeof recall === "string") {
     try {
       const parsed = JSON.parse(recall);
-      return normalize(parsed.results || parsed.items || [], 0.4);
+      return (parsed.results || parsed.items || []).filter(r => !r.score || r.score >= 0.4);
     } catch {
       if (recall.trim().length > 20) {
         return [{ content: recall.trim(), score: 0.5 }];
@@ -344,5 +340,5 @@ export function parseRecallResults(recall) {
       return [];
     }
   }
-  return normalize(recall.results || [], 0.5);
+  return (recall.results || []).filter(r => !r.score || r.score >= 0.5);
 }

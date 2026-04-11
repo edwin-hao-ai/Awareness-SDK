@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.2] - 2026-04-11
+
+### Added
+- **Workflow step 5 — F-034 skill crystallization**: `__awareness_workflow__` now returns step 5 instructing agents to handle `_skill_crystallization_hint` responses from `awareness_record`. When the local daemon or cloud detects 3+ similar workflow/decision/problem_solution cards, agents should synthesize them into a reusable skill and submit via `awareness_record(insights={skills:[{name, summary, methods, trigger_conditions, tags, source_card_ids}]})`.
+- **New workflow tips**: `perception_signals` and `active_skills` tips now documented in the workflow tool output — agents know to treat guards as blocking, apply active skills instead of re-deriving patterns.
+
+### Spec sync
+- `awareness-spec.json` (bundled via CI sync from `backend/awareness-spec.json`) now includes the deprecated `skill` category note (F-032 uses the dedicated `skills` table) and step 5 crystallization guidance.
+
 ## [0.6.1] - 2026-04-05
 
 ### Fixed

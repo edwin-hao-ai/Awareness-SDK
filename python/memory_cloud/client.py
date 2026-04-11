@@ -1229,6 +1229,67 @@ class MemoryCloudClient:
         return self._attach_trace(data, resolved_trace)
 
     # ----------------------------
+    # Skills
+    # ----------------------------
+    def get_skills(
+        self,
+        memory_id: str,
+        status: str = "active",
+        sort: str = "decay_score",
+        limit: int = 50,
+        trace_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        List skills for a memory.
+
+        Args:
+            memory_id: Target memory id.
+            status: Filter by status (default "active").
+            sort: Sort field (default "decay_score").
+            limit: Max skills to return (default 50).
+            trace_id: Optional trace id.
+
+        Returns:
+            {skills: [...], total: int}
+        """
+        params: Dict[str, Any] = {
+            "status": status,
+            "sort": sort,
+            "limit": max(1, limit),
+        }
+        data, resolved_trace = self._request(
+            method="GET",
+            path=f"/memories/{memory_id}/skills",
+            params=params,
+            trace_id=trace_id,
+        )
+        return self._attach_trace(data, resolved_trace)
+
+    def mark_skill_used(
+        self,
+        memory_id: str,
+        skill_id: str,
+        trace_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Mark a skill as used, resetting its decay timer.
+
+        Args:
+            memory_id: Target memory id.
+            skill_id: The skill to mark as used.
+            trace_id: Optional trace id.
+
+        Returns:
+            Updated skill data.
+        """
+        data, resolved_trace = self._request(
+            method="POST",
+            path=f"/memories/{memory_id}/skills/{skill_id}/use",
+            trace_id=trace_id,
+        )
+        return self._attach_trace(data, resolved_trace)
+
+    # ----------------------------
     # Insights / Jobs / Upload
     # ----------------------------
     def insights(

@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.0] - 2026-04-10
+
+### Added
+- `getSkills()` — List skills for a memory with filtering and sorting
+- `markSkillUsed()` — Mark a skill as used, resetting decay timer
+- `Skill`, `SkillMethod`, `SkillTrigger`, `SkillListResponse`, `SkillUpdateInput` types
+- Skill system support for F-032 (Hermes Agent-style auto-extracted skills)
+
 ## [2.0.0] - 2026-03-22
 
 ### Breaking Changes

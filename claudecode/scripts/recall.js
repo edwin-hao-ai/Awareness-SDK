@@ -236,7 +236,8 @@ async function main() {
           + "For resonance: mention the related past experience. "
           + "For patterns: suggest a systematic fix. "
           + "For staleness: warn knowledge may be outdated. "
-          + "For guards: STOP and warn about the known pitfall.</action-required>");
+          + "For guards: STOP and warn about the known pitfall. "
+          + "For crystallization: synthesize the similar cards into a skill and submit via awareness_record(insights={skills:[{name,summary,methods,trigger_conditions,tags,source_card_ids}]}).</action-required>");
         for (const s of perceptionSignals.slice(0, 5)) {
           pParts.push(`    <signal type="${esc(s.type || "")}">${esc(s.message || "")}</signal>`);
         }

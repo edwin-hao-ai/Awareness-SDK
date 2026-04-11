@@ -19,6 +19,7 @@ async function main() {
     // Local daemon: use MCP JSON-RPC
     ctx = await mcpCall(ep.localUrl, "awareness_init", {
       source: "awareness-skill",
+      ...(args.query ? { query: args.query } : {}),
     });
   } else {
     // Cloud: use REST API
@@ -26,6 +27,7 @@ async function main() {
     params.set("days", String(args.days || 7));
     params.set("max_cards", String(args.max_cards || 20));
     params.set("max_tasks", String(args.max_tasks || 20));
+    if (args.query) params.set("query", String(args.query));
     if (config.agentRole) params.set("agent_role", config.agentRole);
     ctx = await apiGet(ep.baseUrl, ep.apiKey, `/memories/${ep.memoryId}/context`, params);
   }

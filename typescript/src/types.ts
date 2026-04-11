@@ -421,6 +421,50 @@ export interface AgentListResponse {
   total?: number;
 }
 
+export interface SkillMethod {
+  step: number;
+  description: string;
+  tool_hint?: string;
+}
+
+export interface SkillTrigger {
+  pattern: string;
+  weight?: number;
+}
+
+export interface Skill {
+  id: string;
+  memory_id: string;
+  user_id?: string | null;
+  name: string;
+  summary: string;
+  methods: SkillMethod[];
+  trigger_conditions: SkillTrigger[];
+  tags: string[];
+  source_card_ids: string[];
+  /** seedling | budding | evergreen */
+  growth_stage: string;
+  usage_count: number;
+  last_used_at?: string | null;
+  decay_score: number;
+  pinned: boolean;
+  /** active | archived | merged */
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SkillListResponse {
+  skills: Skill[];
+  total: number;
+}
+
+export interface ListSkillsOptions {
+  status?: string;
+  sort?: string;
+  limit?: number;
+}
+
 /**
  * Input for the unified `record()` write method.
  */

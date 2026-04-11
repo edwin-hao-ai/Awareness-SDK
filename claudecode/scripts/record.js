@@ -120,11 +120,31 @@ async function main() {
 
 /**
  * Cache perception signals from daemon response for recall.js to surface on next prompt.
+ * Also surfaces F-034 _skill_crystallization_hint as a synthetic 'crystallization' signal.
  * @param {object} result — response from awareness_record MCP call
  */
 function cachePerception(result) {
   const perception = result?.perception?.perception || result?.perception;
-  if (!perception || !Array.isArray(perception) || perception.length === 0) return;
+  const signals = [];
+
+  if (perception && Array.isArray(perception) && perception.length > 0) {
+    signals.push(...perception);
+  }
+
+  // F-034: surface skill crystallization hint as a synthetic signal
+  const hint = result?._skill_crystallization_hint;
+  if (hint && typeof hint === "object") {
+    const similarCount = Array.isArray(hint.similar_cards) ? hint.similar_cards.length : 0;
+    signals.push({
+      type: "crystallization",
+      message: `Skill crystallization detected: ${similarCount} similar cards share a repeated pattern. `
+        + `Synthesize them into a reusable skill and submit via awareness_record(insights={skills:[...]}).`,
+      _hint: hint,
+    });
+  }
+
+  if (signals.length === 0) return;
+
   try {
     const fs = require("fs");
     const path = require("path");
@@ -134,7 +154,7 @@ function cachePerception(result) {
     const cacheFile = path.join(cacheDir, "perception-cache.json");
     let existing = [];
     try { existing = JSON.parse(fs.readFileSync(cacheFile, "utf8")); } catch { /* empty */ }
-    const updated = [...perception.map(s => ({ ...s, _ts: Date.now() })), ...existing].slice(0, 10);
+    const updated = [...signals.map(s => ({ ...s, _ts: Date.now() })), ...existing].slice(0, 10);
     fs.writeFileSync(cacheFile, JSON.stringify(updated), "utf8");
   } catch { /* best-effort */ }
 }

@@ -1,7 +1,7 @@
 {
   "id": "openclaw-memory",
   "name": "Awareness Memory",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "kind": "memory",
   "configSchema": {
     "type": "object",

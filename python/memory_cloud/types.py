@@ -356,3 +356,49 @@ class AgentProfile(TypedDict, total=False):
 class AgentListResult(TypedDict, total=False):
     agents: List[AgentProfile]
     total: int
+
+
+class SkillMethod(TypedDict, total=False):
+    step: int
+    description: str
+    tool_hint: str
+
+
+class SkillTrigger(TypedDict, total=False):
+    pattern: str
+    weight: float
+
+
+class Skill(TypedDict, total=False):
+    id: str
+    memory_id: str
+    name: str
+    summary: str
+    methods: List[SkillMethod]
+    trigger_conditions: List[SkillTrigger]
+    tags: List[str]
+    source_card_ids: List[str]
+    growth_stage: str       # seedling | budding | evergreen
+    usage_count: int
+    decay_score: float
+    pinned: bool
+    status: str             # active | archived | merged
+    created_at: str
+    updated_at: str
+    user_id: str
+    last_used_at: str
+
+
+class SkillListResult(TypedDict, total=False):
+    skills: List[Skill]
+    total: int
+
+
+class SkillUpdateInput(TypedDict, total=False):
+    name: str
+    summary: str
+    methods: List[Dict[str, Any]]
+    trigger_conditions: List[Dict[str, Any]]
+    tags: List[str]
+    pinned: bool
+    status: str

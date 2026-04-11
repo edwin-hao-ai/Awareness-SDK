@@ -45,14 +45,17 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
     inputSchema: { type: "object", properties: {} },
     execute: async () => ({
       workflow: [
-        { step: 1, action: "awareness_init", when: "FIRST thing every session", what: "Get session_id + past context" },
+        { step: 1, action: "awareness_init", when: "FIRST thing every session", what: "Get session_id + past context + active_skills[]" },
         { step: 2, action: "awareness_recall", when: "BEFORE starting work", what: "Search memory for relevant past context" },
         { step: 3, action: "awareness_record", when: "AFTER every change", what: 'awareness_record(action="write", content=<detailed description with reasoning, code snippets, files changed>)' },
         { step: 4, action: "handle _extraction_instruction", when: "response contains _extraction_instruction", what: 'Extract insights, then call awareness_record(action="write", content="summary", insights=<json>)', warning: "Skipping = NO searchable knowledge cards" },
+        { step: 5, action: "handle _skill_crystallization_hint (F-034)", when: "awareness_record response contains _skill_crystallization_hint", what: 'Review hint.similar_cards, synthesize into a skill, submit: awareness_record(insights={skills:[{name, summary, methods:[], trigger_conditions:[], tags:[], source_card_ids:[]}]})', warning: "Converts repeated patterns into reusable skills — skipping wastes the signal." },
       ],
       tips: {
         recall_vs_lookup: "awareness_recall = search by meaning. awareness_lookup = get by type (<50ms).",
         session_end: 'Call awareness_record(action="write", content=[...array of summaries...]) for batch recording.',
+        perception_signals: "awareness_record response may include 'perception' array (guards, patterns, resonance, staleness, contradictions). Treat guards as blocking warnings; patterns/resonance as context hints.",
+        active_skills: "awareness_init returns active_skills[]: pre-loaded reusable procedures. When a task matches a skill's domain, apply its summary + methods instead of re-deriving the pattern.",
       },
     }),
   });
