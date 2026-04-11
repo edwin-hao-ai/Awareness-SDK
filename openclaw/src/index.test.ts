@@ -336,6 +336,107 @@ describe("register (plugin entry point)", () => {
   });
 
   // =========================================================================
+  // Device auth setup mode (F-035 — headless / remote host support)
+  // =========================================================================
+  describe("awareness_setup start_auth (F-035)", () => {
+    async function runStartAuth(headlessEnv: boolean) {
+      if (headlessEnv) vi.stubEnv("AWARENESS_HEADLESS", "1");
+      else vi.stubEnv("AWARENESS_HEADLESS", "0");
+
+      const tools: Record<string, ToolDefinition> = {};
+      const api = {
+        registerTool: (t: ToolDefinition) => { tools[t.id] = t; },
+        registerHook: vi.fn(),
+        on: vi.fn(),
+        config: {},
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      };
+
+      // Register setup mode directly (skip async daemon health check)
+      const { registerSetupMode } = await import("./index");
+      registerSetupMode(api as unknown as PluginApi, "https://awareness.market/api/v1");
+      const setupTool = tools["awareness_setup"];
+      expect(setupTool).toBeDefined();
+
+      // Mock the /auth/device/init response
+      mockFetch.mockImplementation((url: string) => {
+        if (typeof url === "string" && url.endsWith("/auth/device/init")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                device_code: "dev_mock_abc",
+                user_code: "M3CK-AUTH",
+                verification_uri: "https://awareness.market/cli-auth",
+                interval: 5,
+                expires_in: 900,
+              }),
+          });
+        }
+        return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve("") });
+      });
+
+      const result = await setupTool.execute({ action: "start_auth" }) as Record<string, unknown>;
+      return result;
+    }
+
+    it("headless mode returns boxed message with is_headless=true", async () => {
+      const r = await runStartAuth(true);
+      expect(r.status).toBe("pending");
+      expect(r.user_code).toBe("M3CK-AUTH");
+      expect(r.is_headless).toBe(true);
+      expect(r.auth_url).toMatch(/code=M3CK-AUTH/);
+      const message = String(r.message);
+      expect(message).toContain("M3CK-AUTH");
+      expect(message).toContain("awareness.market/cli-auth");
+      expect(message).toMatch(/Headless.*remote host detected/);
+      expect(message).toMatch(/Device Authorization/);
+      // Includes the follow-up instruction
+      expect(message).toContain("check_auth");
+    });
+
+    it("local desktop mode returns non-headless variant of box", async () => {
+      const r = await runStartAuth(false);
+      expect(r.status).toBe("pending");
+      expect(r.is_headless).toBe(false);
+      const message = String(r.message);
+      expect(message).toContain("M3CK-AUTH");
+      expect(message).toMatch(/tried to open your browser/);
+      // Must NOT claim headless
+      expect(message).not.toMatch(/Headless.*remote host detected/);
+    });
+
+    it("expires_in defaults to 900 when backend omits the field", async () => {
+      vi.stubEnv("AWARENESS_HEADLESS", "1");
+      const tools: Record<string, ToolDefinition> = {};
+      const api = {
+        registerTool: (t: ToolDefinition) => { tools[t.id] = t; },
+        registerHook: vi.fn(),
+        on: vi.fn(),
+        config: {},
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      };
+      const { registerSetupMode } = await import("./index");
+      registerSetupMode(api as unknown as PluginApi, "https://awareness.market/api/v1");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            device_code: "d1",
+            user_code: "ABCD-EFGH",
+            verification_uri: "https://awareness.market/cli-auth",
+            interval: 5,
+            // expires_in intentionally omitted
+          }),
+      });
+
+      const result = await tools["awareness_setup"].execute({ action: "start_auth" }) as Record<string, unknown>;
+      expect(result.expires_in_seconds).toBe(900);
+    });
+  });
+
+  // =========================================================================
   // Re-exports
   // =========================================================================
   describe("module exports", () => {

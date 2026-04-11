@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.3] - 2026-04-12
+
+### Added (F-035 — headless device auth)
+- New `scripts/headless-auth.js` CommonJS helper: zero-dep `isHeadlessEnv()` / `openBrowserSilently()` / `renderDeviceCodeBox()`. Detects SSH, Codespaces, Gitpod, no-TTY, and Linux without DISPLAY.
+- `scripts/setup.js` now renders the user code inside a prominent ASCII box instead of a plain `console.log`, and gracefully skips the browser-open attempt on headless hosts. Poll timeout extended from 300s to 840s to match the backend's 900s Redis TTL.
+- Users running the skill over SSH or inside Docker containers can now complete device auth by opening the URL on a second device (phone / local laptop).
+
+### Why
+- The previous flow tried `open`/`xdg-open`/`start` and just printed a one-line URL on failure. On a remote host with no browser, users couldn't tell what to do next. F-035 fixes this across all 4 SDK distribution channels (this skill, OpenClaw plugin, Claude Code plugin, setup-cli).
+
 ## [0.3.2] - 2026-04-11
 
 Same as 0.3.1. Version bumped because 0.3.1 was already reserved on ClawHub from an earlier test publish.

@@ -90,9 +90,27 @@ Run this exact script (substituting nothing — it is self-contained):
 
 ```bash
 python3 -c "
-import urllib.request, json, subprocess, sys, time, platform
+import os, urllib.request, json, subprocess, sys, time, platform
 
 API = 'https://awareness.market/api/v1'
+
+# --- headless detection (F-035) ---
+# On SSH / Docker / Codespaces / no-TTY hosts we must not try to open
+# a browser — the user is reading this via the Claude CLI on a remote
+# host and needs to click the URL on a different device.
+def is_headless():
+    flag = os.environ.get('AWARENESS_HEADLESS', '').lower()
+    if flag in ('1','true','yes','on'): return True
+    if flag in ('0','false','no','off'): return False
+    if any(os.environ.get(k) for k in ('SSH_CONNECTION','SSH_CLIENT','SSH_TTY')): return True
+    if os.environ.get('CODESPACES','').lower() == 'true': return True
+    if os.environ.get('GITPOD_WORKSPACE_ID'): return True
+    if os.environ.get('CLOUD_SHELL','').lower() == 'true': return True
+    if platform.system() == 'Linux' and not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'): return True
+    if not sys.stdout.isatty(): return True
+    return False
+
+HEADLESS = is_headless()
 
 # --- init ---
 req = urllib.request.Request(API + '/auth/device/init', data=b'{}',
@@ -105,26 +123,33 @@ except Exception as e:
 dc   = resp['device_code']
 uc   = resp['user_code']
 intv = resp.get('interval', 5)
+ttl  = resp.get('expires_in', 900)
 
 print('USER_CODE:' + uc)
+print('HEADLESS:' + ('1' if HEADLESS else '0'))
+print('TTL:' + str(ttl))
 sys.stdout.flush()
 
-# --- open browser ---
+# --- open browser (skip on headless) ---
 url = 'https://awareness.market/cli-auth?code=' + uc
-try:
-    if platform.system() == 'Darwin':
-        subprocess.run(['open', url], check=True, capture_output=True)
-    elif platform.system() == 'Windows':
-        subprocess.run(['start', '', url], shell=True, check=True, capture_output=True)
-    else:
-        subprocess.run(['xdg-open', url], check=True, capture_output=True)
-    print('BROWSER:OPENED')
-except Exception:
-    print('BROWSER:FAILED:' + url)
+if HEADLESS:
+    print('BROWSER:SKIPPED:' + url)
+else:
+    try:
+        if platform.system() == 'Darwin':
+            subprocess.run(['open', url], check=True, capture_output=True)
+        elif platform.system() == 'Windows':
+            subprocess.run(['start', '', url], shell=True, check=True, capture_output=True)
+        else:
+            subprocess.run(['xdg-open', url], check=True, capture_output=True)
+        print('BROWSER:OPENED')
+    except Exception:
+        print('BROWSER:FAILED:' + url)
 sys.stdout.flush()
 
-# --- poll (up to 200s) ---
-for i in range(1, 41):
+# --- poll (up to ~14 min, aligned with backend TTL 900s) ---
+max_polls = max(40, ttl // max(intv,1))
+for i in range(1, max_polls + 1):
     time.sleep(intv)
     try:
         preq = urllib.request.Request(API + '/auth/device/poll',
@@ -141,14 +166,14 @@ for i in range(1, 41):
     elif st == 'expired':
         print('EXPIRED'); sys.exit(1)
     if i % 4 == 0:
-        print('WAITING:' + str(i) + '/40')
+        print('WAITING:' + str(i) + '/' + str(max_polls))
     sys.stdout.flush()
 
 print('TIMEOUT'); sys.exit(1)
 "
 ```
 
-**Timeout for this Bash call: 300000 ms (5 minutes).**
+**Timeout for this Bash call: 840000 ms (14 minutes, aligned with F-035 backend TTL=900s).**
 
 ### Parse the output
 
@@ -157,13 +182,16 @@ The script prints structured lines. Parse them:
 | Output prefix | Meaning | Action |
 |---------------|---------|--------|
 | `USER_CODE:{code}` | The human-readable auth code | Show to user (see message below) |
+| `HEADLESS:0` or `HEADLESS:1` | Whether host is headless (SSH/Docker/no-TTY) | Tailor instructions: on headless host, tell user to open URL on a second device |
+| `TTL:{seconds}` | Backend code lifetime (default 900 = 15 min) | Use in expiry message |
 | `BROWSER:OPENED` | Browser opened successfully | No action needed |
+| `BROWSER:SKIPPED:{url}` | Headless host — no browser attempt | Tell user to open the URL on any device with a browser |
 | `BROWSER:FAILED:{url}` | Could not open browser | Tell user to open the URL manually |
-| `WAITING:{n}/40` | Still polling | Silently continue waiting |
+| `WAITING:{n}/{max}` | Still polling | Silently continue waiting |
 | `POLL_ERROR:{n}` | Network blip during poll | Ignore unless many in a row |
 | `APPROVED:{api_key}` | Success! | Extract the api_key, proceed to Step 3 |
-| `EXPIRED` | Device code expired (10 min) | Tell user to run `/awareness-memory:setup` again |
-| `TIMEOUT` | 40 polls exhausted, still pending | Ask user: keep waiting / start over / cancel |
+| `EXPIRED` | Device code expired (15 min backend TTL) | Tell user to run `/awareness-memory:setup` again |
+| `TIMEOUT` | All polls exhausted, still pending | Ask user: keep waiting / start over / cancel |
 | `ERROR:NETWORK:{msg}` | Cannot reach server at all | Tell user to check network connection |
 
 ### Show this message to the user IMMEDIATELY after launching the script

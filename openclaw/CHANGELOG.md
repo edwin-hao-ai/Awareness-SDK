@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.3] - 2026-04-12
+
+### Added (F-035 — headless device auth)
+- New `src/headless-auth.ts` module with `isHeadlessEnv()` / `openBrowserSilently()` / `renderDeviceCodeBox()` — detects SSH / Codespaces / Gitpod / no-TTY / missing-DISPLAY hosts.
+- `awareness_setup(action='start_auth')` now returns a prominent ASCII-boxed `message` field that the LLM renders verbatim to the user, plus a new `is_headless` boolean so agents can tailor follow-up prompts.
+- Exported `registerSetupMode()` so downstream testing and integration can exercise the setup path directly.
+- `poll-auth.ts` default expires_in: 600s → 900s (aligned with backend TTL).
+- Auto-start hook's `prependSystemContext` now produces a headless-aware setup line when `AWARENESS_HEADLESS=1` or the host is detected as remote.
+
+### Why
+- Cloud-hosted OpenClaw users (飞书/Telegram bots on VPS, Docker containers, Codespaces) previously had no way to complete device auth. The plugin would silently fail to open a browser and the LLM had no structured way to tell the user "go click this on your phone". F-035 brings the entire UX into structured plugin output so any LLM can present it correctly.
+
 ## [0.6.2] - 2026-04-11
 
 ### Added

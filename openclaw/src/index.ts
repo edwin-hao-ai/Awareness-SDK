@@ -5,6 +5,10 @@ import { AwarenessClient } from "./client";
 import { registerTools } from "./tools";
 import { registerHooks } from "./hooks";
 import { importOpenClawHistory } from "./sync";
+import {
+  isHeadlessEnv,
+  renderDeviceCodeBox,
+} from "./headless-auth";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -36,7 +40,15 @@ function isTermux(): boolean {
 // Setup-only mode — registered when credentials are missing
 // ---------------------------------------------------------------------------
 
-function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): void {
+/**
+ * Register the fallback "setup mode" tool when the plugin is loaded without
+ * credentials AND no local daemon is reachable. Exposes `awareness_setup`
+ * to the agent so the user can complete device auth interactively.
+ *
+ * Exported (not just called internally) so that unit tests can exercise
+ * the device auth path without spinning up a real daemon health check.
+ */
+export function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): void {
   // Provide a tool that returns setup instructions or starts device auth
   api.registerTool({
     id: "awareness_setup",
@@ -84,7 +96,7 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
           // Append ?code= so the page auto-fills the input (avoids "Missing Code" error)
           const verificationUri = `${verificationUriBase}?code=${encodeURIComponent(userCode)}`;
           const intervalSec = Number(data.interval ?? 5);
-          const expiresIn = Number(data.expires_in ?? 600);
+          const expiresIn = Number(data.expires_in ?? 900);
 
           if (!deviceCode) {
             return { status: "error", message: "No device_code returned from server" };
@@ -110,15 +122,29 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
             child.unref();
           } catch { /* cloud/serverless: no spawn available, rely on check_auth polling */ }
 
+          // Detect whether we're on a headless host (cloud / Docker /
+          // SSH / Telegram bot). The LLM will render the boxed message
+          // verbatim, so users see the same rich UX regardless of where
+          // OpenClaw is running.
+          const headless = isHeadlessEnv();
+          const boxedMessage = renderDeviceCodeBox({
+            userCode,
+            verificationUri,
+            expiresInSec: expiresIn,
+            headless,
+            product: "Awareness Memory",
+          });
+
           return {
             status: "pending",
             auth_url: verificationUri,
             user_code: userCode,
             expires_in_seconds: expiresIn,
+            is_headless: headless,
             message:
-              `Please visit: ${verificationUri}\n` +
-              `Enter code: ${userCode}\n` +
-              `After authorizing, call awareness_setup(action='check_auth') to complete setup.`,
+              boxedMessage +
+              "\nAfter authorizing in your browser, call " +
+              "awareness_setup(action='check_auth') to complete setup.",
           };
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -310,7 +336,7 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
           const verificationUriBase = String(data.verification_uri ?? "https://awareness.market/cli-auth");
           const authUrl = `${verificationUriBase}?code=${encodeURIComponent(userCode)}`;
           const intervalSec = Number(data.interval ?? 5);
-          const expiresIn = Number(data.expires_in ?? 600);
+          const expiresIn = Number(data.expires_in ?? 900);
 
           if (deviceCode) {
             // Spawn background poller
@@ -326,12 +352,20 @@ function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE_URL): 
             });
             child.unref();
 
+            // Auto-start path: bubble both the clickable URL AND the
+            // plain code to the user. Works whether they are on their
+            // own machine or on a remote host without a browser.
+            const headless = isHeadlessEnv();
+            const deviceLine = headless
+              ? `"Memory setup: open ${authUrl} on any device with a browser, then enter code ${userCode}."`
+              : `"To enable memory, please open this link (~30 sec): ${authUrl}"`;
+
             return {
               prependSystemContext:
                 `<awareness-memory>\n` +
                 `  <setup-required>\n` +
                 `    Memory is not configured. You MUST tell the user this exact message FIRST, before answering:\n` +
-                `    "To enable memory, please open this link (~30 sec): ${authUrl}"\n` +
+                `    ${deviceLine}\n` +
                 `    After giving the link, answer their question normally.\n` +
                 `  </setup-required>\n` +
                 `</awareness-memory>`,

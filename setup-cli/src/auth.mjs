@@ -12,6 +12,13 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
+import {
+  isHeadlessEnv,
+  openBrowserSilently,
+  renderDeviceCodeBox,
+  DEFAULT_POLL_TIMEOUT_SEC,
+} from "./headless-auth.mjs";
+
 const DEFAULT_API_BASE = "https://awareness.market/api/v1";
 const CREDENTIALS_DIR = path.join(os.homedir(), ".awareness");
 const CREDENTIALS_FILE = path.join(CREDENTIALS_DIR, "credentials.json");
@@ -57,22 +64,10 @@ function request(url, options = {}) {
   });
 }
 
-// ─── Browser opener ──────────────────────────────────────────────
+// ─── Browser opener (re-exported for backwards compat) ──────────
 
 export function openBrowser(url) {
-  try {
-    const platform = process.platform;
-    if (platform === "darwin") {
-      execSync(`open "${url}"`, { stdio: "ignore" });
-    } else if (platform === "win32") {
-      execSync(`start "" "${url}"`, { stdio: "ignore" });
-    } else {
-      execSync(`xdg-open "${url}"`, { stdio: "ignore" });
-    }
-    return true;
-  } catch {
-    return false;
-  }
+  return openBrowserSilently(url);
 }
 
 // ─── Credentials storage ─────────────────────────────────────────
@@ -124,7 +119,7 @@ export async function initDeviceAuth(apiBase = DEFAULT_API_BASE) {
   return data;
 }
 
-export async function pollDeviceAuth(apiBase, deviceCode, interval = 5, timeout = 300) {
+export async function pollDeviceAuth(apiBase, deviceCode, interval = 5, timeout = DEFAULT_POLL_TIMEOUT_SEC) {
   const deadline = Date.now() + timeout * 1000;
 
   while (Date.now() < deadline) {
@@ -276,7 +271,7 @@ export async function runAuthFlow(apiBase = DEFAULT_API_BASE, options = {}) {
     return existing;
   }
 
-  console.log("\nAuthenticating with Awareness...\n");
+  console.log("\nAuthenticating with Awareness...");
 
   let authData;
   try {
@@ -286,25 +281,36 @@ export async function runAuthFlow(apiBase = DEFAULT_API_BASE, options = {}) {
     return null;
   }
 
-  console.log(`Your code: ${authData.user_code}\n`);
-
   const verificationUrl = `${authData.verification_uri}?code=${encodeURIComponent(authData.user_code)}`;
-  const opened = openBrowser(verificationUrl);
 
-  if (opened) {
-    console.log("Browser opened. Please sign in and authorize the CLI.");
-  } else {
-    console.log(`Open this URL to authorize:\n  ${verificationUrl}`);
+  // Decide headless-ness. Honor explicit env var, auto-detect SSH/no-TTY/etc.
+  const headless = isHeadlessEnv();
+
+  // On non-headless hosts, attempt to open the browser first. On headless
+  // hosts, skip the attempt — it would fail or open the wrong browser.
+  let browserOpened = false;
+  if (!headless) {
+    browserOpened = openBrowserSilently(verificationUrl);
   }
 
-  console.log("\nWaiting for authorization...");
+  // Always render the box. Even when the browser did open, users with
+  // multi-monitor setups or background-tab browsers benefit from seeing
+  // the code and URL printed clearly.
+  console.log(
+    renderDeviceCodeBox({
+      userCode: authData.user_code,
+      verificationUri: verificationUrl,
+      expiresInSec: authData.expires_in || 900,
+      headless: headless || !browserOpened,
+    })
+  );
 
   try {
     const result = await pollDeviceAuth(
       apiBase,
       authData.device_code,
       authData.interval || 5,
-      authData.expires_in || 300
+      authData.expires_in || DEFAULT_POLL_TIMEOUT_SEC
     );
 
     saveCredentials(result.api_key, apiBase);

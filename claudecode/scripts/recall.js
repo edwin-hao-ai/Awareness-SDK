@@ -47,7 +47,7 @@ async function handleUnconfigured(baseUrl) {
     const verificationUri = String(data.verification_uri || "https://awareness.market/cli-auth");
     const authUrl = `${verificationUri}?code=${encodeURIComponent(userCode)}`;
     const intervalSec = Number(data.interval || 5);
-    const expiresIn = Number(data.expires_in || 600);
+    const expiresIn = Number(data.expires_in || 900);
 
     if (deviceCode) {
       // Spawn poll-auth.js in background
@@ -61,11 +61,24 @@ async function handleUnconfigured(baseUrl) {
         child.unref();
       }
 
+      // Detect headless environment (SSH, Docker, Codespaces, no-TTY)
+      // and tailor the setup-required message accordingly. The Claude CLI
+      // surfaces this text verbatim to the model, which then shows the
+      // user — so it must work in any host.
+      let headless = false;
+      try {
+        const h = require("./headless-auth.js");
+        headless = h.isHeadlessEnv();
+      } catch { /* helper missing — assume desktop */ }
+
+      const setupLine = headless
+        ? `On any device with a browser, open ${authUrl} and enter code ${userCode}.`
+        : `To enable persistent memory, visit this link and sign in (~30 seconds): ${authUrl}`;
+
       process.stdout.write(
         "<awareness-memory>\n" +
         "  <setup-required>\n" +
-        `    To enable persistent memory, visit this link and sign in (~30 seconds):\n` +
-        `    ${authUrl}\n` +
+        `    ${setupLine}\n` +
         `    Once done, start a new session and memory will activate automatically.\n` +
         "  </setup-required>\n" +
         "</awareness-memory>"

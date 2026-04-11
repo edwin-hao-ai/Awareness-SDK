@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.1] - 2026-04-12
+
+### Added (F-035 — headless device auth)
+- **`scripts/headless-auth.js`**: shared UX helper with `isHeadlessEnv()`, `openBrowserSilently()`, `renderDeviceCodeBox()`. Auto-detects SSH / Codespaces / Gitpod / no-TTY / missing-DISPLAY.
+- **`scripts/setup.js`**: replaces plain `console.log` with a prominent ASCII box showing the verification URL + user code. Skips browser open on headless hosts. Poll timeout aligned with backend's 900s TTL.
+- **`scripts/recall.js`**: auto-start device auth now emits a headless-aware `<setup-required>` block. On remote hosts the message instructs the user to open the URL on another device; local hosts keep the original one-click message.
+- **`scripts/poll-auth.js`**: default expires_in bumped from 600s to 900s.
+- **`skills/setup/SKILL.md`**: embedded Python setup script now detects headless (SSH/Codespaces/no-TTY) and skips browser open, emits new `HEADLESS:0/1`, `TTL:N`, `BROWSER:SKIPPED:{url}` parse lines for the agent to route off. Bash timeout bumped from 300000 ms to 840000 ms.
+
+### Why
+- CLAUDE.md requires `sdks/awareness-memory/scripts/` and `sdks/claudecode/scripts/` to stay in lockstep — they serve different distribution channels (ClawHub skill vs CC marketplace) but must share identical behavior. F-035 added headless support to one and this release syncs the other.
+
 ## [0.4.0] - 2026-04-11
 
 ### Added

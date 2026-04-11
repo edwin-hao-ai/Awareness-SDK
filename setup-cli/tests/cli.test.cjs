@@ -7,6 +7,7 @@ const path = require("node:path");
 let cliModule;
 let rulesModule;
 let authModule;
+let headlessModule;
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "awareness-setup-"));
@@ -16,6 +17,7 @@ test.before(async () => {
   cliModule = await import("../src/cli.mjs");
   rulesModule = await import("../src/rules.mjs");
   authModule = await import("../src/auth.mjs");
+  headlessModule = await import("../src/headless-auth.mjs");
 });
 
 test("syncIdeRules creates managed_block files when missing", () => {
@@ -859,4 +861,181 @@ test("Local mode dry-run with codex shows local MCP URL", async () => {
     process.chdir(originalCwd);
     console.log = originalLog;
   }
+});
+
+// ─── headless-auth helper ─────────────────────────────────────
+
+test("isHeadlessEnv: explicit AWARENESS_HEADLESS=1 wins", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: { AWARENESS_HEADLESS: "1", DISPLAY: ":0" },
+    platform: "linux",
+    isTTY: true,
+  });
+  assert.equal(result, true);
+});
+
+test("isHeadlessEnv: AWARENESS_HEADLESS=0 disables auto-detect", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: { AWARENESS_HEADLESS: "0", SSH_CONNECTION: "1.2.3.4 22 5.6.7.8 22" },
+    platform: "linux",
+    isTTY: true,
+  });
+  assert.equal(result, false);
+});
+
+test("isHeadlessEnv: SSH_CONNECTION triggers headless", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: { SSH_CONNECTION: "1.2.3.4 22 5.6.7.8 22" },
+    platform: "linux",
+    isTTY: true,
+  });
+  assert.equal(result, true);
+});
+
+test("isHeadlessEnv: Codespaces triggers headless", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: { CODESPACES: "true" },
+    platform: "linux",
+    isTTY: true,
+  });
+  assert.equal(result, true);
+});
+
+test("isHeadlessEnv: Gitpod triggers headless", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: { GITPOD_WORKSPACE_ID: "ws-abc123" },
+    platform: "linux",
+    isTTY: true,
+  });
+  assert.equal(result, true);
+});
+
+test("isHeadlessEnv: Linux without DISPLAY is headless", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: {},
+    platform: "linux",
+    isTTY: true,
+  });
+  assert.equal(result, true);
+});
+
+test("isHeadlessEnv: Linux with DISPLAY is not headless by default", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: { DISPLAY: ":0" },
+    platform: "linux",
+    isTTY: true,
+  });
+  assert.equal(result, false);
+});
+
+test("isHeadlessEnv: Linux with WAYLAND_DISPLAY is not headless", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: { WAYLAND_DISPLAY: "wayland-0" },
+    platform: "linux",
+    isTTY: true,
+  });
+  assert.equal(result, false);
+});
+
+test("isHeadlessEnv: macOS desktop is not headless", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: {},
+    platform: "darwin",
+    isTTY: true,
+  });
+  assert.equal(result, false);
+});
+
+test("isHeadlessEnv: Windows desktop is not headless", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: {},
+    platform: "win32",
+    isTTY: true,
+  });
+  assert.equal(result, false);
+});
+
+test("isHeadlessEnv: no TTY triggers headless (piped/CI)", () => {
+  const result = headlessModule.isHeadlessEnv({
+    env: {},
+    platform: "darwin",
+    isTTY: false,
+  });
+  assert.equal(result, true);
+});
+
+test("renderDeviceCodeBox: includes user code and URL", () => {
+  const box = headlessModule.renderDeviceCodeBox({
+    userCode: "A3K9-M7FX",
+    verificationUri: "https://awareness.market/cli-auth?code=A3K9-M7FX",
+    expiresInSec: 900,
+    headless: true,
+  });
+  assert.match(box, /A3K9-M7FX/);
+  assert.match(box, /awareness\.market\/cli-auth/);
+  assert.match(box, /Device Authorization/);
+  assert.match(box, /Waiting for approval/);
+});
+
+test("renderDeviceCodeBox: headless=true shows headless-specific message", () => {
+  const box = headlessModule.renderDeviceCodeBox({
+    userCode: "A3K9-M7FX",
+    verificationUri: "https://awareness.market/cli-auth",
+    headless: true,
+  });
+  assert.match(box, /Headless.*remote host detected/);
+});
+
+test("renderDeviceCodeBox: headless=false shows tried-to-open message", () => {
+  const box = headlessModule.renderDeviceCodeBox({
+    userCode: "A3K9-M7FX",
+    verificationUri: "https://awareness.market/cli-auth",
+    headless: false,
+  });
+  assert.match(box, /tried to open your browser/);
+});
+
+test("renderDeviceCodeBox: ttl line shows minutes", () => {
+  const box = headlessModule.renderDeviceCodeBox({
+    userCode: "A3K9-M7FX",
+    verificationUri: "https://awareness.market/cli-auth",
+    expiresInSec: 900,
+    headless: true,
+  });
+  assert.match(box, /Code expires in ~15 minutes/);
+});
+
+test("renderDeviceCodeBox: wraps very long URLs without crashing", () => {
+  const longUrl =
+    "https://awareness.market/cli-auth?code=ABCD-EFGH&next=" +
+    "x".repeat(200);
+  const box = headlessModule.renderDeviceCodeBox({
+    userCode: "ABCD-EFGH",
+    verificationUri: longUrl,
+    headless: true,
+  });
+  // It should still render without throwing
+  assert.ok(box.length > 0);
+  // Every line in the box (except blank lines) starts with box characters
+  const lines = box.split("\n").filter((l) => l.trim().length > 0);
+  for (const line of lines) {
+    assert.ok(
+      /^[╔║╚]/.test(line) || line === "",
+      `Expected line to start with box drawing char: ${JSON.stringify(line)}`
+    );
+  }
+});
+
+test("openBrowserSilently: returns boolean, never throws", () => {
+  // We don't actually want to open a browser in CI — just verify the
+  // function handles platform errors gracefully.
+  const result = headlessModule.openBrowserSilently(
+    "https://example.com/definitely-not-a-real-url-for-test"
+  );
+  assert.equal(typeof result, "boolean");
+});
+
+test("DEFAULT_POLL_TIMEOUT_SEC is a sane value below backend TTL", () => {
+  assert.ok(headlessModule.DEFAULT_POLL_TIMEOUT_SEC > 300);
+  assert.ok(headlessModule.DEFAULT_POLL_TIMEOUT_SEC < 900);
 });

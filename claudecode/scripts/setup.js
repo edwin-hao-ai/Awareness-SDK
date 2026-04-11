@@ -16,6 +16,13 @@ const path = require("path");
 const { execSync } = require("child_process");
 const readline = require("readline");
 
+const {
+  isHeadlessEnv,
+  openBrowserSilently,
+  renderDeviceCodeBox,
+  DEFAULT_POLL_TIMEOUT_SEC,
+} = require("./headless-auth.js");
+
 const API_BASE = process.env.AWARENESS_BASE_URL || "https://awareness.market/api/v1";
 const CREDS_DIR = path.join(os.homedir(), ".awareness");
 const CREDS_FILE = path.join(CREDS_DIR, "credentials.json");
@@ -53,16 +60,11 @@ function request(url, options = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Browser opener
+// Browser opener (delegated to shared headless-auth helper)
 // ---------------------------------------------------------------------------
 
 function openBrowser(url) {
-  try {
-    if (process.platform === "darwin") execSync(`open "${url}"`, { stdio: "ignore" });
-    else if (process.platform === "win32") execSync(`start "" "${url}"`, { stdio: "ignore" });
-    else execSync(`xdg-open "${url}"`, { stdio: "ignore" });
-    return true;
-  } catch { return false; }
+  return openBrowserSilently(url);
 }
 
 // ---------------------------------------------------------------------------
@@ -217,21 +219,26 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`  Your authorization code: ${authData.user_code}\n`);
-
   const verifyUrl = `${authData.verification_uri || "https://awareness.market/cli-auth"}?code=${encodeURIComponent(authData.user_code)}`;
-  const opened = openBrowser(verifyUrl);
 
-  if (opened) {
-    console.log("  Browser opened — please sign in and click 'Authorize'.");
-  } else {
-    console.log(`  Open this URL to authorize:\n  ${verifyUrl}`);
+  // Headless-aware UX: on SSH/Docker/Codespaces/no-TTY hosts, skip the
+  // browser attempt and just show a prominent box with the URL + code.
+  const headless = isHeadlessEnv();
+  let opened = false;
+  if (!headless) {
+    opened = openBrowser(verifyUrl);
   }
 
-  console.log("  Waiting for authorization...\n");
+  console.log(renderDeviceCodeBox({
+    userCode: authData.user_code,
+    verificationUri: verifyUrl,
+    expiresInSec: authData.expires_in || 900,
+    headless: headless || !opened,
+  }));
 
-  // Poll for approval
-  const deadline = Date.now() + (authData.expires_in || 300) * 1000;
+  // Poll for approval — align with backend Redis TTL (900s).
+  const pollTimeout = authData.expires_in || DEFAULT_POLL_TIMEOUT_SEC;
+  const deadline = Date.now() + pollTimeout * 1000;
   let apiKey = null;
 
   while (Date.now() < deadline) {

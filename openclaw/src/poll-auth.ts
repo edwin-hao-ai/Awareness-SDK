@@ -124,7 +124,9 @@ if (!deviceCode || !baseUrl) {
   process.exit(1);
 }
 const intervalMs = (Number(intervalStr) || 5) * 1000;
-const expiresIn = Number(expiresInStr) || 600;
+// Default expires_in aligned with backend DEVICE_AUTH_TTL=900s so the
+// background poller stays alive long enough for cross-device headless auth.
+const expiresIn = Number(expiresInStr) || 900;
 const expiresAt = Date.now() + expiresIn * 1000;
 
 poll(baseUrl, deviceCode, intervalMs, expiresAt).catch(() => writeFailure("error"));
