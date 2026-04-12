@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.4] - 2026-04-12
+
+### Fixed (F-035 gap — scripts missed in 0.3.3 publish)
+- `recall.js`: added headless environment detection and headless-auth setup prompt (was already in claudecode but missed in awareness-memory during F-035).
+- `poll-auth.js`: updated TTL from 600s to 900s to match backend Redis TTL change.
+
+### Changed (F-036 — shared scripts SSOT)
+- All 14 shared scripts now carry a 4-line "DO NOT EDIT" header pointing to `sdks/_shared/scripts/` as the single source of truth.
+
 ## [0.3.3] - 2026-04-12
 
 ### Added (F-035 — headless device auth)
