@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ⚠️ DO NOT EDIT — auto-generated from sdks/_shared/scripts/search.js
+// Edit the source in sdks/_shared/scripts/ then run:
+//   bash scripts/sync-shared-scripts.sh
+// See docs/features/f-036/shared-scripts-consolidation.md
+
 // ---------------------------------------------------------------------------
 // awareness_recall — Semantic + keyword hybrid search
 // Usage: node search.js "query text" [keyword_query="terms"] [limit=6]

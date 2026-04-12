@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ⚠️ DO NOT EDIT — auto-generated from sdks/_shared/scripts/setup.js
+// Edit the source in sdks/_shared/scripts/ then run:
+//   bash scripts/sync-shared-scripts.sh
+// See docs/features/f-036/shared-scripts-consolidation.md
+
 // ---------------------------------------------------------------------------
 // One-click setup: browser login → auto API key → select memory → write config
 // Zero external dependencies — uses only Node.js builtins.

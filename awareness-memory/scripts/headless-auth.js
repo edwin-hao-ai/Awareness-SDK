@@ -1,16 +1,23 @@
+// ⚠️ DO NOT EDIT — auto-generated from sdks/_shared/scripts/headless-auth.js
+// Edit the source in sdks/_shared/scripts/ then run:
+//   bash scripts/sync-shared-scripts.sh
+// See docs/features/f-036/shared-scripts-consolidation.md
+
 /**
  * headless-auth.js — Shared UX helper for RFC 8628 device code flow in
  * headless / remote / no-browser environments.
  *
  * Zero external dependencies. Node builtins only. CommonJS.
  *
- * IMPORTANT: This file is copy-pasted into 4 independently-published packages:
- *   - sdks/setup-cli/src/headless-auth.mjs
- *   - sdks/awareness-memory/scripts/headless-auth.js   (this file)
- *   - sdks/claudecode/scripts/headless-auth.js
- *   - sdks/openclaw/src/headless-auth.ts
+ * SSOT — Single Source of Truth.
+ * This file lives in sdks/_shared/scripts/ and is automatically synced to
+ * sdks/awareness-memory/scripts/ and sdks/claudecode/scripts/ by
+ * scripts/sync-shared-scripts.sh. DO NOT edit the copies — edit THIS file.
  *
- * If you change one, sync the other three. See docs/features/f-035/.
+ * TS variant: sdks/openclaw/src/headless-auth.ts (manually maintained)
+ * ESM variant: sdks/setup-cli/src/headless-auth.mjs (manually maintained)
+ *
+ * See docs/features/f-036/shared-scripts-consolidation.md
  */
 
 const { execSync } = require("child_process");

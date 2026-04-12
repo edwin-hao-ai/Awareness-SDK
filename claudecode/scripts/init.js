@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ⚠️ DO NOT EDIT — auto-generated from sdks/_shared/scripts/init.js
+// Edit the source in sdks/_shared/scripts/ then run:
+//   bash scripts/sync-shared-scripts.sh
+// See docs/features/f-036/shared-scripts-consolidation.md
+
 // ---------------------------------------------------------------------------
 // awareness_init — Initialize session and load cross-session context
 // Usage: node init.js [days=7] [max_cards=20] [max_tasks=20]

@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ⚠️ DO NOT EDIT — auto-generated from sdks/_shared/scripts/lookup.js
+// Edit the source in sdks/_shared/scripts/ then run:
+//   bash scripts/sync-shared-scripts.sh
+// See docs/features/f-036/shared-scripts-consolidation.md
+
 // ---------------------------------------------------------------------------
 // awareness_lookup — Fast structured DB queries (no vector search)
 // Usage: node lookup.js type=tasks [status=pending] [priority=high] [limit=50]

@@ -1,10 +1,20 @@
 #!/usr/bin/env node
+// ⚠️ DO NOT EDIT — auto-generated from sdks/_shared/scripts/poll-auth.js
+// Edit the source in sdks/_shared/scripts/ then run:
+//   bash scripts/sync-shared-scripts.sh
+// See docs/features/f-036/shared-scripts-consolidation.md
+
 // ---------------------------------------------------------------------------
 // poll-auth.js — Background device auth polling for awareness-memory skill.
+//
+// SSOT — edit this file in sdks/_shared/scripts/, NOT in the synced copies.
+// See docs/features/f-036/shared-scripts-consolidation.md
 //
 // Spawned detached by recall.js after /auth/device/init.
 // Polls /auth/device/poll until approved or expired,
 // then writes apiKey + memoryId to ~/.openclaw/openclaw.json.
+//
+// TS variant: sdks/openclaw/src/poll-auth.ts (manually maintained)
 //
 // Usage: node poll-auth.js <device_code> <base_url> <interval_sec> <expires_in_sec>
 // ---------------------------------------------------------------------------

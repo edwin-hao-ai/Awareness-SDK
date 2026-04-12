@@ -1,10 +1,20 @@
 #!/usr/bin/env node
+// ⚠️ DO NOT EDIT — auto-generated from sdks/_shared/scripts/poll-auth.js
+// Edit the source in sdks/_shared/scripts/ then run:
+//   bash scripts/sync-shared-scripts.sh
+// See docs/features/f-036/shared-scripts-consolidation.md
+
 // ---------------------------------------------------------------------------
 // poll-auth.js — Background device auth polling for awareness-memory skill.
+//
+// SSOT — edit this file in sdks/_shared/scripts/, NOT in the synced copies.
+// See docs/features/f-036/shared-scripts-consolidation.md
 //
 // Spawned detached by recall.js after /auth/device/init.
 // Polls /auth/device/poll until approved or expired,
 // then writes apiKey + memoryId to ~/.openclaw/openclaw.json.
+//
+// TS variant: sdks/openclaw/src/poll-auth.ts (manually maintained)
 //
 // Usage: node poll-auth.js <device_code> <base_url> <interval_sec> <expires_in_sec>
 // ---------------------------------------------------------------------------
@@ -123,7 +133,9 @@ const [, , deviceCode, baseUrl, intervalStr, expiresInStr] = process.argv;
 if (!deviceCode || !baseUrl) process.exit(1);
 
 const intervalMs = (Number(intervalStr) || 5) * 1000;
-const expiresIn = Number(expiresInStr) || 600;
+// Default expires_in aligned with backend DEVICE_AUTH_TTL=900s (F-035)
+// so the background poller stays alive for cross-device headless auth.
+const expiresIn = Number(expiresInStr) || 900;
 const expiresAt = Date.now() + expiresIn * 1000;
 
 poll(baseUrl, deviceCode, intervalMs, expiresAt).catch(() => writeFailure("error"));

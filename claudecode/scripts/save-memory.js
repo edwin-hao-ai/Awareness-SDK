@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ⚠️ DO NOT EDIT — auto-generated from sdks/_shared/scripts/save-memory.js
+// Edit the source in sdks/_shared/scripts/ then run:
+//   bash scripts/sync-shared-scripts.sh
+// See docs/features/f-036/shared-scripts-consolidation.md
+
 // ---------------------------------------------------------------------------
 // save-memory.js — Simple wrapper for Claude to save memories via Bash
 // Usage: node save-memory.js '{"content":"what happened","cards":[{"title":"...","summary":"...","category":"decision"}]}'
