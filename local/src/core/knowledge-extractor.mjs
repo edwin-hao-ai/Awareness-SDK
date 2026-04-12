@@ -112,6 +112,7 @@ const BM25_UPDATE_THRESHOLD = -2.0;     // rank > this → similar enough for ev
 // Vector cosine similarity thresholds (same as cloud backend)
 const VECTOR_DUPLICATE_THRESHOLD = 0.95;
 const VECTOR_UPDATE_THRESHOLD = 0.85;
+const VECTOR_MERGE_THRESHOLD = 0.70;    // sim >= this + same category + tags overlap → merge content
 
 // ---------------------------------------------------------------------------
 // Multilingual regex patterns (NOT hardcoded to any single language)
@@ -146,6 +147,21 @@ const TASK_PATTERNS = [
   /^[\s]*[-*]\s*\[\s*\]/m,             // - [ ] unchecked checkbox
   /\b(TODO|FIXME|HACK|待办|要做)\b/i,
 ];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Return true if two tag arrays share at least one tag. Handles JSON strings and plain arrays. */
+function _hasTagOverlap(a, b) {
+  const parse = (v) => {
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') { try { return JSON.parse(v); } catch { return []; } }
+    return [];
+  };
+  const setA = new Set(parse(a).map((t) => String(t).toLowerCase().trim()).filter(Boolean));
+  return setA.size > 0 && parse(b).some((t) => setA.has(String(t).toLowerCase().trim()));
+}
 
 // ---------------------------------------------------------------------------
 // KnowledgeExtractor
@@ -633,7 +649,30 @@ export class KnowledgeExtractor {
             return { verdict: 'duplicate', matchId: bestMatchId };
           }
           if (bestSim >= VECTOR_UPDATE_THRESHOLD && bestMatchId) {
+            // Mirror backend logic: if new summary is not longer AND tags overlap,
+            // merge into existing card instead of creating a new evolution card.
+            // Prevents accumulation of barely-different evolution chains.
+            const existingCard = recentCards.find((c) => c.id === bestMatchId);
+            if (existingCard) {
+              const newSummaryLen = (card.summary || '').length;
+              const existingSummaryLen = (existingCard.summary || '').length;
+              const tagsOverlap = _hasTagOverlap(card.tags, existingCard.tags);
+              if (newSummaryLen <= existingSummaryLen && tagsOverlap) {
+                return { verdict: 'merge', matchId: bestMatchId };
+              }
+            }
             return { verdict: 'update', matchId: bestMatchId };
+          }
+          // Same topic, related content — merge into existing card instead of creating new
+          if (bestSim >= VECTOR_MERGE_THRESHOLD && bestMatchId) {
+            const existingCard = recentCards.find((c) => c.id === bestMatchId);
+            if (existingCard) {
+              const sameCategory = (card.category || '') === (existingCard.category || '');
+              const tagsOverlap = _hasTagOverlap(card.tags, existingCard.tags);
+              if (sameCategory && tagsOverlap) {
+                return { verdict: 'merge', matchId: bestMatchId };
+              }
+            }
           }
         }
       } catch (err) {
@@ -660,6 +699,25 @@ export class KnowledgeExtractor {
       if (conflict.verdict === 'duplicate') {
         console.log(`[KnowledgeExtractor] Skipping duplicate card '${card.title}' (matched: ${conflict.matchId})`);
         continue;
+      }
+      if (conflict.verdict === 'merge' && conflict.matchId) {
+        try {
+          const existing = this.indexer.db
+            .prepare('SELECT id, title, summary FROM knowledge_cards WHERE id = ?')
+            .get(conflict.matchId);
+          if (existing) {
+            const newSummary = existing.summary
+              ? `${existing.summary}\n\n---\n${card.summary}`
+              : card.summary;
+            this.indexer.db
+              .prepare('UPDATE knowledge_cards SET summary = ?, version = COALESCE(version, 1) + 1, last_touched_at = ?, synced_to_cloud = 0 WHERE id = ?')
+              .run(newSummary, new Date().toISOString(), existing.id);
+            console.log(`[KnowledgeExtractor] Merged '${card.title}' into '${existing.title}'`);
+            continue;
+          }
+        } catch (err) {
+          console.warn(`[KnowledgeExtractor] Merge failed for '${card.title}', saving as new:`, err.message);
+        }
       }
       if (conflict.verdict === 'update' && conflict.matchId) {
         card.parent_card_id = conflict.matchId;
@@ -705,6 +763,16 @@ export class KnowledgeExtractor {
 
     await Promise.all(promises);
 
+    // Skill auto-evolution: check if new cards should evolve existing skills
+    for (const card of cardsToSave) {
+      try {
+        await this._checkSkillEvolution(card);
+      } catch (err) {
+        // Non-critical, never block extraction
+        console.warn(`[KnowledgeExtractor] Skill evolution check failed:`, err.message);
+      }
+    }
+
     // Auto-complete tasks identified by the LLM
     if (result.completedTasks && this.indexer) {
       for (const ct of result.completedTasks) {
@@ -723,6 +791,147 @@ export class KnowledgeExtractor {
           console.warn(`[KnowledgeExtractor] Failed to auto-complete task ${ct.task_id}:`, err.message);
         }
       }
+    }
+  }
+
+  /**
+   * Check if a newly saved card should trigger evolution of an existing skill.
+   * Two paths:
+   *   1. Cloud-connected: call cloud API to trigger LLM re-synthesis (precise)
+   *   2. Offline: lightweight append of new method step (immediate)
+   */
+  async _checkSkillEvolution(card) {
+    if (!this.indexer?.db) return;
+
+    const EVOLUTION_CATEGORIES = new Set(['workflow', 'problem_solution', 'pitfall', 'decision']);
+    if (!EVOLUTION_CATEGORIES.has(card.category)) return;
+
+    const cardTags = Array.isArray(card.tags) ? card.tags : [];
+    if (cardTags.length < 2) return;
+
+    const cardTagSet = new Set(cardTags.map(t => (t || '').toLowerCase().trim()).filter(Boolean));
+
+    // Find skills with ≥2 tag overlap
+    let skills;
+    try {
+      skills = this.indexer.db
+        .prepare("SELECT id, name, summary, methods, tags, source_card_ids, updated_at FROM skills WHERE status = 'active'")
+        .all();
+    } catch { return; } // skills table might not exist
+
+    if (!skills || skills.length === 0) return;
+
+    const now = Date.now();
+    const DEBOUNCE_MS = 3600_000; // 1 hour
+
+    for (const skill of skills) {
+      let skillTags;
+      try { skillTags = JSON.parse(skill.tags || '[]'); } catch { skillTags = []; }
+      const skillTagSet = new Set(skillTags.map(t => (t || '').toLowerCase().trim()).filter(Boolean));
+
+      const overlap = [...cardTagSet].filter(t => skillTagSet.has(t));
+      if (overlap.length < 2) continue;
+
+      // Debounce: skip if updated within the last hour
+      if (skill.updated_at) {
+        const updatedMs = new Date(skill.updated_at).getTime();
+        if (now - updatedMs < DEBOUNCE_MS) continue;
+      }
+
+      // Path 1: Try cloud API for LLM re-synthesis
+      const cloudEvolved = await this._tryCloudSkillEvolution(skill, card);
+      if (cloudEvolved) {
+        console.log(`[KnowledgeExtractor] Skill '${skill.name}' evolved via cloud LLM (${overlap.length} tags overlap)`);
+        continue;
+      }
+
+      // Path 2: Offline fallback — append new method step
+      try {
+        let methods;
+        try { methods = JSON.parse(skill.methods || '[]'); } catch { methods = []; }
+        const newStep = {
+          step: methods.length + 1,
+          description: `[Auto-evolved] ${card.title}: ${(card.summary || '').slice(0, 200)}`,
+        };
+        methods.push(newStep);
+
+        let sourceIds;
+        try { sourceIds = JSON.parse(skill.source_card_ids || '[]'); } catch { sourceIds = []; }
+        if (card.id && !sourceIds.includes(card.id)) {
+          sourceIds.push(card.id);
+        }
+
+        this.indexer.db
+          .prepare('UPDATE skills SET methods = ?, source_card_ids = ?, updated_at = ? WHERE id = ?')
+          .run(JSON.stringify(methods), JSON.stringify(sourceIds), new Date().toISOString(), skill.id);
+
+        console.log(`[KnowledgeExtractor] Skill '${skill.name}' evolved locally (appended step, ${overlap.length} tags overlap)`);
+      } catch (err) {
+        console.warn(`[KnowledgeExtractor] Local skill evolution failed for '${skill.name}':`, err.message);
+      }
+    }
+  }
+
+  /**
+   * Try to evolve a skill via cloud API (LLM re-synthesis).
+   * Returns true if cloud evolution succeeded, false otherwise (offline or error).
+   */
+  async _tryCloudSkillEvolution(skill, newCard) {
+    try {
+      // Check if cloud sync is configured
+      const configPath = path.join(process.env.HOME || '', '.awareness', 'config.json');
+      if (!fs.existsSync(configPath)) return false;
+
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const apiBase = config?.cloud?.api_base;
+      const apiKey = config?.cloud?.api_key;
+      const memoryId = config?.cloud?.memory_id;
+      if (!apiBase || !apiKey || !memoryId) return false;
+
+      // Call POST /skills/extract with the source cards + new card
+      let sourceIds;
+      try { sourceIds = JSON.parse(skill.source_card_ids || '[]'); } catch { sourceIds = []; }
+      if (newCard.id && !sourceIds.includes(newCard.id)) {
+        sourceIds.push(newCard.id);
+      }
+
+      // Use the skills extract endpoint with existing card IDs
+      // Note: new card might not be in cloud yet, so we also pass it inline
+      const url = `${apiBase}/memories/${memoryId}/skills/extract`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ card_ids: sourceIds.filter(id => id !== newCard.id) }),
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (!resp.ok) return false;
+
+      const data = await resp.json();
+      const extracted = data.extracted || [];
+      if (extracted.length === 0) return false;
+
+      // Update local skill with cloud-synthesized result
+      const evolved = extracted[0];
+      this.indexer.db
+        .prepare('UPDATE skills SET name = ?, summary = ?, methods = ?, tags = ?, trigger_conditions = ?, source_card_ids = ?, updated_at = ? WHERE id = ?')
+        .run(
+          evolved.name || skill.name,
+          evolved.summary || skill.summary,
+          JSON.stringify(evolved.methods || []),
+          JSON.stringify(evolved.tags || []),
+          JSON.stringify(evolved.trigger_conditions || []),
+          JSON.stringify(sourceIds),
+          new Date().toISOString(),
+          skill.id,
+        );
+
+      return true;
+    } catch {
+      return false; // Cloud unavailable, fall through to offline path
     }
   }
 

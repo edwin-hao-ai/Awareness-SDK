@@ -493,13 +493,14 @@ export class CloudSync {
         this.indexer.db.prepare(
           `UPDATE knowledge_cards SET title = ?, summary = ?, category = ?, status = ?,
            confidence = ?, tags = ?, version = ?, schema_version = ?, cloud_id = ?,
-           last_pulled_at = ?, sync_status = 'synced'
+           growth_stage = ?, last_pulled_at = ?, sync_status = 'synced'
            WHERE id = ?`
         ).run(
           card.title || '', card.summary || '', card.category || 'key_point',
           card.status || 'active', card.confidence || 0.7,
           typeof card.tags === 'string' ? card.tags : JSON.stringify(card.tags || []),
           card.version || 1, card.schema_version || 1, card.id,
+          card.growth_stage || 'seedling',
           new Date().toISOString(), existingLocalId,
         );
         return 'updated';
@@ -516,13 +517,14 @@ export class CloudSync {
       this.indexer.db.prepare(
         `INSERT OR IGNORE INTO knowledge_cards (id, category, title, summary, source_memories, confidence,
          status, tags, parent_card_id, evolution_type, created_at, filepath, synced_to_cloud,
-         cloud_id, version, schema_version, last_pulled_at, sync_status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'synced')`
+         cloud_id, version, schema_version, last_pulled_at, sync_status, growth_stage)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'synced', ?)`
       ).run(
         localId, card.category || 'key_point', card.title || '', card.summary || '',
         JSON.stringify(card.source_memories || []), card.confidence || 0.7,
         card.status || 'active', tags, null, 'initial', now,
         `cloud-pull:${card.id}`, card.id, card.version || 1, card.schema_version || 1, now,
+        card.growth_stage || 'seedling',
       );
       setSyncState(this.indexer, `cloud_kc:${card.id}`, localId);
       setSyncState(this.indexer, `local_kc_to_cloud:${localId}`, card.id);
