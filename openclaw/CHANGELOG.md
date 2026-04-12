@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.4] - 2026-04-13
+
+### Added
+- **`awareness_apply_skill` tool**: LLM can now actively call learned skills via `awareness_apply_skill(skill_id, context)` instead of passively reading injected text. Returns structured execution plan with methods and context-adapted guidance. Automatically marks skill as used.
+- **`client.applySkill()` method**: New client method for both local (MCP) and cloud (REST) modes.
+
 ## [0.6.3] - 2026-04-12
 
 ### Added (F-035 — headless device auth)
