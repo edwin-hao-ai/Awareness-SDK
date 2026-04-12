@@ -6,3 +6,13 @@ dist/
 .hypothesis/
 *.tgz
 *.egg-info/
+.awareness/
+.clawhub/
+.mcp.json
+skills/
+data/
+*.db
+*.db-shm
+*.db-wal
+daemon.log
+daemon.pid
