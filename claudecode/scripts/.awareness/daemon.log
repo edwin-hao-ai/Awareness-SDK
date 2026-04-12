@@ -1,0 +1,54 @@
+[awareness-local] Embedder loaded — hybrid vector+FTS5 search enabled
+[awareness-local] indexed 0 files, skipped 0
+[awareness-local] Pre-warming embedding model "Xenova/all-MiniLM-L6-v2" (first run downloads ~23MB)...
+[awareness-local] Port 37800 is already in use.
+  Possible causes:
+  - Another awareness-local instance is running (try: awareness-local status)
+  - Another application is using port 37800
+  Fix: Run "awareness-local stop" or "lsof -i :37800" to find the process.
+Fatal error: listen EADDRINUSE: address already in use 127.0.0.1:37800
+[awareness-local] Embedder loaded — hybrid vector+FTS5 search enabled
+[awareness-local] indexed 0 files, skipped 0
+[awareness-local] Pre-warming embedding model "Xenova/all-MiniLM-L6-v2" (first run downloads ~23MB)...
+[awareness-local] Port 37800 is already in use.
+  Possible causes:
+  - Another awareness-local instance is running (try: awareness-local status)
+  - Another application is using port 37800
+  Fix: Run "awareness-local stop" or "lsof -i :37800" to find the process.
+Fatal error: listen EADDRINUSE: address already in use 127.0.0.1:37800
+[awareness-local] Embedder loaded — hybrid vector+FTS5 search enabled
+[awareness-local] indexed 0 files, skipped 0
+[awareness-local] Pre-warming embedding model "Xenova/all-MiniLM-L6-v2" (first run downloads ~23MB)...
+[awareness-local] Port 37800 is already in use.
+  Possible causes:
+  - Another awareness-local instance is running (try: awareness-local status)
+  - Another application is using port 37800
+  Fix: Run "awareness-local stop" or "lsof -i :37800" to find the process.
+Fatal error: listen EADDRINUSE: address already in use 127.0.0.1:37800
+[awareness-local] Embedder loaded — hybrid vector+FTS5 search enabled
+[awareness-local] indexed 0 files, skipped 0
+[awareness-local] Pre-warming embedding model "Xenova/all-MiniLM-L6-v2" (first run downloads ~23MB)...
+[awareness-local] Port 37800 is already in use.
+  Possible causes:
+  - Another awareness-local instance is running (try: awareness-local status)
+  - Another application is using port 37800
+  Fix: Run "awareness-local stop" or "lsof -i :37800" to find the process.
+Fatal error: listen EADDRINUSE: address already in use 127.0.0.1:37800
+[awareness-local] Embedder loaded — hybrid vector+FTS5 search enabled
+[awareness-local] indexed 0 files, skipped 0
+[awareness-local] Pre-warming embedding model "Xenova/all-MiniLM-L6-v2" (first run downloads ~23MB)...
+[awareness-local] Port 37800 is already in use.
+  Possible causes:
+  - Another awareness-local instance is running (try: awareness-local status)
+  - Another application is using port 37800
+  Fix: Run "awareness-local stop" or "lsof -i :37800" to find the process.
+Fatal error: listen EADDRINUSE: address already in use 127.0.0.1:37800
+[awareness-local] Embedder loaded — hybrid vector+FTS5 search enabled
+[awareness-local] indexed 0 files, skipped 0
+[awareness-local] Pre-warming embedding model "Xenova/all-MiniLM-L6-v2" (first run downloads ~23MB)...
+[awareness-local] Port 37800 is already in use.
+  Possible causes:
+  - Another awareness-local instance is running (try: awareness-local status)
+  - Another application is using port 37800
+  Fix: Run "awareness-local stop" or "lsof -i :37800" to find the process.
+Fatal error: listen EADDRINUSE: address already in use 127.0.0.1:37800
