@@ -1038,7 +1038,7 @@ export class AwarenessClient {
     }
 
     // Cloud mode: REST API
-    const url = `${this.apiBase}/memories/${this.memoryId}/skills/${skillId}/apply`;
+    const url = `${this.baseUrl}/memories/${this.memoryId}/skills/${skillId}/apply`;
     const response = await fetch(url, {
       method: "POST",
       headers: {
