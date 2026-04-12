@@ -250,7 +250,8 @@ export class LocalMcpServer {
           'Data type to look up. ' +
           'context = full dump, tasks = open tasks, knowledge = cards, ' +
           'risks = risk items, session_history = past sessions, timeline = events, ' +
-          'perception = signals (contradictions, patterns, staleness)'
+          'perception = signals (contradictions, patterns, staleness), ' +
+          'skills = learned reusable procedures'
         ),
         limit: z.number().optional().default(10).describe('Max items'),
         status: z.string().optional().describe('Status filter'),

@@ -1,23 +1,22 @@
 /**
- * CloudSync — Optional cloud synchronisation client for Awareness Local.
- *
- * Implements three-layer sync guarantee:
- *   Layer 1: SSE real-time push (second-level latency)
- *   Layer 2: Incremental pull on awareness_init / daemon start
- *   Layer 3: Periodic polling fallback (minute-level)
- *
- * Uses only Node.js built-in http/https modules — zero external dependencies.
- *
+ * CloudSync — Thin coordinator for cloud synchronisation.
+ * Delegates to: sync-state, sync-push, sync-pull, sync-sse, sync-handshake, sync-conflict.
+ * New v2 modules: sync/sync-http, sync/sync-handshake, sync/sync-push-optimistic,
+ *   sync/sync-pull-cards, sync/sync-conflict (cloud REST client).
  * Cloud unavailability MUST NOT crash the daemon.
  */
-
 import http from 'node:http';
 import https from 'node:https';
-import fs from 'node:fs';
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+import { ensureSyncSchema, getSyncState, setSyncState, recordSyncEvent, getSyncHistory as getSyncHistoryImpl, parseTags, sleep } from './sync-state.mjs';
+import { pushMemoriesToCloud, pushInsightsToCloud, pushTasksToCloud } from './sync-push.mjs';
+import { createSSEState, startSSE as startSSEImpl, scheduleSSEReconnect, stopSSE } from './sync-sse.mjs';
+import { ensureConflictSchema, createLocalConflict } from './sync-conflict.mjs';
+// New v2 sync modules
+import { createSyncHttp } from './sync/sync-http.mjs';
+import { performHandshake } from './sync/sync-handshake.mjs';
+import { createOptimisticPusher } from './sync/sync-push-optimistic.mjs';
+import { createCardPuller } from './sync/sync-pull-cards.mjs';
+import { createConflictHandler } from './sync/sync-conflict.mjs';
 
 const LOG_PREFIX = '[CloudSync]';
 const SSE_RECONNECT_BASE_MS = 5_000;
@@ -26,159 +25,71 @@ const DEFAULT_PERIODIC_INTERVAL_MIN = 5;
 const DEFAULT_POLL_INTERVAL_SEC = 5;
 const DEFAULT_POLL_TIMEOUT_SEC = 300;
 
-// ---------------------------------------------------------------------------
-// Helpers — minimal HTTP client using built-in http/https
-// ---------------------------------------------------------------------------
-
-/**
- * Perform an HTTP(S) request and return { status, headers, body }.
- * Resolves even on non-2xx so callers can inspect status.
- *
- * @param {string} url    — Full URL
- * @param {object} opts
- * @param {string}   opts.method  — HTTP method
- * @param {object}   opts.headers — Request headers
- * @param {string}  [opts.body]   — JSON string body
- * @param {number}  [opts.timeout=15000]
- * @returns {Promise<{ status: number, headers: object, body: string }>}
- */
+/** Perform an HTTP(S) request and return { status, headers, body }. */
 function httpRequest(url, opts = {}) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const transport = parsed.protocol === 'https:' ? https : http;
-    const reqOpts = {
+    const req = transport.request({
       hostname: parsed.hostname,
       port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
       path: parsed.pathname + parsed.search,
-      method: opts.method || 'GET',
-      headers: opts.headers || {},
+      method: opts.method || 'GET', headers: opts.headers || {},
       timeout: opts.timeout ?? 15_000,
-    };
-
-    const req = transport.request(reqOpts, (res) => {
+    }, (res) => {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        resolve({
-          status: res.statusCode,
-          headers: res.headers,
-          body: Buffer.concat(chunks).toString('utf-8'),
-        });
-      });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks).toString('utf-8') }));
     });
-
     req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy(new Error('Request timeout'));
-    });
-
-    if (opts.body) {
-      req.write(opts.body);
-    }
+    req.on('timeout', () => req.destroy(new Error('Request timeout')));
+    if (opts.body) req.write(opts.body);
     req.end();
   });
 }
 
-/**
- * Open an SSE (Server-Sent Events) connection.
- * Returns an object with { req, res } on success; the caller reads `res`.
- * The caller is responsible for destroying `req` to close the connection.
- *
- * @param {string} url
- * @param {object} headers
- * @returns {Promise<{ req: http.ClientRequest, res: http.IncomingMessage }>}
- */
-function openSSEStream(url, headers = {}) {
+/** Open an SSE connection. Returns { req, res } on success. */
+export function openSSEStream(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const transport = parsed.protocol === 'https:' ? https : http;
-    const reqOpts = {
+    const req = transport.request({
       hostname: parsed.hostname,
       port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
-      path: parsed.pathname + parsed.search,
-      method: 'GET',
-      headers: {
-        Accept: 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-        ...headers,
-      },
-    };
-
-    const req = transport.request(reqOpts, (res) => {
+      path: parsed.pathname + parsed.search, method: 'GET',
+      headers: { Accept: 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', ...headers },
+    }, (res) => {
       if (res.statusCode !== 200) {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
-        res.on('end', () => {
-          reject(
-            new Error(
-              `SSE connection failed: HTTP ${res.statusCode} — ${Buffer.concat(chunks).toString('utf-8').slice(0, 200)}`
-            )
-          );
-        });
+        res.on('end', () => reject(new Error(`SSE connection failed: HTTP ${res.statusCode} — ${Buffer.concat(chunks).toString('utf-8').slice(0, 200)}`)));
         return;
       }
       resolve({ req, res });
     });
-
     req.on('error', reject);
     req.end();
   });
 }
 
-/**
- * Parse an SSE buffer into discrete events.
- * Returns { parsed: Array<{ event, data }>, remainder: string }.
- *
- * SSE format:
- *   event: <type>\n
- *   data: <payload>\n
- *   \n
- *
- * @param {string} buffer
- * @returns {{ parsed: Array<{ event: string, data: string }>, remainder: string }}
- */
-function parseSSE(buffer) {
+/** Parse an SSE buffer into { parsed: Array<{ event, data }>, remainder }. */
+export function parseSSE(buffer) {
   const parsed = [];
-  // Split on double newline — each block is one event
   const blocks = buffer.split('\n\n');
-  // The last element may be an incomplete block
   const remainder = blocks.pop() || '';
-
   for (const block of blocks) {
     if (!block.trim()) continue;
-
-    let event = 'message';
-    let data = '';
-
+    let event = 'message', data = '';
     for (const line of block.split('\n')) {
-      if (line.startsWith('event:')) {
-        event = line.slice(6).trim();
-      } else if (line.startsWith('data:')) {
-        data += line.slice(5).trim();
-      } else if (line.startsWith(':')) {
-        // Comment line — ignore (often used for keepalive)
-      }
+      if (line.startsWith('event:')) event = line.slice(6).trim();
+      else if (line.startsWith('data:')) data += line.slice(5).trim();
     }
-
-    if (data) {
-      parsed.push({ event, data });
-    }
+    if (data) parsed.push({ event, data });
   }
-
   return { parsed, remainder };
 }
 
-// ---------------------------------------------------------------------------
-// CloudSync
-// ---------------------------------------------------------------------------
-
 export class CloudSync {
-  /**
-   * @param {object} config       — Full config from .awareness/config.json
-   * @param {object} indexer      — Indexer instance (SQLite access)
-   * @param {object} memoryStore  — MemoryStore instance (markdown read/write)
-   */
   constructor(config, indexer, memoryStore) {
     this.config = config;
     this.apiBase = config.cloud?.api_base || 'https://awareness.market/api/v1';
@@ -187,1107 +98,679 @@ export class CloudSync {
     this.deviceId = config.device?.id || 'unknown-device';
     this.indexer = indexer;
     this.memoryStore = memoryStore;
-
-    // SSE connection state
-    this._sseReq = null;           // http.ClientRequest — destroy to close
-    this._sseReconnectMs = SSE_RECONNECT_BASE_MS;
-    this._sseReconnectTimer = null;
-    this._sseStopped = false;
-
-    // Periodic sync interval handle
+    this._sseState = createSSEState();
     this._periodicTimer = null;
+    ensureSyncSchema(indexer);
+    ensureConflictSchema(indexer);
 
-    // Ensure sync_state table has the columns we need (ALTER is idempotent via IF NOT EXISTS in schema)
-    this._ensureSyncSchema();
+    // v2 sync modules — injectable HTTP client + sub-handlers
+    this._syncHttp = createSyncHttp({
+      apiBase: this.apiBase,
+      apiKey: this.apiKey,
+      deviceId: this.deviceId,
+    });
+    this._optimisticPusher = createOptimisticPusher({
+      http: this._syncHttp,
+      memoryId: this.memoryId,
+      deviceId: this.deviceId,
+    });
+    this._cardPuller = createCardPuller({
+      http: this._syncHttp,
+      memoryId: this.memoryId,
+      deviceId: this.deviceId,
+      applyCard: (card) => this._applyPulledCard(card),
+    });
+    this._conflictHandler = createConflictHandler({
+      http: this._syncHttp,
+      memoryId: this.memoryId,
+      deviceId: this.deviceId,
+    });
   }
 
-  // =========================================================================
-  // Public API
-  // =========================================================================
+  _buildCtx() {
+    return {
+      indexer: this.indexer, memoryStore: this.memoryStore,
+      apiBase: this.apiBase, apiKey: this.apiKey,
+      memoryId: this.memoryId, deviceId: this.deviceId, config: this.config,
+      httpGet: (ep) => this._get(ep),
+      httpPost: (ep, d) => this._post(ep, d),
+      authHeaders: () => this._authHeaders(),
+      getSyncState: (k) => getSyncState(this.indexer, k),
+      setSyncState: (k, v) => setSyncState(this.indexer, k, v),
+      recordSyncEvent: (t, d) => recordSyncEvent(this.indexer, t, d),
+      parseTags,
+    };
+  }
 
-  /**
-   * Whether cloud sync is enabled and has the necessary credentials.
-   * @returns {boolean}
-   */
   isEnabled() {
-    return !!(
-      this.config.cloud?.enabled &&
-      this.apiKey &&
-      this.memoryId
-    );
+    return !!(this.config.cloud?.enabled && this.apiKey && this.memoryId);
   }
 
-  /**
-   * Initiate device-auth flow.
-   * POST /auth/device/init
-   * @returns {Promise<{ device_code: string, user_code: string, verification_uri: string } | null>}
-   */
   async initAuth() {
     try {
-      const result = await this._post('/auth/device/init', {
-        device_id: this.deviceId,
-        device_name: this.config.device?.name || 'Awareness Local',
+      return await this._post('/auth/device/init', {
+        device_id: this.deviceId, device_name: this.config.device?.name || 'Awareness Local',
       });
-      return result;
-    } catch (err) {
-      console.error(`${LOG_PREFIX} initAuth failed:`, err.message);
-      return null;
-    }
+    } catch (err) { console.error(`${LOG_PREFIX} initAuth failed:`, err.message); return null; }
   }
 
-  /**
-   * Poll for device-auth completion.
-   * POST /auth/device/poll
-   *
-   * @param {string} deviceCode — The device_code from initAuth()
-   * @param {number} [interval=5] — Poll interval in seconds
-   * @param {number} [timeout=300] — Total timeout in seconds
-   * @returns {Promise<{ api_key: string, memory_id?: string } | null>}
-   */
   async pollAuth(deviceCode, interval = DEFAULT_POLL_INTERVAL_SEC, timeout = DEFAULT_POLL_TIMEOUT_SEC) {
     const deadline = Date.now() + timeout * 1000;
-
     while (Date.now() < deadline) {
       try {
-        const result = await this._post('/auth/device/poll', {
-          device_code: deviceCode,
-        });
-
-        if (result && result.api_key) {
-          return result;
-        }
-
-        // Not yet approved — wait and retry
-        if (result && result.status === 'pending') {
-          await this._sleep(interval * 1000);
-          continue;
-        }
-
-        // Denied or error
-        if (result && (result.status === 'denied' || result.error)) {
+        const result = await this._post('/auth/device/poll', { device_code: deviceCode });
+        if (result?.api_key) return result;
+        if (result?.status === 'pending') { await sleep(interval * 1000); continue; }
+        if (result?.status === 'denied' || result?.error) {
           console.error(`${LOG_PREFIX} pollAuth denied:`, result.error || 'User denied');
           return null;
         }
-      } catch (err) {
-        console.warn(`${LOG_PREFIX} pollAuth error (retrying):`, err.message);
-      }
-
-      await this._sleep(interval * 1000);
+      } catch (err) { console.warn(`${LOG_PREFIX} pollAuth error (retrying):`, err.message); }
+      await sleep(interval * 1000);
     }
-
     console.warn(`${LOG_PREFIX} pollAuth timed out after ${timeout}s`);
     return null;
   }
 
-  /**
-   * Push unsynced local memories to the cloud.
-   * Finds all memories with synced_to_cloud=0 and POSTs them to /mcp/events.
-   *
-   * @returns {Promise<{ synced: number, errors: number }>}
-   */
   async syncToCloud() {
     if (!this.isEnabled()) return { synced: 0, errors: 0 };
-
-    let synced = 0;
-    let errors = 0;
-
-    try {
-      const unsynced = this.indexer.db
-        .prepare('SELECT * FROM memories WHERE synced_to_cloud = 0 ORDER BY created_at')
-        .all();
-
-      if (!unsynced.length) return { synced: 0, errors: 0 };
-
-      for (const memory of unsynced) {
-        try {
-          // Read the markdown content from disk, strip YAML front matter
-          let content = '';
-          try {
-            const raw = fs.readFileSync(memory.filepath, 'utf-8');
-            content = raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim();
-          } catch {
-            // File may have been deleted — skip
-            console.warn(`${LOG_PREFIX} File not found, skipping: ${memory.filepath}`);
-            errors++;
-            continue;
-          }
-
-          // Gather local vector if available
-          const embedding = this.indexer.db
-            .prepare('SELECT vector, model_id FROM embeddings WHERE memory_id = ?')
-            .get(memory.id);
-
-          const metadata = {
-            local_id: memory.id,
-            device_id: this.deviceId,
-            agent_role: memory.agent_role,
-            tags: this._parseTags(memory.tags),
-            source: memory.source || 'awareness-local',
-          };
-
-          // Attach local vector for cloud to optionally reuse
-          if (embedding) {
-            try {
-              const floats = new Float32Array(embedding.vector.buffer, embedding.vector.byteOffset, embedding.vector.byteLength / 4);
-              metadata.local_vector = Array.from(floats);
-              metadata.local_model = embedding.model_id;
-              metadata.local_dim = floats.length;
-            } catch {
-              // Vector decode failed — send without
-            }
-          }
-
-          const result = await this._post('/mcp/events', {
-            memory_id: this.memoryId,
-            events: [
-              {
-                event_type: memory.type,
-                content,
-                metadata,
-              },
-            ],
-          });
-
-          // Mark as synced
-          const cloudId = result?.cloud_id || result?.ids?.[0] || null;
-          this.indexer.db
-            .prepare(
-              'UPDATE memories SET synced_to_cloud = 1 WHERE id = ?'
-            )
-            .run(memory.id);
-
-          // Store cloud_id mapping in sync_state for reference
-          if (cloudId) {
-            this._setSyncState(`cloud_id:${memory.id}`, cloudId);
-          }
-
-          synced++;
-        } catch (err) {
-          console.warn(`${LOG_PREFIX} Failed to push memory ${memory.id}:`, err.message);
-          errors++;
-        }
-      }
-
-      if (synced > 0) {
-        console.log(`${LOG_PREFIX} Pushed ${synced} memories to cloud` + (errors ? ` (${errors} errors)` : ''));
-      }
-    } catch (err) {
-      console.error(`${LOG_PREFIX} syncToCloud failed:`, err.message);
-    }
-
-    if (synced > 0) {
-      this._recordSyncEvent('memories', { count: synced, direction: 'push' });
-    }
-
-    return { synced, errors };
+    return pushMemoriesToCloud(this._buildCtx());
   }
 
-  /**
-   * Pull new memories from the cloud using cursor-based pagination.
-   * Excludes items written by this device to prevent loops.
-   *
-   * @returns {Promise<{ pulled: number }>}
-   */
+  async syncInsightsToCloud() {
+    if (!this.isEnabled()) return { synced: 0, errors: 0 };
+    return pushInsightsToCloud({ ...this._buildCtx(), httpPostRaw: (ep, d, extra) => this._postRaw(ep, d, extra) });
+  }
+
+  async syncTasksToCloud() {
+    if (!this.isEnabled()) return { synced: 0, errors: 0 };
+    return pushTasksToCloud(this._buildCtx());
+  }
+
   async pullFromCloud() {
     if (!this.isEnabled()) return { pulled: 0 };
-
     let pulled = 0;
-
     try {
-      const cursor = this._getSyncState('pull_cursor') || '';
-
+      const cursor = getSyncState(this.indexer, 'pull_cursor') || '';
       const qs = new URLSearchParams({ limit: '50' });
       if (cursor) qs.set('cursor', cursor);
-
-      const result = await this._get(
-        `/memories/${this.memoryId}/content?${qs.toString()}`
-      );
-
-      // API may return array directly or { items: [...] }
+      const result = await this._get(`/memories/${this.memoryId}/content?${qs.toString()}`);
       const items = Array.isArray(result) ? result : (result?.items || []);
       if (!items.length) return { pulled: 0 };
-
       for (const item of items) {
-        // Skip items we pushed ourselves (by checking device_id in metadata)
         const itemDeviceId = item.metadata?.device_id || item.device_id;
         if (itemDeviceId === this.deviceId) continue;
-        // Check if we already have this cloud item (by cloud_id mapping)
-        const existing = this._getSyncState(`cloud_id_reverse:${item.id}`);
-        if (existing) continue;
-
-        try {
-          await this._pullSingleItem(item);
-          pulled++;
-        } catch (err) {
+        if (getSyncState(this.indexer, `cloud_id_reverse:${item.id}`)) continue;
+        try { await this._pullSingleItem(item); pulled++; } catch (err) {
           console.warn(`${LOG_PREFIX} Failed to pull item ${item.id}:`, err.message);
         }
       }
-
-      // Advance cursor
-      if (result.next_cursor) {
-        this._setSyncState('pull_cursor', result.next_cursor);
-      }
-
+      if (result.next_cursor) setSyncState(this.indexer, 'pull_cursor', result.next_cursor);
       if (pulled > 0) {
         console.log(`${LOG_PREFIX} Pulled ${pulled} memories from cloud`);
-        this._recordSyncEvent('memories', { count: pulled, direction: 'pull' });
+        recordSyncEvent(this.indexer, 'memories', { count: pulled, direction: 'pull' });
       }
-    } catch (err) {
-      console.error(`${LOG_PREFIX} pullFromCloud failed:`, err.message);
-    }
-
+    } catch (err) { console.error(`${LOG_PREFIX} pullFromCloud failed:`, err.message); }
     return { pulled };
   }
 
-  /**
-   * Push unsynced knowledge cards to the cloud.
-   * Uses POST /memories/{id}/insights/submit with action:"new".
-   *
-   * @returns {Promise<{ synced: number, errors: number }>}
-   */
-  async syncInsightsToCloud() {
-    if (!this.isEnabled()) return { synced: 0, errors: 0 };
-
-    let synced = 0;
-    let errors = 0;
-
-    try {
-      // Push active cards + superseded cards that haven't been synced yet
-      const unsynced = this.indexer.db
-        .prepare("SELECT * FROM knowledge_cards WHERE synced_to_cloud = 0 AND status IN ('active', 'superseded') ORDER BY created_at")
-        .all();
-
-      if (!unsynced.length) return { synced: 0, errors: 0 };
-
-      // Batch cards in groups of 10 to reduce API calls
-      const batchSize = 10;
-      for (let i = 0; i < unsynced.length; i += batchSize) {
-        const batch = unsynced.slice(i, i + batchSize);
-        const cards = batch.map((card) => {
-          // Determine cloud action based on local evolution type
-          let action = 'new';
-          if (card.evolution_type === 'update' && card.parent_card_id) {
-            // Look up the cloud ID of the parent card
-            const cloudParentId = this._getSyncState(`local_kc_to_cloud:${card.parent_card_id}`);
-            if (cloudParentId) {
-              action = `update:${cloudParentId}`;
-            }
-            // If no cloud mapping exists, fall back to 'new' — cloud's own
-            // BM25/vector dedup will handle it
-          }
-          // Skip superseded cards — they were already replaced locally
-          if (card.status === 'superseded') {
-            return null;
-          }
-          return {
-            title: card.title,
-            summary: card.summary || '',
-            category: card.category,
-            confidence: card.confidence || 0.8,
-            tags: this._parseTags(card.tags),
-            action,
-          };
-        }).filter(Boolean);
-
-        try {
-          const result = await this._post(
-            `/memories/${this.memoryId}/insights/submit`,
-            {
-              session_id: `local-sync-${this.deviceId}`,
-              knowledge_cards: cards,
-              metadata: { device_id: this.deviceId, source: 'awareness-local' },
-            }
-          );
-
-          if (result) {
-            // Mark entire batch as synced (including superseded ones we filtered out)
-            const markStmt = this.indexer.db.prepare(
-              'UPDATE knowledge_cards SET synced_to_cloud = 1 WHERE id = ?'
-            );
-            for (const card of batch) {
-              markStmt.run(card.id);
-            }
-            synced += cards.length;
-          } else {
-            errors += batch.length;
-          }
-        } catch (err) {
-          console.warn(`${LOG_PREFIX} Failed to push insight batch:`, err.message);
-          errors += batch.length;
-        }
-      }
-
-      if (synced > 0) {
-        console.log(`${LOG_PREFIX} Pushed ${synced} knowledge cards to cloud` + (errors ? ` (${errors} errors)` : ''));
-        this._recordSyncEvent('insights', { count: synced, direction: 'push' });
-      }
-    } catch (err) {
-      console.error(`${LOG_PREFIX} syncInsightsToCloud failed:`, err.message);
-    }
-
-    return { synced, errors };
-  }
-
-  /**
-   * Push unsynced tasks (action items) to the cloud.
-   * Uses POST /memories/{id}/insights/submit with action_items.
-   *
-   * @returns {Promise<{ synced: number, errors: number }>}
-   */
-  async syncTasksToCloud() {
-    if (!this.isEnabled()) return { synced: 0, errors: 0 };
-
-    let synced = 0;
-    let errors = 0;
-
-    try {
-      const unsynced = this.indexer.db
-        .prepare("SELECT * FROM tasks WHERE synced_to_cloud = 0 ORDER BY created_at")
-        .all();
-
-      if (!unsynced.length) return { synced: 0, errors: 0 };
-
-      const batchSize = 10;
-      for (let i = 0; i < unsynced.length; i += batchSize) {
-        const batch = unsynced.slice(i, i + batchSize);
-        const items = batch.map((task) => ({
-          title: task.title,
-          detail: task.description || '',
-          priority: task.priority || 'medium',
-          status: task.status || 'open',
-          agent_role: task.agent_role || '',
-        }));
-
-        try {
-          const result = await this._post(
-            `/memories/${this.memoryId}/insights/submit`,
-            {
-              session_id: `local-sync-${this.deviceId}`,
-              action_items: items,
-              metadata: { device_id: this.deviceId, source: 'awareness-local' },
-            }
-          );
-
-          if (result) {
-            const markStmt = this.indexer.db.prepare(
-              'UPDATE tasks SET synced_to_cloud = 1 WHERE id = ?'
-            );
-            for (const task of batch) {
-              markStmt.run(task.id);
-            }
-            synced += batch.length;
-          } else {
-            errors += batch.length;
-          }
-        } catch (err) {
-          console.warn(`${LOG_PREFIX} Failed to push task batch:`, err.message);
-          errors += batch.length;
-        }
-      }
-
-      if (synced > 0) {
-        console.log(`${LOG_PREFIX} Pushed ${synced} tasks to cloud` + (errors ? ` (${errors} errors)` : ''));
-        this._recordSyncEvent('tasks', { count: synced, direction: 'push' });
-      }
-    } catch (err) {
-      console.error(`${LOG_PREFIX} syncTasksToCloud failed:`, err.message);
-    }
-
-    return { synced, errors };
-  }
-
-  /**
-   * Full bidirectional sync: push memories + insights + tasks, then pull.
-   * @returns {Promise<{ pushed: number, pulled: number, insights_pushed: number, tasks_pushed: number }>}
-   */
   async fullSync() {
+    // v2: Handshake → Pull → Push order
+    let hs;
+    try {
+      hs = await performHandshake(this._syncHttp);
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} Handshake failed:`, err.message);
+      hs = { ok: false, compatible: false };
+    }
+    if (!hs.compatible) {
+      console.warn(`${LOG_PREFIX} fullSync aborted — incompatible schema`);
+      return { pushed: 0, insights_pushed: 0, tasks_pushed: 0, pulled: 0 };
+    }
+
+    // Pull cards since last checkpoint
+    let pullResult = { pulled: 0 };
+    try {
+      const lastPulledAt = getSyncState(this.indexer, 'cards_last_pulled_at') || null;
+      pullResult = await this._cardPuller.pullCardsSince(lastPulledAt);
+      if (pullResult.pulled > 0) {
+        setSyncState(this.indexer, 'cards_last_pulled_at', new Date().toISOString());
+        recordSyncEvent(this.indexer, 'cards', { count: pullResult.pulled, direction: 'pull' });
+      }
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} Card pull failed:`, err.message);
+    }
+
+    // Push memories (bulk), cards (v2 optimistic), tasks (bulk), skills
     const pushResult = await this.syncToCloud();
-    const insightsResult = await this.syncInsightsToCloud();
+    const cardsResult = await this._pushCardsV2();
     const tasksResult = await this.syncTasksToCloud();
-    const pullResult = await this.pullFromCloud();
+    const skillsResult = await this._syncSkills();
+    const risksResult = await this._pullRisks();
     return {
-      pushed: pushResult.synced,
-      insights_pushed: insightsResult.synced,
-      tasks_pushed: tasksResult.synced,
-      pulled: pullResult.pulled,
+      pushed: pushResult.synced, insights_pushed: cardsResult.synced,
+      tasks_pushed: tasksResult.synced, skills_synced: skillsResult.synced,
+      risks_pulled: risksResult.pulled, pulled: pullResult.pulled,
+      conflicts: cardsResult.conflicts || 0,
     };
   }
 
-  /**
-   * Connect to the cloud SSE endpoint for real-time event streaming.
-   * Automatically reconnects on disconnect with exponential backoff.
-   */
   async startSSE() {
     if (!this.isEnabled()) return;
-    this._sseStopped = false;
-
-    const url = `${this.apiBase}/memories/${this.memoryId}/events/stream`;
-    const headers = {
-      Authorization: `Bearer ${this.apiKey}`,
-      'X-Awareness-Device-Id': this.deviceId,
-    };
-
-    try {
-      const { req, res } = await openSSEStream(url, headers);
-      this._sseReq = req;
-      this._sseReconnectMs = SSE_RECONNECT_BASE_MS; // Reset backoff on success
-
-      console.log(`${LOG_PREFIX} SSE connected to cloud`);
-
-      let buffer = '';
-      res.setEncoding('utf-8');
-
-      res.on('data', (chunk) => {
-        buffer += chunk;
-        // SECURITY C7: Cap SSE buffer to prevent unbounded memory growth
-        if (buffer.length > 1024 * 1024) {
-          console.warn(`${LOG_PREFIX} SSE buffer overflow (>1MB) — dropping`);
-          buffer = '';
-          return;
-        }
-        const { parsed, remainder } = parseSSE(buffer);
-        buffer = remainder;
-
-        for (const event of parsed) {
-          // Handle event asynchronously — don't block the stream
-          this._handleSSEEvent(event).catch((err) => {
-            console.warn(`${LOG_PREFIX} SSE event handler error:`, err.message);
-          });
-        }
-      });
-
-      res.on('end', () => {
-        console.warn(`${LOG_PREFIX} SSE stream ended`);
-        this._scheduleSSEReconnect();
-      });
-
-      res.on('error', (err) => {
-        console.warn(`${LOG_PREFIX} SSE stream error:`, err.message);
-        this._scheduleSSEReconnect();
-      });
-
-    } catch (err) {
-      // SSE is optional (server may not support it yet) — silently fall back
-      if (err.message && err.message.includes('404')) {
-        if (!this._sseRetryCount) {
-          console.log(`${LOG_PREFIX} SSE not available on server — using periodic sync only`);
-        }
-        return; // Don't retry on 404; periodic sync is the fallback
-      }
-      console.warn(`${LOG_PREFIX} SSE connection failed:`, err.message);
-      this._scheduleSSEReconnect();
-    }
+    await startSSEImpl({
+      ...this._buildCtx(), handleSSEEvent: (ev) => this._handleSSEEvent(ev),
+      openSSEStream, parseSSE,
+    }, this._sseState);
   }
 
-  /**
-   * Start periodic sync fallback (Layer 3).
-   * @param {number} [intervalMin=5] — Interval in minutes
-   */
   startPeriodicSync(intervalMin = DEFAULT_PERIODIC_INTERVAL_MIN) {
     if (intervalMin <= 0) return;
-
     this._periodicTimer = setInterval(async () => {
       try {
-        const result = await this.fullSync();
-        if (result.pushed > 0 || result.pulled > 0 || result.insights_pushed > 0 || result.tasks_pushed > 0) {
-          console.log(
-            `${LOG_PREFIX} Periodic sync: memories=${result.pushed}, insights=${result.insights_pushed}, tasks=${result.tasks_pushed}, pulled=${result.pulled}`
-          );
+        const r = await this.fullSync();
+        if (r.pushed > 0 || r.pulled > 0 || r.insights_pushed > 0 || r.tasks_pushed > 0) {
+          console.log(`${LOG_PREFIX} Periodic sync: memories=${r.pushed}, insights=${r.insights_pushed}, tasks=${r.tasks_pushed}, pulled=${r.pulled}`);
         }
-      } catch (err) {
-        console.warn(`${LOG_PREFIX} Periodic sync failed:`, err.message);
-      }
+      } catch (err) { console.warn(`${LOG_PREFIX} Periodic sync failed:`, err.message); }
     }, intervalMin * 60 * 1000);
   }
 
-  /**
-   * Start all sync layers:
-   *   1. Pull from cloud (catch up while offline)
-   *   2. Push unsynced local memories
-   *   3. Start SSE real-time stream
-   *   4. Start periodic fallback
-   */
   async start() {
     if (!this.isEnabled()) {
       console.log(`${LOG_PREFIX} Cloud sync disabled (missing credentials or not enabled)`);
       return;
     }
-
     console.log(`${LOG_PREFIX} Starting cloud sync...`);
-
-    try {
-      // Layer 2: Catch-up pull
-      await this.pullFromCloud();
-    } catch (err) {
-      console.warn(`${LOG_PREFIX} Initial pull failed (will retry):`, err.message);
+    // Initial sync uses v2 flow: Handshake → Pull → Push
+    try { await this.fullSync(); } catch (err) {
+      console.warn(`${LOG_PREFIX} Initial sync failed (will retry):`, err.message);
     }
-
-    try {
-      // Push unsynced memories, knowledge cards, and tasks
-      await this.syncToCloud();
-      await this.syncInsightsToCloud();
-      await this.syncTasksToCloud();
-    } catch (err) {
-      console.warn(`${LOG_PREFIX} Initial push failed (will retry):`, err.message);
-    }
-
-    // Layer 1: SSE real-time (non-blocking)
     this.startSSE();
-
-    // Layer 3: Periodic fallback
     const intervalMin = this.config.cloud?.sync_interval_min || DEFAULT_PERIODIC_INTERVAL_MIN;
     this.startPeriodicSync(intervalMin);
-
     console.log(`${LOG_PREFIX} Started: SSE + periodic sync (${intervalMin}min) enabled`);
   }
 
-  /**
-   * Stop all sync activity gracefully.
-   */
   stop() {
-    this._sseStopped = true;
-
-    // Abort SSE connection
-    if (this._sseReq) {
-      try {
-        this._sseReq.destroy();
-      } catch {
-        // ignore
-      }
-      this._sseReq = null;
-    }
-
-    // Clear SSE reconnect timer
-    if (this._sseReconnectTimer) {
-      clearTimeout(this._sseReconnectTimer);
-      this._sseReconnectTimer = null;
-    }
-
-    // Clear periodic sync
-    if (this._periodicTimer) {
-      clearInterval(this._periodicTimer);
-      this._periodicTimer = null;
-    }
-
+    stopSSE(this._sseState);
+    if (this._periodicTimer) { clearInterval(this._periodicTimer); this._periodicTimer = null; }
     console.log(`${LOG_PREFIX} Stopped`);
   }
 
-  // =========================================================================
-  // Internal — SSE event handling
-  // =========================================================================
+  getSyncHistory(limit = 20) { return getSyncHistoryImpl(this.indexer, limit); }
 
-  /**
-   * Handle a single parsed SSE event.
-   * @param {{ event: string, data: string }} sseEvent
-   */
+  // --- SSE event handling ---
+
   async _handleSSEEvent(sseEvent) {
     let data;
-    try {
-      data = JSON.parse(sseEvent.data);
-    } catch {
-      return; // Malformed data — skip silently
-    }
-
+    try { data = JSON.parse(sseEvent.data); } catch { return; }
     switch (sseEvent.event) {
-      case 'memory_created':
-      case 'memory_updated': {
-        // Skip our own events (anti-loop)
+      case 'memory_created': case 'memory_updated': {
         if (data.device_id === this.deviceId) return;
-
-        // Check if already pulled
-        const existing = this._getSyncState(`cloud_id_reverse:${data.id}`);
-        if (existing) return;
-
-        // Pull the full content
+        if (getSyncState(this.indexer, `cloud_id_reverse:${data.id}`)) return;
         try {
           await this._pullSingleItem(data);
-          console.log(
-            `${LOG_PREFIX} SSE received: ${data.title || data.id} (from ${data.source || 'cloud'})`
-          );
-        } catch (err) {
-          console.warn(`${LOG_PREFIX} SSE pull failed for ${data.id}:`, err.message);
-        }
+          console.log(`${LOG_PREFIX} SSE received: ${data.title || data.id} (from ${data.source || 'cloud'})`);
+        } catch (err) { console.warn(`${LOG_PREFIX} SSE pull failed for ${data.id}:`, err.message); }
         break;
       }
-
-      case 'knowledge_extracted':
-      case 'insight_submitted': {
+      case 'knowledge_extracted': case 'insight_submitted': {
         if (data.device_id === this.deviceId) return;
-        try {
-          await this._pullKnowledgeCard(data);
-        } catch (err) {
-          console.warn(`${LOG_PREFIX} SSE knowledge pull failed:`, err.message);
-        }
+        try { await this._pullKnowledgeCard(data); } catch (err) { console.warn(`${LOG_PREFIX} SSE knowledge pull failed:`, err.message); }
         break;
       }
-
-      case 'task_created':
-      case 'task_updated': {
+      case 'task_created': case 'task_updated': {
         if (data.device_id === this.deviceId) return;
-        try {
-          await this._pullTask(data);
-        } catch (err) {
-          console.warn(`${LOG_PREFIX} SSE task pull failed:`, err.message);
-        }
+        try { await this._pullTask(data); } catch (err) { console.warn(`${LOG_PREFIX} SSE task pull failed:`, err.message); }
         break;
       }
-
-      case 'heartbeat':
-        // Keepalive — no action needed
-        break;
-
-      default:
-        // Unknown event type — ignore gracefully
-        break;
+      case 'heartbeat': break;
+      default: break;
     }
   }
 
-  /**
-   * Schedule an SSE reconnection with exponential backoff.
-   */
-  _scheduleSSEReconnect() {
-    if (this._sseStopped) return;
+  // --- Legacy pull helpers (kept for SSE backward compat) ---
 
-    // Clean up current request
-    if (this._sseReq) {
-      try {
-        this._sseReq.destroy();
-      } catch {
-        // ignore
-      }
-      this._sseReq = null;
-    }
-
-    const delay = this._sseReconnectMs;
-    this._sseReconnectMs = Math.min(
-      this._sseReconnectMs * 2,
-      SSE_RECONNECT_MAX_MS
-    );
-
-    this._sseRetryCount = (this._sseRetryCount || 0) + 1;
-    if (this._sseRetryCount >= 3) {
-      console.log(`${LOG_PREFIX} SSE unavailable after 3 retries — falling back to periodic sync only`);
-      return;  // Stop retrying; periodic sync will compensate
-    }
-
-    console.log(`${LOG_PREFIX} SSE reconnecting in ${Math.round(delay / 1000)}s... (retry ${this._sseRetryCount}/3)`);
-
-    this._sseReconnectTimer = setTimeout(() => {
-      this._sseReconnectTimer = null;
-      this.startSSE();
-    }, delay);
-  }
-
-  // =========================================================================
-  // Internal — pull helpers
-  // =========================================================================
-
-  /**
-   * Pull a single memory item from cloud and write to local store.
-   * @param {object} item — { id, event_type, content, metadata, ... }
-   */
   async _pullSingleItem(item) {
-    // If item doesn't have content, fetch it from the API
-    let content = item.content;
-    let eventType = item.event_type || item.type || 'turn_summary';
+    let content = item.content, eventType = item.event_type || item.type || 'turn_summary';
     let tags = item.metadata?.tags || item.tags || [];
     let agentRole = item.metadata?.agent_role || item.agent_role;
     let source = item.metadata?.source || item.source || 'cloud-pull';
-
     if (!content && item.id) {
-      const detail = await this._get(
-        `/memories/${this.memoryId}/content/${item.id}`
-      );
-      if (!detail) return;
-      content = detail.content || '';
-      eventType = detail.event_type || eventType;
-      tags = detail.metadata?.tags || tags;
-      agentRole = detail.metadata?.agent_role || agentRole;
-      source = detail.metadata?.source || source;
+      const d = await this._get(`/memories/${this.memoryId}/content/${item.id}`);
+      if (!d) return;
+      content = d.content || ''; eventType = d.event_type || eventType;
+      tags = d.metadata?.tags || tags; agentRole = d.metadata?.agent_role || agentRole;
+      source = d.metadata?.source || source;
     }
-
     if (!content) return;
-
-    // Write to local markdown
+    const tagsArr = Array.isArray(tags) ? tags : [];
     const { id, filepath } = await this.memoryStore.write({
-      type: eventType,
-      content,
-      title: item.title || '',
-      tags: Array.isArray(tags) ? tags : [],
-      agent_role: agentRole,
-      session_id: item.session_id || '',
-      source,
+      type: eventType, content, title: item.title || '', tags: tagsArr,
+      agent_role: agentRole, session_id: item.session_id || '', source,
     });
-
-    // Index in SQLite
-    this.indexer.indexMemory(
-      id,
-      {
-        type: eventType,
-        title: item.title || '',
-        tags: Array.isArray(tags) ? tags : [],
-        agent_role: agentRole,
-        session_id: item.session_id || '',
-        source,
-        filepath,
-        synced_to_cloud: true,
-      },
-      content
-    );
-
-    // Mark synced and store cloud_id mapping (bidirectional)
-    this.indexer.db
-      .prepare('UPDATE memories SET synced_to_cloud = 1 WHERE id = ?')
-      .run(id);
-
+    this.indexer.indexMemory(id, {
+      type: eventType, title: item.title || '', tags: tagsArr,
+      agent_role: agentRole, session_id: item.session_id || '', source, filepath, synced_to_cloud: true,
+    }, content);
+    this.indexer.db.prepare('UPDATE memories SET synced_to_cloud = 1 WHERE id = ?').run(id);
     if (item.id) {
-      this._setSyncState(`cloud_id:${id}`, item.id);
-      this._setSyncState(`cloud_id_reverse:${item.id}`, id);
+      setSyncState(this.indexer, `cloud_id:${id}`, item.id);
+      setSyncState(this.indexer, `cloud_id_reverse:${item.id}`, id);
     }
   }
 
-  /**
-   * Pull a knowledge card from cloud SSE event data and store locally.
-   * @param {object} data — { id, category, title, summary, tags, ... }
-   */
   async _pullKnowledgeCard(data) {
     if (!data.title || !data.category) return;
-
-    // Check if we already have this knowledge card
-    const existing = this._getSyncState(`cloud_kc:${data.id}`);
-    if (existing) return;
-
-    // Write knowledge card markdown
-    const kcContent = [
-      `# ${data.title}`,
-      '',
-      data.summary ? `**Summary**: ${data.summary}` : '',
-      data.key_insight ? `**Key Insight**: ${data.key_insight}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    // Store via memoryStore's knowledge write (if available) or direct file write
+    if (getSyncState(this.indexer, `cloud_kc:${data.id}`)) return;
     const kcId = `kc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     const tags = Array.isArray(data.tags) ? data.tags : [];
-
-    // Resolve parent_card_id: translate cloud parent ID to local ID
-    let localParentId = null;
-    if (data.parent_card_id) {
-      localParentId = this._getSyncState(`cloud_kc:${data.parent_card_id}`) || null;
-    }
-
-    // If this card supersedes a local card, mark the local one as superseded
+    const localParentId = data.parent_card_id
+      ? (getSyncState(this.indexer, `cloud_kc:${data.parent_card_id}`) || null) : null;
     if (localParentId && (data.evolution_type === 'update' || data.evolution_type === 'reversal')) {
-      try {
-        this.indexer.db
-          .prepare("UPDATE knowledge_cards SET status = 'superseded' WHERE id = ? AND status = 'active'")
-          .run(localParentId);
-      } catch {
-        // Non-critical
-      }
+      try { this.indexer.db.prepare("UPDATE knowledge_cards SET status = 'superseded' WHERE id = ? AND status = 'active'").run(localParentId); } catch { /* ok */ }
     }
-
     try {
-      this.indexer.db
-        .prepare(
-          `INSERT OR IGNORE INTO knowledge_cards
-           (id, category, title, summary, source_memories, confidence, status, tags,
-            parent_card_id, evolution_type, created_at, filepath, synced_to_cloud)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
-        )
-        .run(
-          kcId,
-          data.category,
-          data.title,
-          data.summary || '',
-          JSON.stringify(data.source_memories || []),
-          data.confidence || 0.8,
-          data.status || 'active',
-          JSON.stringify(tags),
-          localParentId,
-          data.evolution_type || 'initial',
-          new Date().toISOString(),
-          `cloud-pull:${data.id}`
-        );
-
-      this._setSyncState(`cloud_kc:${data.id}`, kcId);
-      // Store reverse mapping for push evolution references
-      this._setSyncState(`local_kc_to_cloud:${kcId}`, data.id);
-    } catch (err) {
-      // Duplicate or constraint error — safe to ignore
-      if (!err.message?.includes('UNIQUE')) {
-        throw err;
-      }
-    }
+      this.indexer.db.prepare(
+        `INSERT OR IGNORE INTO knowledge_cards (id, category, title, summary, source_memories, confidence,
+         status, tags, parent_card_id, evolution_type, created_at, filepath, synced_to_cloud)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+      ).run(kcId, data.category, data.title, data.summary || '',
+        JSON.stringify(data.source_memories || []), data.confidence || 0.8,
+        data.status || 'active', JSON.stringify(tags), localParentId,
+        data.evolution_type || 'initial', new Date().toISOString(), `cloud-pull:${data.id}`);
+      setSyncState(this.indexer, `cloud_kc:${data.id}`, kcId);
+      setSyncState(this.indexer, `local_kc_to_cloud:${kcId}`, data.id);
+    } catch (err) { if (!err.message?.includes('UNIQUE')) throw err; }
   }
 
-  /**
-   * Pull a task from cloud SSE event data and store locally.
-   * @param {object} data — { id, title, detail, priority, status, agent_role, ... }
-   */
   async _pullTask(data) {
     if (!data.title) return;
-
-    // Check if we already have this task
-    const existing = this._getSyncState(`cloud_task:${data.id}`);
+    const existing = getSyncState(this.indexer, `cloud_task:${data.id}`);
     if (existing) {
-      // Task update — update status/priority if changed
-      try {
-        this.indexer.db
-          .prepare('UPDATE tasks SET status = ?, priority = ?, updated_at = ? WHERE id = ?')
-          .run(data.status || 'open', data.priority || 'medium', new Date().toISOString(), existing);
-      } catch {
-        // ignore update failures
-      }
+      try { this.indexer.db.prepare('UPDATE tasks SET status = ?, priority = ?, updated_at = ? WHERE id = ?')
+        .run(data.status || 'open', data.priority || 'medium', new Date().toISOString(), existing); } catch { /* ok */ }
       return;
     }
-
     const taskId = `task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     const now = new Date().toISOString();
-
     try {
-      this.indexer.db
-        .prepare(
-          `INSERT OR IGNORE INTO tasks
-           (id, title, description, status, priority, agent_role, created_at, updated_at, filepath, synced_to_cloud)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
-        )
-        .run(
-          taskId,
-          data.title,
-          data.detail || data.description || '',
-          data.status || 'open',
-          data.priority || 'medium',
-          data.agent_role || '',
-          now,
-          now,
-          `cloud-pull:${data.id}`
-        );
+      this.indexer.db.prepare(
+        `INSERT OR IGNORE INTO tasks (id, title, description, status, priority, agent_role,
+         created_at, updated_at, filepath, synced_to_cloud) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+      ).run(taskId, data.title, data.detail || data.description || '',
+        data.status || 'open', data.priority || 'medium', data.agent_role || '', now, now, `cloud-pull:${data.id}`);
+      setSyncState(this.indexer, `cloud_task:${data.id}`, taskId);
+    } catch (err) { if (!err.message?.includes('UNIQUE')) throw err; }
+  }
 
-      this._setSyncState(`cloud_task:${data.id}`, taskId);
+  // --- v2 card-level push with optimistic locking ---
+
+  /**
+   * Push unsynced knowledge_cards one by one via optimistic locking.
+   * On success: updates local version + cloud_id.
+   * On 409 conflict: records local conflict record.
+   */
+  async _pushCardsV2() {
+    if (!this.isEnabled()) return { synced: 0, errors: 0, conflicts: 0 };
+    let cards;
+    try {
+      cards = this.indexer.db.prepare(
+        `SELECT id, category, title, summary, confidence, status, tags,
+                source_memories, parent_card_id, evolution_type,
+                cloud_id, version, schema_version, local_id
+         FROM knowledge_cards
+         WHERE synced_to_cloud = 0 AND status IN ('active', 'superseded')
+         ORDER BY created_at ASC`
+      ).all();
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} _pushCardsV2 query failed:`, err.message);
+      return { synced: 0, errors: 0, conflicts: 0 };
+    }
+    if (!cards.length) return { synced: 0, errors: 0, conflicts: 0 };
+
+    let synced = 0, errors = 0, conflicts = 0;
+    for (const card of cards) {
+      // Skip superseded cards — just mark as synced
+      if (card.status === 'superseded') {
+        try { this.indexer.db.prepare('UPDATE knowledge_cards SET synced_to_cloud = 1 WHERE id = ?').run(card.id); } catch { /* ok */ }
+        continue;
+      }
+      const pushCard = {
+        title: card.title || '', summary: card.summary || '',
+        category: card.category || 'key_point', status: card.status || 'active',
+        confidence: card.confidence ?? 0.7, tags: card.tags || '[]',
+        local_id: card.local_id || card.id,
+        version: card.version || 1, schema_version: card.schema_version || 1,
+      };
+      if (card.cloud_id) pushCard.id = card.cloud_id;
+
+      const result = await this._optimisticPusher.pushCardWithVersion(pushCard);
+
+      if (result.status === 'created' || result.status === 'updated') {
+        try {
+          this.indexer.db.prepare(
+            `UPDATE knowledge_cards SET synced_to_cloud = 1, version = ?, cloud_id = ?,
+             last_pushed_at = ?, sync_status = 'synced' WHERE id = ?`
+          ).run(result.version, result.card_id, new Date().toISOString(), card.id);
+          if (result.card_id) {
+            setSyncState(this.indexer, `cloud_kc:${result.card_id}`, card.id);
+            setSyncState(this.indexer, `local_kc_to_cloud:${card.id}`, result.card_id);
+          }
+        } catch (err) { console.warn(`${LOG_PREFIX} Failed to update local card after push:`, err.message); }
+        synced++;
+      } else if (result.status === 'conflict') {
+        conflicts++;
+        createLocalConflict(this.indexer, {
+          card_id: card.id,
+          local_version: JSON.stringify(pushCard),
+          cloud_version: JSON.stringify(result.detail || {}),
+          device_id: this.deviceId,
+          conflict_type: 'version_mismatch',
+        });
+      } else {
+        errors++;
+        console.warn(`${LOG_PREFIX} Card push failed for ${card.id}: ${result.error || 'unknown'}`);
+      }
+    }
+    if (synced > 0 || conflicts > 0) {
+      recordSyncEvent(this.indexer, 'cards', { count: synced, direction: 'push', conflicts });
+      console.log(`${LOG_PREFIX} Pushed ${synced} cards (v2), ${conflicts} conflicts, ${errors} errors`);
+    }
+    return { synced, errors, conflicts };
+  }
+
+  // --- v2 card-level pull bridge ---
+
+  /** Callback for createCardPuller.applyCard — writes pulled card to local SQLite. */
+  async _applyPulledCard(card) {
+    if (!card || !card.id) return 'skipped';
+    // Check if we already have this cloud card locally
+    const existingLocalId = getSyncState(this.indexer, `cloud_kc:${card.id}`);
+    if (existingLocalId) {
+      // Update existing local card
+      try {
+        this.indexer.db.prepare(
+          `UPDATE knowledge_cards SET title = ?, summary = ?, category = ?, status = ?,
+           confidence = ?, tags = ?, version = ?, schema_version = ?, cloud_id = ?,
+           last_pulled_at = ?, sync_status = 'synced'
+           WHERE id = ?`
+        ).run(
+          card.title || '', card.summary || '', card.category || 'key_point',
+          card.status || 'active', card.confidence || 0.7,
+          typeof card.tags === 'string' ? card.tags : JSON.stringify(card.tags || []),
+          card.version || 1, card.schema_version || 1, card.id,
+          new Date().toISOString(), existingLocalId,
+        );
+        return 'updated';
+      } catch (err) {
+        console.warn(`${LOG_PREFIX} Failed to update local card ${existingLocalId}:`, err.message);
+        return 'skipped';
+      }
+    }
+    // Insert new local card
+    const localId = `kc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const tags = typeof card.tags === 'string' ? card.tags : JSON.stringify(card.tags || []);
+    const now = new Date().toISOString();
+    try {
+      this.indexer.db.prepare(
+        `INSERT OR IGNORE INTO knowledge_cards (id, category, title, summary, source_memories, confidence,
+         status, tags, parent_card_id, evolution_type, created_at, filepath, synced_to_cloud,
+         cloud_id, version, schema_version, last_pulled_at, sync_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'synced')`
+      ).run(
+        localId, card.category || 'key_point', card.title || '', card.summary || '',
+        JSON.stringify(card.source_memories || []), card.confidence || 0.7,
+        card.status || 'active', tags, null, 'initial', now,
+        `cloud-pull:${card.id}`, card.id, card.version || 1, card.schema_version || 1, now,
+      );
+      setSyncState(this.indexer, `cloud_kc:${card.id}`, localId);
+      setSyncState(this.indexer, `local_kc_to_cloud:${localId}`, card.id);
+      return 'inserted';
     } catch (err) {
       if (!err.message?.includes('UNIQUE')) {
-        throw err;
+        console.warn(`${LOG_PREFIX} Failed to insert card from cloud ${card.id}:`, err.message);
       }
+      return 'skipped';
     }
   }
 
-  // =========================================================================
-  // Internal — HTTP helpers
-  // =========================================================================
+  // --- HTTP helpers ---
 
-  /**
-   * GET request to cloud API.
-   * @param {string} endpoint — Path relative to apiBase (e.g. "/memories/xxx/content")
-   * @returns {Promise<object|null>}
-   */
   async _get(endpoint) {
     const url = `${this.apiBase}${endpoint}`;
     try {
-      const { status, body } = await httpRequest(url, {
-        method: 'GET',
-        headers: this._authHeaders(),
-      });
-
-      if (status >= 200 && status < 300) {
-        return JSON.parse(body);
-      }
-
+      const { status, body } = await httpRequest(url, { method: 'GET', headers: this._authHeaders() });
+      if (status >= 200 && status < 300) return JSON.parse(body);
       console.warn(`${LOG_PREFIX} GET ${endpoint} → HTTP ${status}`);
       return null;
-    } catch (err) {
-      console.warn(`${LOG_PREFIX} GET ${endpoint} failed:`, err.message);
-      return null;
-    }
+    } catch (err) { console.warn(`${LOG_PREFIX} GET ${endpoint} failed:`, err.message); return null; }
   }
 
-  /**
-   * POST request to cloud API.
-   * @param {string} endpoint
-   * @param {object} data
-   * @returns {Promise<object|null>}
-   */
   async _post(endpoint, data) {
     const url = `${this.apiBase}${endpoint}`;
     const jsonBody = JSON.stringify(data);
     try {
       const { status, body } = await httpRequest(url, {
-        method: 'POST',
-        headers: {
-          ...this._authHeaders(),
-          'Content-Type': 'application/json',
-          'Content-Length': String(Buffer.byteLength(jsonBody)),
-        },
-        body: jsonBody,
+        method: 'POST', body: jsonBody,
+        headers: { ...this._authHeaders(), 'Content-Type': 'application/json', 'Content-Length': String(Buffer.byteLength(jsonBody)) },
       });
-
-      if (status >= 200 && status < 300) {
-        return JSON.parse(body);
-      }
-
+      if (status >= 200 && status < 300) return JSON.parse(body);
       console.warn(`${LOG_PREFIX} POST ${endpoint} → HTTP ${status}: ${body.slice(0, 200)}`);
       return null;
-    } catch (err) {
-      console.warn(`${LOG_PREFIX} POST ${endpoint} failed:`, err.message);
-      return null;
-    }
+    } catch (err) { console.warn(`${LOG_PREFIX} POST ${endpoint} failed:`, err.message); return null; }
   }
 
-  /**
-   * Build authorization headers for cloud requests.
-   * @returns {object}
-   */
+  async _postRaw(endpoint, data, extraHeaders = {}) {
+    const url = `${this.apiBase}${endpoint}`;
+    const jsonBody = JSON.stringify(data);
+    return httpRequest(url, {
+      method: 'POST', body: jsonBody,
+      headers: { ...this._authHeaders(), 'Content-Type': 'application/json', 'Content-Length': String(Buffer.byteLength(jsonBody)), ...extraHeaders },
+    });
+  }
+
   _authHeaders() {
-    return {
-      Authorization: `Bearer ${this.apiKey}`,
-      'X-Awareness-Device-Id': this.deviceId,
-    };
+    return { Authorization: `Bearer ${this.apiKey}`, 'X-Awareness-Device-Id': this.deviceId };
   }
 
-  // =========================================================================
-  // Internal — sync state persistence (via SQLite sync_state table)
-  // =========================================================================
+  // -----------------------------------------------------------------------
+  // Risks pull — cloud risks → local knowledge_cards with category='risk'
+  // -----------------------------------------------------------------------
 
-  /**
-   * Ensure the sync_state table and any missing columns exist.
-   */
-  _ensureSyncSchema() {
+  async _pullRisks() {
+    if (!this.isEnabled() || !this.memoryId) return { pulled: 0 };
+    let pulled = 0;
+
     try {
-      // sync_state table is created by indexer schema init; just verify it exists
-      this.indexer.db
-        .prepare(
-          `CREATE TABLE IF NOT EXISTS sync_state (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-          )`
-        )
-        .run();
-    } catch {
-      // Table likely already exists
-    }
+      const url = `${this.apiBase}/memories/${this.memoryId}/insights/risks?limit=100`;
+      const resp = await httpRequest(url, { method: 'GET', headers: this._authHeaders() });
 
-    // Migrate existing tables: add synced_to_cloud column if missing.
-    // DEFAULT 0 means all existing records are marked as unsynced → they'll be
-    // pushed on the next sync cycle, ensuring old data reaches the cloud.
-    for (const table of ['knowledge_cards', 'tasks']) {
-      try {
-        this.indexer.db
-          .prepare(`ALTER TABLE ${table} ADD COLUMN synced_to_cloud INTEGER DEFAULT 0`)
-          .run();
-        console.log(`${LOG_PREFIX} Migrated ${table}: added synced_to_cloud column`);
-      } catch {
-        // Column already exists — expected for fresh installs
-      }
-    }
-  }
+      if (resp.status !== 200) return { pulled: 0 };
 
-  /**
-   * Get a value from sync_state.
-   * @param {string} key
-   * @returns {string|null}
-   */
-  _getSyncState(key) {
-    try {
-      const row = this.indexer.db
-        .prepare('SELECT value FROM sync_state WHERE key = ?')
-        .get(key);
-      return row?.value || null;
-    } catch {
-      return null;
-    }
-  }
+      const cloudRisks = JSON.parse(resp.body);
+      const items = cloudRisks.items || cloudRisks.risks || cloudRisks || [];
 
-  /**
-   * Set a value in sync_state (upsert).
-   * @param {string} key
-   * @param {string} value
-   */
-  _setSyncState(key, value) {
-    try {
-      this.indexer.db
-        .prepare(
-          `INSERT INTO sync_state (key, value, updated_at)
-           VALUES (?, ?, ?)
-           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
-        )
-        .run(key, value, new Date().toISOString());
-    } catch {
-      // Non-critical — log and continue
-    }
-  }
+      for (const risk of items) {
+        if (!risk.id || !risk.title) continue;
 
-  // =========================================================================
-  // Public — sync history
-  // =========================================================================
+        // Store as knowledge card with category='risk' (local convention)
+        const localId = `risk_${risk.id}`;
+        const existing = this.indexer.db.prepare(
+          "SELECT id FROM knowledge_cards WHERE id = ? OR cloud_id = ?"
+        ).get(localId, risk.id);
 
-  /**
-   * Record a sync event to the sync_state table for history tracking.
-   * @param {string} type — "memories" | "insights" | "tasks"
-   * @param {object} details — { count, direction: "push"|"pull" }
-   */
-  _recordSyncEvent(type, details) {
-    try {
-      const timestamp = new Date().toISOString();
-      const key = `sync_log:${timestamp}`;
-      const value = JSON.stringify({ type, details, timestamp });
-      this._setSyncState(key, value);
-    } catch {
-      // Non-critical — don't crash on history logging failure
-    }
-  }
-
-  /**
-   * Get recent sync history events.
-   * @param {number} [limit=20] — Maximum number of events to return
-   * @returns {Array<{ type: string, details: object, timestamp: string }>}
-   */
-  getSyncHistory(limit = 20) {
-    try {
-      const rows = this.indexer.db
-        .prepare(
-          `SELECT value FROM sync_state WHERE key LIKE 'sync_log:%' ORDER BY key DESC LIMIT ?`
-        )
-        .all(limit);
-
-      return rows.map((row) => {
-        try {
-          return JSON.parse(row.value);
-        } catch {
-          return null;
+        if (!existing) {
+          try {
+            this.indexer.indexKnowledgeCard({
+              id: localId,
+              category: 'risk',
+              title: risk.title,
+              summary: [risk.detail, risk.mitigation].filter(Boolean).join('\n\nMitigation: ') || '',
+              confidence: 0.8,
+              status: risk.status === 'resolved' ? 'superseded' : 'active',
+              tags: JSON.stringify([risk.level || 'medium']),
+              source_memories: JSON.stringify([]),
+              card_type: 'atomic',
+              growth_stage: 'seedling',
+              created_at: risk.created_at || new Date().toISOString(),
+              filepath: `__cloud_risk__/${localId}`,
+              cloud_id: risk.id,
+              sync_status: 'synced',
+              last_pulled_at: new Date().toISOString(),
+            });
+            pulled++;
+          } catch { /* skip duplicates */ }
         }
-      }).filter(Boolean);
-    } catch {
-      return [];
+      }
+
+      if (pulled > 0) {
+        recordSyncEvent(this.indexer, 'risks', { count: pulled, direction: 'pull' });
+        console.log(`${LOG_PREFIX} Pulled ${pulled} risks from cloud`);
+      }
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} Risks pull failed (non-fatal):`, err.message);
     }
+
+    return { pulled };
   }
 
-  // =========================================================================
-  // Internal — utilities
-  // =========================================================================
+  // -----------------------------------------------------------------------
+  // Skills sync — bidirectional push/pull
+  // -----------------------------------------------------------------------
 
   /**
-   * Parse tags JSON string safely.
-   * @param {string} tagsStr — JSON array string or empty
-   * @returns {string[]}
+   * Sync skills between local SQLite and cloud REST API.
+   * Push: local skills not yet in cloud → POST /skills (via submit_insights)
+   * Pull: cloud skills not in local → INSERT into local skills table
    */
-  _parseTags(tagsStr) {
-    if (!tagsStr) return [];
+  async _syncSkills() {
+    if (!this.isEnabled() || !this.memoryId) return { synced: 0, pulled: 0 };
+
+    let synced = 0;
+    let pulled = 0;
+
     try {
-      const parsed = JSON.parse(tagsStr);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
+      // ── Pull: fetch cloud skills and merge into local ──
+      const pullUrl = `${this.apiBase}/memories/${this.memoryId}/skills?limit=200`;
+      const pullResp = await httpRequest(pullUrl, {
+        method: 'GET',
+        headers: this._authHeaders(),
+      });
 
-  /**
-   * Simple async sleep.
-   * @param {number} ms
-   * @returns {Promise<void>}
-   */
-  _sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+      if (pullResp.status === 200) {
+        const cloudSkills = JSON.parse(pullResp.body);
+        const items = cloudSkills.items || cloudSkills.skills || (Array.isArray(cloudSkills) ? cloudSkills : []);
+        console.log(`${LOG_PREFIX} Skills pull: got ${items.length} cloud skills`);
+
+        for (const cs of items) {
+          if (!cs.id || !cs.name) continue;
+          // Check if we already have this skill locally (by name dedup)
+          const existing = this.indexer.db.prepare(
+            "SELECT id FROM skills WHERE name = ? OR id = ?"
+          ).get(cs.name, cs.id);
+
+          if (!existing) {
+            // Insert cloud skill into local
+            const now = new Date().toISOString();
+            try {
+              this.indexer.db.prepare(
+                `INSERT INTO skills (id, memory_id, name, summary, methods, trigger_conditions, tags,
+                  source_card_ids, decay_score, usage_count, last_used_at, pinned, status, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              ).run(
+                cs.id,
+                this.memoryId,
+                cs.name || '',
+                cs.summary || '',
+                JSON.stringify(cs.methods || []),
+                JSON.stringify(cs.trigger_conditions || []),
+                JSON.stringify(cs.tags || []),
+                JSON.stringify(cs.source_card_ids || []),
+                cs.decay_score ?? 1.0,
+                cs.usage_count ?? 0,
+                cs.last_used_at || null,
+                cs.pinned ? 1 : 0,
+                cs.status || 'active',
+                cs.created_at || now,
+                cs.updated_at || now,
+              );
+              pulled++;
+            } catch (insertErr) {
+              console.warn(`${LOG_PREFIX} Skills insert failed for "${cs.name}":`, insertErr.message);
+            }
+          }
+        }
+
+        if (pulled > 0) {
+          recordSyncEvent(this.indexer, 'skills', { count: pulled, direction: 'pull' });
+          console.log(`${LOG_PREFIX} Pulled ${pulled} skills from cloud`);
+        }
+      }
+
+      // ── Push: local skills not yet synced to cloud ──
+      // Use submit_insights endpoint with skills[] payload (same as F-034 flow)
+      let localSkills;
+      try {
+        localSkills = this.indexer.db.prepare(
+          "SELECT * FROM skills WHERE status = 'active' AND (synced_to_cloud IS NULL OR synced_to_cloud = 0)"
+        ).all();
+      } catch {
+        // synced_to_cloud column may not exist — try without filter
+        try {
+          localSkills = this.indexer.db.prepare(
+            "SELECT * FROM skills WHERE status = 'active'"
+          ).all();
+        } catch { localSkills = []; }
+      }
+
+      for (const ls of localSkills) {
+        // Check if cloud already has this skill (by name)
+        const checkUrl = `${this.apiBase}/memories/${this.memoryId}/skills?limit=1&search=${encodeURIComponent(ls.name)}`;
+        try {
+          const checkResp = await httpRequest(checkUrl, { method: 'GET', headers: this._authHeaders() });
+          if (checkResp.status === 200) {
+            const existing = JSON.parse(checkResp.body);
+            const items = existing.items || existing.skills || (Array.isArray(existing) ? existing : []);
+            if (items.some(s => s.name === ls.name)) {
+              // Already exists in cloud, skip push
+              continue;
+            }
+          }
+        } catch { /* check failed, try push anyway */ }
+
+        // Push via insights submit
+        const pushUrl = `${this.apiBase}/memories/${this.memoryId}/insights/submit`;
+        let methods;
+        try { methods = JSON.parse(ls.methods || '[]'); } catch { methods = []; }
+        let tags;
+        try { tags = JSON.parse(ls.tags || '[]'); } catch { tags = []; }
+
+        const pushBody = {
+          skills: [{
+            name: ls.name || '',
+            summary: ls.summary || '',
+            methods: Array.isArray(methods) ? methods : [],
+            tags: Array.isArray(tags) ? tags : [],
+          }],
+        };
+
+        try {
+          const pushResp = await this._cloudPost(pushUrl, pushBody);
+          if (pushResp.status === 200 || pushResp.status === 201) {
+            synced++;
+          }
+        } catch { /* push failed, will retry next cycle */ }
+      }
+
+      if (synced > 0) {
+        recordSyncEvent(this.indexer, 'skills', { count: synced, direction: 'push' });
+        console.log(`${LOG_PREFIX} Pushed ${synced} skills to cloud`);
+      }
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} Skills sync failed (non-fatal):`, err.message);
+    }
+
+    return { synced, pulled };
   }
 }

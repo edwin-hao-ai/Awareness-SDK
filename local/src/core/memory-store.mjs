@@ -102,6 +102,14 @@ export class MemoryStore {
       related: Array.isArray(memory.related) ? memory.related : [],
     };
 
+    // Sync state fields (only emit when present)
+    if (memory.cloud_id) frontMatter.cloud_id = memory.cloud_id;
+    if (memory.last_pushed_at) frontMatter.last_pushed_at = memory.last_pushed_at;
+    if (memory.last_pulled_at) frontMatter.last_pulled_at = memory.last_pulled_at;
+    if (memory.version != null) frontMatter.version = memory.version;
+    if (memory.schema_version != null) frontMatter.schema_version = memory.schema_version;
+    if (memory.sync_status) frontMatter.sync_status = memory.sync_status;
+
     const yamlLines = serializeYaml(frontMatter);
     const body = (memory.content || '').trim();
 
@@ -131,6 +139,14 @@ export class MemoryStore {
     const yamlBlock = match[1];
     const body = (match[2] || '').trim();
     const metadata = parseYaml(yamlBlock);
+
+    // Apply sync field defaults for backward compatibility
+    metadata.cloud_id = metadata.cloud_id || null;
+    metadata.version = metadata.version != null ? metadata.version : 1;
+    metadata.schema_version = metadata.schema_version != null ? metadata.schema_version : 1;
+    metadata.sync_status = metadata.sync_status || 'pending_push';
+    metadata.last_pushed_at = metadata.last_pushed_at || null;
+    metadata.last_pulled_at = metadata.last_pulled_at || null;
 
     return { metadata, content: body };
   }

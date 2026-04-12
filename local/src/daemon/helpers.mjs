@@ -13,7 +13,7 @@ import {
  * including `db.prepare(sql).get/all/run()` and `db.transaction()`.
  */
 export function createNoopIndexer() {
-  const noopStmt = { get: () => undefined, all: () => [], run: () => ({}) };
+  const noopStmt = { get: () => undefined, all: () => [], run: () => ({ changes: 0 }) };
   const noopDb = {
     prepare: () => noopStmt,
     transaction: (fn) => fn,
@@ -98,7 +98,33 @@ export function synthesizeRules(cards, maxRules = 30) {
   return { rules, rule_count: rules.length };
 }
 
-export function extractActiveSkills(cards) {
+export function extractActiveSkills(cards, indexer) {
+  // F-032: Prefer dedicated skills table
+  if (indexer) {
+    try {
+      const skills = indexer.db.prepare(
+        "SELECT * FROM skills WHERE status = 'active' AND decay_score > 0.3 ORDER BY decay_score DESC LIMIT 10"
+      ).all();
+      if (skills.length > 0) {
+        return skills.map((s) => {
+          let methods = [];
+          if (s.methods) {
+            try { methods = JSON.parse(s.methods); } catch { methods = []; }
+          }
+          if (!Array.isArray(methods)) methods = [];
+          return {
+            id: s.id,
+            title: s.name || '',
+            summary: s.summary || '',
+            methods,
+            decay_score: s.decay_score,
+            usage_count: s.usage_count,
+          };
+        });
+      }
+    } catch { /* skills table may not exist yet — fall through to legacy */ }
+  }
+  // Legacy fallback: read from knowledge_cards
   return cards
     .filter((card) => card.category === 'skill')
     .map((card) => {

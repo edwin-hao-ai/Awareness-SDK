@@ -308,8 +308,34 @@ export function buildContextXml(ctx, recallResults, perceptionSignals, options =
   if (options.recordRuleScript) {
     parts.push("  <record-rule>");
     parts.push(`    Save significant work SILENTLY: node "${esc(options.recordRuleScript)}" '<JSON>'`);
-    parts.push('    JSON: {"content":"what+why","cards":[{"title":"...","summary":"...","category":"decision|problem_solution|workflow|pitfall|insight|key_point|personal_preference|important_detail"}]}');
+    parts.push('    JSON: {"content":"what+why","cards":[{"title":"...","summary":"...","category":"<see CATEGORY guide below>"}]}');
     parts.push("    Save decisions, solutions, pitfalls, user preferences. NOT every tool call.");
+    parts.push("");
+    parts.push("    DO NOT SAVE: greetings, confirmations (\"ok\"/\"yes\"), debug logs, tool call outputs,");
+    parts.push("    news/search results, sender metadata, empty/trivial interactions, temporary file paths,");
+    parts.push("    API keys/tokens/credentials/secrets, system bootstrap instructions, or session reset messages.");
+    parts.push("");
+    parts.push("    CATEGORY (pick ONE — ask: is this about the USER or about TECH?):");
+    parts.push("    [Technical]");
+    parts.push("      decision           = chose between alternatives (e.g. \"picked Qdrant over Milvus because...\")");
+    parts.push("      problem_solution   = bug/error + the fix that resolved it (e.g. \"FTS failed on CJK → added bigram tokenizer\")");
+    parts.push("      workflow           = repeatable process/setup/config steps (e.g. \"deploy sequence: build → push → reload nginx\")");
+    parts.push("      pitfall            = warning/limitation/gotcha with no fix yet (e.g. \"npx cache corruption blocks daemon start\")");
+    parts.push("      insight            = reusable pattern or general learning (e.g. \"CJK recall needs cross-language term expansion\")");
+    parts.push("      key_point          = important tech fact that doesn't fit above (e.g. \"OpenClaw agent ID: ^[a-z][a-z0-9-]{1,63}$\")");
+    parts.push("      skill              = reusable procedure done 2+ times (e.g. \"npm publish → clawhub publish → sync repos\")");
+    parts.push("    [Personal]");
+    parts.push("      personal_preference = user likes/dislikes/style (e.g. \"user prefers Chinese responses, code in English\")");
+    parts.push("      important_detail    = user name/role/facts (e.g. \"user is a data scientist working on observability\")");
+    parts.push("      plan_intention      = user's stated plan or goal (e.g. \"planning to migrate to Rust next quarter\")");
+    parts.push("      activity_preference = hobbies/routines/habits (e.g. \"runs every morning, codes at night\")");
+    parts.push("      health_info         = health-related info shared by user (e.g. \"has RSI, needs break reminders\")");
+    parts.push("      career_info         = job/education/career details (e.g. \"senior engineer at startup, 5 years React\")");
+    parts.push("      custom_misc         = personal info that doesn't fit above");
+    parts.push("");
+    parts.push("    WRONG: 'My name is X' → workflow.  RIGHT: → important_detail");
+    parts.push("    WRONG: 'search today news' → key_point.  RIGHT: → do NOT save (trivial interaction)");
+    parts.push("    WRONG: sender metadata JSON → decision.  RIGHT: → do NOT save (noise)");
     parts.push("  </record-rule>");
   }
 

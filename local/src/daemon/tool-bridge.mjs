@@ -65,6 +65,22 @@ export async function callMcpTool(daemon, name, args) {
       }));
     }
 
+    case 'awareness_mark_skill_used': {
+      const { skill_id } = args;
+      if (!skill_id) {
+        return mcpResult({ error: 'skill_id is required' });
+      }
+      const now = new Date().toISOString();
+      try {
+        daemon.indexer.db.prepare(
+          `UPDATE skills SET usage_count = usage_count + 1, last_used_at = ?, decay_score = 1.0, updated_at = ? WHERE id = ?`
+        ).run(now, now, skill_id);
+        return mcpResult({ success: true, skill_id });
+      } catch (err) {
+        return mcpResult({ error: `Failed to mark skill used: ${err.message}` });
+      }
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

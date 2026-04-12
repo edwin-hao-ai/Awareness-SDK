@@ -11,6 +11,30 @@ import {
   synthesizeRules,
 } from './helpers.mjs';
 
+/**
+ * Select the most relevant knowledge cards for the current context.
+ *
+ * When a focus query is provided, uses BM25 full-text search (searchKnowledge)
+ * to rank cards by relevance instead of pure recency. Falls back to recency
+ * when the indexer lacks searchKnowledge or the query yields too few results.
+ *
+ * @param {object} indexer
+ * @param {number} maxCards
+ * @param {string|undefined} focus - current user query / focus string
+ * @returns {Array}
+ */
+function _selectRelevantCards(indexer, maxCards, focus) {
+  if (focus && typeof indexer.searchKnowledge === 'function') {
+    const searched = indexer.searchKnowledge(focus, { limit: maxCards });
+    if (searched.length >= maxCards) return searched;
+    // Supplement with most-recent cards when search returns fewer than requested
+    const searchedIds = new Set(searched.map((c) => c.id));
+    const recent = indexer.getRecentKnowledge(maxCards).filter((c) => !searchedIds.has(c.id));
+    return [...searched, ...recent].slice(0, maxCards);
+  }
+  return indexer.getRecentKnowledge(maxCards);
+}
+
 export function buildInitResult({
   createSession,
   indexer,
@@ -23,7 +47,8 @@ export function buildInitResult({
 }) {
   const session = createSession(source);
   const stats = indexer.getStats();
-  const recentCards = indexer.getRecentKnowledge(maxCards);
+  const focus = renderContextOptions?.currentFocus?.trim() || undefined;
+  const recentCards = _selectRelevantCards(indexer, maxCards, focus);
   const allActiveCards = indexer.getRecentKnowledge(200);
   const openTasks = indexer.getOpenTasks(maxTasks);
   const rawSessions = indexer.getRecentSessions(days);
@@ -56,8 +81,11 @@ export function buildInitResult({
   };
 
   const { rules, rule_count } = synthesizeRules(allActiveCards);
-  const activeSkills = extractActiveSkills(allActiveCards);
+  const activeSkills = extractActiveSkills(allActiveCards, indexer);
   const { user_preferences, knowledge_cards: otherCards } = splitPreferences(recentCards);
+
+  // Build lightweight perception signals for init (staleness + pitfall guards)
+  const initPerception = _buildInitPerception(indexer, allActiveCards);
 
   const initResult = {
     session_id: session.id,
@@ -76,12 +104,91 @@ export function buildInitResult({
   };
 
   try {
-    initResult.rendered_context = buildContextXml(initResult, [], [], renderContextOptions);
+    initResult.rendered_context = buildContextXml(initResult, [], initPerception, renderContextOptions);
   } catch {
     // Non-fatal — client can still use structured data
   }
 
   return initResult;
+}
+
+/**
+ * Build lightweight perception signals at session init.
+ * Only generates staleness + pitfall-as-guard signals (zero LLM, fast).
+ * Applies lifecycle filtering (exposure cap, decay, snooze, dismiss).
+ */
+function _buildInitPerception(indexer, allCards) {
+  const signals = [];
+  const now = Date.now();
+  const STALE_THRESHOLD_MS = 30 * 86400000; // 30 days
+
+  // 1. Staleness: find knowledge cards not updated in 30+ days
+  for (const card of allCards) {
+    const updatedMs = card.updated_at
+      ? new Date(card.updated_at).getTime()
+      : card.created_at ? new Date(card.created_at).getTime() : now;
+    if (now - updatedMs > STALE_THRESHOLD_MS && card.status === 'active') {
+      const daysAgo = Math.floor((now - updatedMs) / 86400000);
+      signals.push({
+        type: 'staleness',
+        title: card.title || '',
+        card_id: card.id,
+        message: `Knowledge card "${card.title}" has not been updated in ${daysAgo} days — may be outdated.`,
+      });
+      if (signals.filter(s => s.type === 'staleness').length >= 2) break;
+    }
+  }
+
+  // 2. Pitfall cards as guard signals
+  const pitfalls = allCards
+    .filter((c) => (c.category === 'pitfall' || c.category === 'risk') && c.status === 'active')
+    .slice(0, 3);
+  for (const card of pitfalls) {
+    signals.push({
+      type: 'guard',
+      title: card.title || '',
+      card_id: card.id,
+      message: `⚠️ Known pitfall: ${card.title} — ${(card.summary || '').slice(0, 300)}`,
+    });
+  }
+
+  // Apply perception lifecycle: filter dormant/dismissed/snoozed, update state
+  const filtered = [];
+  for (const sig of signals) {
+    try {
+      const signalId = _computeSignalId(sig);
+      sig.signal_id = signalId;
+      if (!indexer?.shouldShowPerception) {
+        filtered.push(sig);
+        continue;
+      }
+      if (!indexer.shouldShowPerception(signalId)) continue;
+      indexer.touchPerceptionState({
+        signal_id: signalId,
+        signal_type: sig.type,
+        source_card_id: sig.card_id || null,
+        title: sig.title || '',
+      });
+      filtered.push(sig);
+    } catch { /* non-fatal */ }
+  }
+
+  return filtered;
+}
+
+/** Compute stable signal_id for init perception (same algorithm as daemon.mjs) */
+function _computeSignalId(sig) {
+  const parts = [sig.type];
+  if (sig.card_id) parts.push(sig.card_id);
+  else if (sig.tag) parts.push(`tag:${sig.tag}`);
+  else if (sig.title) parts.push(`title:${sig.title.slice(0, 60)}`);
+  else parts.push(sig.message?.slice(0, 60) || '');
+  const key = parts.join('|');
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
+  }
+  return `sig_${sig.type}_${Math.abs(hash).toString(36)}`;
 }
 
 export async function buildRecallResult({ search, args, mode = 'local' }) {

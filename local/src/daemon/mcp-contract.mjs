@@ -33,6 +33,7 @@ export const LOOKUP_TYPE_VALUES = [
   'session_history',
   'timeline',
   'perception',
+  'skills',
 ];
 
 export const KNOWLEDGE_CARD_CATEGORY_VALUES = [
@@ -68,9 +69,14 @@ export function mcpError(message) {
 export function buildRecallSummaryContent(summaries, mode = 'local') {
   const lines = summaries.map((item, index) => {
     const type = item.type ? `[${item.type}]` : '';
-    const title = item.title || '(untitled)';
+    const title = item.title || _previewTitle(item) || '(untitled)';
+    const scorePct = item.score ? `${Math.round(item.score * 100)}%` : '';
+    const age = item.created_at ? _daysAgoLabel(item.created_at) : '';
+    const tokEst = item.tokens_est ? `~${item.tokens_est}tok` : '';
+    const meta = [scorePct, age, tokEst].filter(Boolean).join(', ');
+    const metaStr = meta ? ` (${meta})` : '';
     const summary = item.summary ? `\n   ${item.summary}` : '';
-    return `${index + 1}. ${type} ${title}${summary}`;
+    return `${index + 1}. ${type} ${title}${metaStr}${summary}`;
   });
 
   const readableText = `Found ${summaries.length} memories:\n\n${lines.join('\n\n')}`;
@@ -88,10 +94,30 @@ export function buildRecallSummaryContent(summaries, mode = 'local') {
   };
 }
 
+/** Generate a preview title from content when title is missing. */
+function _previewTitle(item) {
+  const raw = item.fts_content || item.content || '';
+  const cleaned = raw.replace(/[#*`_\[\]>]/g, '').trim();
+  const firstLine = cleaned.split(/[\n.!?。！？]/)[0]?.trim() || '';
+  return firstLine.slice(0, 80);
+}
+
+/** Format created_at as a human-readable relative time label. */
+function _daysAgoLabel(dateStr) {
+  try {
+    const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+    if (days === 0) return 'today';
+    if (days === 1) return '1d ago';
+    return `${days}d ago`;
+  } catch { return ''; }
+}
+
 export function buildRecallFullContent(items) {
   const sections = items.map((item) => {
     const header = item.title ? `## ${item.title}` : '';
-    return `${header}\n\n${item.content || '(no content)'}`;
+    const raw = item.content || '(no content)';
+    // Full mode = no truncation. Return complete content as-is.
+    return `${header}\n\n${raw}`;
   });
 
   return {
@@ -226,6 +252,17 @@ export function getToolDefinitions() {
         properties: {
           role: { type: 'string', description: 'Agent role to get prompt for' },
         },
+      },
+    },
+    {
+      name: 'awareness_mark_skill_used',
+      description: 'Mark a skill as used — resets decay timer and increments usage counter.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          skill_id: { type: 'string', description: 'The ID of the skill to mark as used' },
+        },
+        required: ['skill_id'],
       },
     },
   ];
