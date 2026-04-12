@@ -1016,4 +1016,40 @@ export class AwarenessClient {
       return response.statusText;
     }
   }
+
+  /**
+   * Apply a learned skill — returns structured execution plan.
+   * Automatically marks the skill as used (resets decay timer).
+   */
+  async applySkill(
+    skillId: string,
+    context?: string,
+  ): Promise<Record<string, unknown>> {
+    if (this.isLocal) {
+      const args: Record<string, unknown> = { skill_id: skillId };
+      if (context) args.context = context;
+      const blocks = await this.mcpCallRaw("awareness_apply_skill", args);
+      if (blocks.length === 0) return { error: "No response from daemon" };
+      try {
+        return JSON.parse(blocks[0].text) as Record<string, unknown>;
+      } catch {
+        return { result: blocks[0].text };
+      }
+    }
+
+    // Cloud mode: REST API
+    const url = `${this.apiBase}/memories/${this.memoryId}/skills/${skillId}/apply`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ context: context || "" }),
+    });
+    if (!response.ok) {
+      return { error: `API error: ${response.status}` };
+    }
+    return (await response.json()) as Record<string, unknown>;
+  }
 }

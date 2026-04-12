@@ -446,4 +446,38 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       return { content };
     },
   });
+
+  // -----------------------------------------------------------------------
+  // 7. awareness_apply_skill — Execute a learned skill
+  // -----------------------------------------------------------------------
+  api.registerTool({
+    id: "awareness_apply_skill",
+    name: "awareness_apply_skill",
+    description:
+      "Apply a learned skill — returns a structured step-by-step execution plan.\n" +
+      "Call this when a task matches an active skill from the <skills> section.\n" +
+      "The skill will be marked as used automatically (resets decay timer).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skill_id: {
+          type: "string",
+          description: "ID of the skill to apply (from active_skills in awareness_init).",
+        },
+        context: {
+          type: "string",
+          description: "Current task context — the skill methods will be adapted to this context.",
+        },
+      },
+      required: ["skill_id"],
+    },
+    execute: async (input) => {
+      const skillId = String(input.skill_id || "");
+      const context = String(input.context || "");
+      if (!skillId) return { error: "skill_id is required" };
+
+      const result = await client.applySkill(skillId, context);
+      return result;
+    },
+  });
 }
