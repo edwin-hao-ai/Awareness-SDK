@@ -10,12 +10,34 @@ Online docs: <https://awareness.market/docs?doc=openclaw>
 
 Awareness Memory achieves **95.6% Recall@5** on [LongMemEval](https://arxiv.org/abs/2410.10813) (ICLR 2025) — 500 human-curated questions, zero LLM calls, hybrid BM25+Vector retrieval. [Full results →](https://github.com/edwin-hao-ai/Awareness/tree/main/benchmarks/longmemeval)
 
-| System | Score | | Capability | R@5 |
-|--------|-------|-|------------|-----|
-| MemPalace | 96.6% | | Knowledge Update | **100%** |
-| **Awareness** | **95.6%** | | Multi-Session | **98.5%** |
-| OMEGA | 95.4% | | Temporal Reasoning | 94.7% |
-| Supermemory | 81.6% | | Preference Inference | 86.7% |
+```
+╔══════════════════════════════════════════════════════════════╗
+║   Awareness Memory — LongMemEval Benchmark Results           ║
+║                                                              ║
+║   Recall@1    77.6%       Recall@5    95.6%  ◀ PRIMARY       ║
+║   Recall@3    91.8%       Recall@10   97.4%                  ║
+║                                                              ║
+║   Method:     Hybrid RRF (BM25 + Vector)                     ║
+║   LLM Calls:  0       Hardware:  M1 8GB, 14 min             ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│          Long-Term Memory Retrieval — R@5 Leaderboard       │
+├─────────────────────────────────┬───────────┬───────────────┤
+│  System                         │  R@5      │  Note         │
+├─────────────────────────────────┼───────────┼───────────────┤
+│  MemPalace (ChromaDB raw)       │  96.6%    │  R@5 only *   │
+│  ★ Awareness Memory (Hybrid)    │  95.6%    │  Hybrid RRF   │
+│  OMEGA                          │  95.4%    │  QA Accuracy  │
+│  Supermemory                    │  81.6%    │  QA Accuracy  │
+│  Zep / Graphiti                 │  71.2%    │  QA Accuracy  │
+│  GPT-4o (full context)          │  60.6%    │  QA Accuracy  │
+├─────────────────────────────────┴───────────┴───────────────┤
+│  * MemPalace 96.6% is R@5 only, not QA Accuracy.           │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 

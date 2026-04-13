@@ -10,46 +10,83 @@ Online docs: <https://awareness.market/docs?doc=python>
 
 Awareness Memory is evaluated on **[LongMemEval](https://arxiv.org/abs/2410.10813)** — the industry standard benchmark for long-term conversational memory, published at ICLR 2025. 500 human-curated questions across 5 core capabilities.
 
-### Results
-
 ```
-Recall@1    77.6%    (388 / 500)
-Recall@3    91.8%    (459 / 500)
-Recall@5    95.6%    (478 / 500)    ◀ primary metric
-Recall@10   97.4%    (487 / 500)
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   Awareness Memory — LongMemEval Benchmark Results           ║
+║   ─────────────────────────────────────────────────           ║
+║                                                              ║
+║   Benchmark:  LongMemEval (ICLR 2025)                       ║
+║   Dataset:    500 human-curated questions                    ║
+║   Variant:    LongMemEval_S (~115k tokens per question)      ║
+║                                                              ║
+║   ┌─────────────────────────────────────────────────┐        ║
+║   │                                                 │        ║
+║   │   Recall@1    77.6%    (388 / 500)              │        ║
+║   │   Recall@3    91.8%    (459 / 500)              │        ║
+║   │   Recall@5    95.6%    (478 / 500)  ◀ PRIMARY   │        ║
+║   │   Recall@10   97.4%    (487 / 500)              │        ║
+║   │                                                 │        ║
+║   └─────────────────────────────────────────────────┘        ║
+║                                                              ║
+║   Method:     Hybrid RRF (BM25 + Semantic Vector Search)     ║
+║   Embedding:  all-MiniLM-L6-v2 (384d)                       ║
+║   LLM Calls:  0  (pure retrieval, no generation cost)        ║
+║   Hardware:   Apple M1, 8GB RAM — 14 min total               ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
 ```
 
 ### Leaderboard
 
-| System | Score | Metric |
-|--------|-------|--------|
-| MemPalace (ChromaDB raw) | 96.6% | R@5 only \* |
-| **Awareness Memory** | **95.6%** | **R@5 (Hybrid RRF)** |
-| OMEGA | 95.4% | QA Accuracy |
-| Mastra (GPT-5-mini) | 94.9% | QA Accuracy |
-| Supermemory | 81.6% | QA Accuracy |
-| Zep / Graphiti | 71.2% | QA Accuracy |
-| GPT-4o (full context) | 60.6% | QA Accuracy |
-
-*\* MemPalace 96.6% is R@5 only; their Palace hierarchy was not used in the evaluation.*
+```
+┌─────────────────────────────────────────────────────────────┐
+│          Long-Term Memory Retrieval — R@5 Leaderboard       │
+│          LongMemEval (ICLR 2025, 500 questions)             │
+├─────────────────────────────────┬───────────┬───────────────┤
+│  System                         │  R@5      │  Note         │
+├─────────────────────────────────┼───────────┼───────────────┤
+│  MemPalace (ChromaDB raw)       │  96.6%    │  R@5 only *   │
+│  ★ Awareness Memory (Hybrid)    │  95.6%    │  Hybrid RRF   │
+│  OMEGA                          │  95.4%    │  QA Accuracy  │
+│  Mastra (GPT-5-mini)            │  94.9%    │  QA Accuracy  │
+│  Mastra (GPT-4o)                │  84.2%    │  QA Accuracy  │
+│  Supermemory                    │  81.6%    │  QA Accuracy  │
+│  Zep / Graphiti                 │  71.2%    │  QA Accuracy  │
+│  GPT-4o (full context)          │  60.6%    │  QA Accuracy  │
+├─────────────────────────────────┴───────────┴───────────────┤
+│  * MemPalace 96.6% is Recall@5 only, not QA Accuracy.      │
+│    Palace hierarchy was NOT used in the evaluation.         │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### Accuracy by Question Type
 
-| Capability | R@5 | Description |
-|------------|-----|-------------|
-| Knowledge Update | **100%** | User info changes over time — retrieve latest |
-| Multi-Session Reasoning | **98.5%** | Answer requires combining multiple conversations |
-| Single-Session (Assistant) | **98.2%** | Recall what the AI previously said |
-| Temporal Reasoning | 94.7% | "How many days ago did I..." |
-| Single-Session (User) | 88.6% | Recall specific user-mentioned facts |
-| Single-Session (Preference) | 86.7% | Infer user preferences from history |
-
-### Why Hybrid Retrieval Wins
-
 ```
-Vector-only:   92.6%
-BM25-only:     91.4%
-Hybrid RRF:    95.6%    ← +3% over any single method
+┌─────────────────────────────────────────────────────────────┐
+│     Awareness Memory — R@5 by Question Type                 │
+│                                                             │
+│  knowledge-update        ████████████████████████████ 100%  │
+│  multi-session           ███████████████████████████▋  98.5%│
+│  single-session-asst     ███████████████████████████▌  98.2%│
+│  temporal-reasoning      █████████████████████████▊    94.7%│
+│  single-session-user     ████████████████████████▎     88.6%│
+│  single-session-pref     ███████████████████████▏      86.7%│
+│                                                             │
+│  Overall                 █████████████████████████▉    95.6%│
+│                                                             │
+│  ┌───────────────────────────────────────────────┐          │
+│  │  Ablation Study                               │          │
+│  │  ─────────────────────────────────────────    │          │
+│  │  Vector-only:   92.6%  ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░     │          │
+│  │  BM25-only:     91.4%  ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░     │          │
+│  │  Hybrid RRF:    95.6%  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░  ★  │          │
+│  │                        Hybrid = +3% over any  │          │
+│  │                        single method alone    │          │
+│  └───────────────────────────────────────────────┘          │
+│                                                             │
+│  arxiv.org/abs/2410.10813          awareness.market         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 Zero LLM calls. Runs on Apple M1 8GB in 14 minutes. [Reproducible benchmark scripts →](https://github.com/edwin-hao-ai/Awareness/tree/main/benchmarks/longmemeval)
