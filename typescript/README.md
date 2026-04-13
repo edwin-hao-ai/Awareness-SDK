@@ -6,6 +6,56 @@ TypeScript SDK for adding persistent memory to AI agents and apps. **95.6% Recal
 
 Online docs: <https://awareness.market/docs?doc=typescript>
 
+## Benchmark: LongMemEval (ICLR 2025)
+
+Awareness Memory is evaluated on **[LongMemEval](https://arxiv.org/abs/2410.10813)** — the industry standard benchmark for long-term conversational memory, published at ICLR 2025. 500 human-curated questions across 5 core capabilities.
+
+### Results
+
+```
+Recall@1    77.6%    (388 / 500)
+Recall@3    91.8%    (459 / 500)
+Recall@5    95.6%    (478 / 500)    ◀ primary metric
+Recall@10   97.4%    (487 / 500)
+```
+
+### Leaderboard
+
+| System | Score | Metric |
+|--------|-------|--------|
+| MemPalace (ChromaDB raw) | 96.6% | R@5 only \* |
+| **Awareness Memory** | **95.6%** | **R@5 (Hybrid RRF)** |
+| OMEGA | 95.4% | QA Accuracy |
+| Mastra (GPT-5-mini) | 94.9% | QA Accuracy |
+| Supermemory | 81.6% | QA Accuracy |
+| Zep / Graphiti | 71.2% | QA Accuracy |
+| GPT-4o (full context) | 60.6% | QA Accuracy |
+
+*\* MemPalace 96.6% is R@5 only; their Palace hierarchy was not used in the evaluation.*
+
+### Accuracy by Question Type
+
+| Capability | R@5 | Description |
+|------------|-----|-------------|
+| Knowledge Update | **100%** | User info changes over time — retrieve latest |
+| Multi-Session Reasoning | **98.5%** | Answer requires combining multiple conversations |
+| Single-Session (Assistant) | **98.2%** | Recall what the AI previously said |
+| Temporal Reasoning | 94.7% | "How many days ago did I..." |
+| Single-Session (User) | 88.6% | Recall specific user-mentioned facts |
+| Single-Session (Preference) | 86.7% | Infer user preferences from history |
+
+### Why Hybrid Retrieval Wins
+
+```
+Vector-only:   92.6%
+BM25-only:     91.4%
+Hybrid RRF:    95.6%    ← +3% over any single method
+```
+
+Zero LLM calls. Runs on Apple M1 8GB in 14 minutes. [Reproducible benchmark scripts →](https://github.com/edwin-hao-ai/Awareness/tree/main/benchmarks/longmemeval)
+
+---
+
 ## Install
 
 ```bash

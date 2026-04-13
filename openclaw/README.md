@@ -2,9 +2,22 @@
 
 [![npm](https://img.shields.io/npm/v/@awareness-sdk/openclaw-memory?color=7b68ee)](https://www.npmjs.com/package/@awareness-sdk/openclaw-memory) [![LongMemEval R@5](https://img.shields.io/badge/LongMemEval_R%405-95.6%25-brightgreen)](https://arxiv.org/abs/2410.10813) [![Discord](https://img.shields.io/discord/1354000000000000000?color=5865F2&logo=discord&logoColor=white&label=Discord)](https://discord.com/invite/nMDrT538Qa)
 
-OpenClaw memory plugin backed by Awareness Memory Cloud. **95.6% Recall@5 on [LongMemEval](https://arxiv.org/abs/2410.10813) (ICLR 2025)**.
+OpenClaw memory plugin backed by Awareness Memory Cloud.
 
 Online docs: <https://awareness.market/docs?doc=openclaw>
+
+## Benchmark: LongMemEval (ICLR 2025)
+
+Awareness Memory achieves **95.6% Recall@5** on [LongMemEval](https://arxiv.org/abs/2410.10813) (ICLR 2025) — 500 human-curated questions, zero LLM calls, hybrid BM25+Vector retrieval. [Full results →](https://github.com/edwin-hao-ai/Awareness/tree/main/benchmarks/longmemeval)
+
+| System | Score | | Capability | R@5 |
+|--------|-------|-|------------|-----|
+| MemPalace | 96.6% | | Knowledge Update | **100%** |
+| **Awareness** | **95.6%** | | Multi-Session | **98.5%** |
+| OMEGA | 95.4% | | Temporal Reasoning | 94.7% |
+| Supermemory | 81.6% | | Preference Inference | 86.7% |
+
+---
 
 ## Installation
 
