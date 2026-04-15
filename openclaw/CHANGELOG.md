@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.7] - 2026-04-16
+
+### Added
+- **`awareness_mark_skill_used` tool**: New tool #8 allowing LLMs to report skill execution outcomes (success/partial/failed). Outcomes adjust decay score, confidence, and consecutive failure tracking.
+- **`client.markSkillUsed()` method**: Supports both local (MCP JSON-RPC) and cloud (REST) modes with outcome parameter.
+
+### Changed
+- **`awareness_apply_skill` description updated**: Now mentions outcome feedback via `awareness_mark_skill_used`.
+- **Wiki-style knowledge cards**: Extraction prompts produce rich 200-800 char Markdown entries.
+
 ## [0.6.6] - 2026-04-15
 
 ### Changed
