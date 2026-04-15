@@ -67,6 +67,7 @@ import {
   warmupEmbedder,
 } from './daemon/embedding-helpers.mjs';
 import { runGraphEmbeddingPipeline } from './daemon/graph-embedder.mjs';
+import { shouldRequestExtraction, buildExtractionInstruction } from './daemon/extraction-instruction.mjs';
 
 // Read version from package.json (not hardcoded)
 const __daemon_dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -144,7 +145,7 @@ function _checkCrystallizationLocal(db, newCard) {
     const similarCards = rows.slice(0, _CRYST_MAX_CARDS).map(r => ({
       id: r.id,
       title: r.title,
-      summary: (r.summary || '').slice(0, 200),
+      summary: r.summary || '',
     }));
 
     const categories = [...new Set(rows.map(r => r.category))];
@@ -785,6 +786,26 @@ export class AwarenessLocalDaemon {
       mode: 'local',
     };
 
+    // Return _extraction_instruction when the caller didn't provide pre-extracted insights.
+    // This mirrors the cloud MCP backend behaviour: the client LLM does extraction using
+    // its own model, then calls awareness_record(action="submit_insights") with the result.
+    if (shouldRequestExtraction(params)) {
+      try {
+        const existingCards = this.indexer.db
+          .prepare("SELECT id, title, category, summary FROM knowledge_cards WHERE status = 'active' ORDER BY created_at DESC LIMIT 8")
+          .all();
+        const spec = this._loadSpec();
+        result._extraction_instruction = buildExtractionInstruction({
+          content: params.content,
+          memoryId: id,
+          existingCards,
+          spec,
+        });
+      } catch (_err) {
+        // Non-fatal: extraction instruction is best-effort
+      }
+    }
+
     if (perception && perception.length > 0) {
       result.perception = perception;
     }
@@ -1181,6 +1202,8 @@ ${card.summary || card.title || ''}
           created_at: nowISO(),
           filepath: cardFilepath,
           content: card.summary || card.title || '',
+          novelty_score: card.novelty_score ?? null,
+          salience_reason: card.salience_reason || null,
         };
         this.indexer.indexKnowledgeCard(cardData);
 

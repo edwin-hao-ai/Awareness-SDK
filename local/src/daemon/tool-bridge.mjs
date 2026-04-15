@@ -141,17 +141,61 @@ export async function callMcpTool(daemon, name, args) {
       }
 
       case 'awareness_mark_skill_used': {
-        const { skill_id } = args;
+        const { skill_id, outcome = 'success' } = args;
         if (!skill_id) {
           result = mcpResult({ error: 'skill_id is required' });
           break;
         }
+        const validOutcomes = ['success', 'partial', 'failed'];
+        if (!validOutcomes.includes(outcome)) {
+          result = mcpResult({ error: `Invalid outcome: "${outcome}". Must be success/partial/failed.` });
+          break;
+        }
         const now = new Date().toISOString();
         try {
+          // Fetch current state for outcome-based adjustments
+          const current = daemon.indexer.db.prepare(
+            `SELECT decay_score, confidence, consecutive_failures FROM skills WHERE id = ?`
+          ).get(skill_id);
+          if (!current) {
+            result = mcpResult({ error: `Skill ${skill_id} not found` });
+            break;
+          }
+
+          const curDecay = current.decay_score ?? 1.0;
+          const curConfidence = current.confidence ?? 1.0;
+          const curFailures = current.consecutive_failures ?? 0;
+
+          let newDecay, newConfidence, newFailures;
+          if (outcome === 'success') {
+            newDecay = 1.0;
+            newConfidence = Math.min(1.0, curConfidence + 0.05);
+            newFailures = 0;
+          } else if (outcome === 'partial') {
+            newDecay = 0.7;
+            newConfidence = curConfidence;
+            newFailures = 0;
+          } else {
+            // failed
+            newDecay = Math.max(0.1, curDecay - 0.2);
+            newConfidence = Math.max(0.1, curConfidence - 0.1);
+            newFailures = curFailures + 1;
+          }
+
+          const newStatus = newFailures >= 3 ? 'needs_review' : undefined;
+          const statusClause = newStatus ? `, status = '${newStatus}'` : '';
+
           daemon.indexer.db.prepare(
-            `UPDATE skills SET usage_count = usage_count + 1, last_used_at = ?, decay_score = 1.0, updated_at = ? WHERE id = ?`
-          ).run(now, now, skill_id);
-          result = mcpResult({ success: true, skill_id });
+            `UPDATE skills SET usage_count = usage_count + 1, last_used_at = ?,
+             decay_score = ?, confidence = ?, consecutive_failures = ?,
+             updated_at = ?${statusClause} WHERE id = ?`
+          ).run(now, newDecay, newConfidence, newFailures, now, skill_id);
+
+          const res = { success: true, skill_id, outcome, decay_score: newDecay, confidence: newConfidence };
+          if (newFailures >= 3) {
+            res._notice = `Skill has failed ${newFailures} consecutive times and is now marked 'needs_review'.`;
+          }
+          result = mcpResult(res);
         } catch (err) {
           result = mcpResult({ error: `Failed to mark skill used: ${err.message}` });
         }
