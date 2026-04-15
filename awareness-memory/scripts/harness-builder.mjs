@@ -308,7 +308,8 @@ export function buildContextXml(ctx, recallResults, perceptionSignals, options =
   if (options.recordRuleScript) {
     parts.push("  <record-rule>");
     parts.push(`    Save significant work SILENTLY: node "${esc(options.recordRuleScript)}" '<JSON>'`);
-    parts.push('    JSON: {"content":"what+why","cards":[{"title":"...","summary":"...","category":"<see guide>"}]}');
+    parts.push('    JSON: {"content":"what+why in detail","cards":[{"title":"...","summary":"200-800 char wiki entry with Markdown","category":"<see guide>"}]}');
+    parts.push("    Card summary = mini wiki entry. Write naturally per category (see below), include file paths, commands, versions.");
     parts.push("    Category guide (pick ONE, ask: is this about the USER or about TECH?):");
     parts.push("      Personal (user info, non-technical): personal_preference (likes/dislikes/style), important_detail (name/role/facts), career_info, activity_preference, plan_intention, health_info");
     parts.push("      Technical: decision (chose between options), problem_solution (bug+fix), workflow (process/setup/config steps), pitfall (warning/limitation), insight (reusable pattern), key_point (other tech fact)");

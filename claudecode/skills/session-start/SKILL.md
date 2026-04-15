@@ -53,6 +53,12 @@ The response is JSON-RPC: `result.content[0].text` contains the tool output as J
 
 7. If `active_skills` is present, apply each skill's `summary` as behavioral guidance for the session.
 
+8. **Skill Outcome Feedback**: After applying any active skill during this session, call
+   `awareness_mark_skill_used(skill_id, outcome)` with one of:
+   - `"success"` — skill worked as expected (resets decay, boosts confidence)
+   - `"partial"` — skill partially helped (reduced decay boost)
+   - `"failed"` — skill didn't work (decreases confidence; 3+ failures → needs_review)
+
 Rules:
 - Do not dump raw JSON — summarize in plain language
 - Be brief and actionable, not exhaustive

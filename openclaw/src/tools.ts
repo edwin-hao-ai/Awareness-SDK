@@ -48,7 +48,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         { step: 1, action: "awareness_init", when: "FIRST thing every session", what: "Get session_id + past context + active_skills[]" },
         { step: 2, action: "awareness_recall", when: "BEFORE starting work", what: "Search memory for relevant past context" },
         { step: 3, action: "awareness_record", when: "AFTER every change", what: 'awareness_record(action="write", content=<detailed description with reasoning, code snippets, files changed>)' },
-        { step: 4, action: "handle _extraction_instruction", when: "response contains _extraction_instruction", what: 'Extract insights, then call awareness_record(action="write", content="summary", insights=<json>). HIGH_SALIENCE — always record as cards: (1) decisions made between alternatives [!], (2) bugs found AND fixed [!], (3) previous approaches explicitly reversed [!], (4) "never/always" rules stated [!]. For each card include novelty_score (0.0-1.0 vs existing knowledge) and salience_reason (decision_made|error_fixed|approach_reversed|first_encounter|routine).', warning: "Skipping = NO searchable knowledge cards" },
+        { step: 4, action: "handle _extraction_instruction", when: "response contains _extraction_instruction", what: 'Extract insights, then call awareness_record(action="write", content="summary", insights=<json>). Each card summary = 200-800 char wiki-style Markdown entry, naturally structured per category (decision→alternatives+trade-offs; problem_solution→symptom+fix+files; personal_preference→preference+scope+examples). HIGH_SALIENCE — always record: (1) decisions [!], (2) bugs fixed [!], (3) reversed approaches [!], (4) never/always rules [!], (5) user preferences [!]. Include novelty_score (0.0-1.0) and salience_reason.', warning: "Skipping = NO searchable knowledge cards" },
         { step: 5, action: "handle _skill_crystallization_hint (F-034)", when: "awareness_record response contains _skill_crystallization_hint", what: 'Review hint.similar_cards, synthesize into a skill, submit: awareness_record(insights={skills:[{name, summary, methods:[], trigger_conditions:[], tags:[], source_card_ids:[]}]})', warning: "Converts repeated patterns into reusable skills — skipping wastes the signal." },
       ],
       tips: {
@@ -456,7 +456,8 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
     description:
       "Apply a learned skill — returns a structured step-by-step execution plan.\n" +
       "Call this when a task matches an active skill from the <skills> section.\n" +
-      "The skill will be marked as used automatically (resets decay timer).",
+      "The skill will be marked as used automatically (resets decay timer).\n" +
+      "After completing the task, call awareness_mark_skill_used with outcome feedback.",
     inputSchema: {
       type: "object",
       properties: {
@@ -478,6 +479,40 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
 
       const result = await client.applySkill(skillId, context);
       return result;
+    },
+  });
+
+  // -----------------------------------------------------------------------
+  // 8. awareness_mark_skill_used — Report skill outcome feedback
+  // -----------------------------------------------------------------------
+  api.registerTool({
+    id: "awareness_mark_skill_used",
+    name: "awareness_mark_skill_used",
+    description:
+      "Report skill usage outcome after applying a skill.\n" +
+      "Closes the feedback loop: 'success' (default) resets decay fully,\n" +
+      "'partial' gives reduced boost, 'failed' decreases confidence.\n" +
+      "3+ consecutive failures auto-flag the skill for review.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skill_id: {
+          type: "string",
+          description: "ID of the skill to mark as used.",
+        },
+        outcome: {
+          type: "string",
+          enum: ["success", "partial", "failed"],
+          description: "Outcome of applying the skill. Default: 'success'.",
+        },
+      },
+      required: ["skill_id"],
+    },
+    execute: async (input) => {
+      const skillId = String(input.skill_id || "");
+      if (!skillId) return { error: "skill_id is required" };
+      const outcome = (input.outcome as "success" | "partial" | "failed") || "success";
+      return client.markSkillUsed(skillId, outcome);
     },
   });
 }

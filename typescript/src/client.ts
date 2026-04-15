@@ -1288,16 +1288,22 @@ export class MemoryCloudClient {
   }
 
   /**
-   * Mark a skill as used, resetting its decay timer.
+   * Mark a skill as used with outcome feedback.
+   * @param input.outcome - "success" (default), "partial", or "failed"
    */
   async markSkillUsed(input: {
     memoryId: string;
     skillId: string;
+    outcome?: "success" | "partial" | "failed";
     traceId?: string;
   }): Promise<Skill> {
+    const jsonBody = input.outcome && input.outcome !== "success"
+      ? { outcome: input.outcome }
+      : undefined;
     return this.requestJson<Skill>({
       method: "POST",
       path: `/memories/${input.memoryId}/skills/${input.skillId}/use`,
+      jsonBody,
       traceId: input.traceId,
     });
   }

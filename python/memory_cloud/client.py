@@ -1521,22 +1521,30 @@ class MemoryCloudClient:
         self,
         memory_id: str,
         skill_id: str,
+        outcome: Optional[str] = "success",
         trace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Mark a skill as used, resetting its decay timer.
+        Mark a skill as used with outcome feedback.
 
         Args:
             memory_id: Target memory id.
             skill_id: The skill to mark as used.
+            outcome: "success" (default), "partial", or "failed".
+                     Failed outcomes decrease confidence; 3+ consecutive
+                     failures auto-flag the skill for review.
             trace_id: Optional trace id.
 
         Returns:
             Updated skill data.
         """
+        body = None
+        if outcome and outcome != "success":
+            body = {"outcome": outcome}
         data, resolved_trace = self._request(
             method="POST",
             path=f"/memories/{memory_id}/skills/{skill_id}/use",
+            json_payload=body,
             trace_id=trace_id,
         )
         return self._attach_trace(data, resolved_trace)

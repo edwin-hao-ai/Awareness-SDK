@@ -21,7 +21,7 @@ The response is JSON-RPC: `result.content[0].text` contains the tool output as J
 ## Steps
 
 1. Gather context about this session, then extract structured insights:
-   - knowledge_cards: key facts, decisions, patterns (each with category, title, summary)
+   - knowledge_cards: key facts, decisions, patterns (each with category, title, summary — write each summary as 200-800 char wiki-style Markdown, naturally structured per category)
    - action_items: pending tasks, TODOs (each with title, description, priority)
    - risks: potential issues (each with title, description, severity)
    - completed_tasks: tasks from awareness_init that were completed (each with task_id, reason)

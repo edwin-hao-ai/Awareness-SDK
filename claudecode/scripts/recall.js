@@ -266,7 +266,8 @@ async function main() {
       // Append record-rule (CC-specific)
       base += "\n  <record-rule>";
       base += `\n    Save significant work SILENTLY: node "${resolvedScript}" '<JSON>'`;
-      base += '\n    JSON: {"content":"what+why","cards":[{"title":"...","summary":"...","category":"decision|problem_solution|workflow|pitfall|insight|key_point|personal_preference|important_detail"}]}';
+      base += '\n    JSON: {"content":"what+why in detail","cards":[{"title":"...","summary":"200-800 char wiki entry with Markdown","category":"decision|problem_solution|workflow|pitfall|insight|key_point|personal_preference|important_detail"}]}';
+      base += "\n    Card summary = mini wiki entry. Write naturally per category: decision→alternatives+trade-offs; problem_solution→symptom+fix+files; personal_preference→preference+scope+examples.";
       base += "\n    Save decisions, solutions, pitfalls, user preferences. NOT every tool call.";
       base += "\n    DO NOT SAVE: greetings, confirmations, debug logs, news/search results, sender metadata, trivial interactions, API keys/tokens/credentials, system bootstrap instructions.";
       base += "\n    Categories: [Tech] decision|problem_solution|workflow|pitfall|insight|key_point|skill";

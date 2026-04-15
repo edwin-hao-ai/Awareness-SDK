@@ -1052,4 +1052,40 @@ export class AwarenessClient {
     }
     return (await response.json()) as Record<string, unknown>;
   }
+
+  /**
+   * Mark a skill as used with outcome feedback.
+   * Closes the learning loop: success reinforces, failure triggers review.
+   */
+  async markSkillUsed(
+    skillId: string,
+    outcome: "success" | "partial" | "failed" = "success",
+  ): Promise<Record<string, unknown>> {
+    if (this.isLocal) {
+      const args: Record<string, unknown> = { skill_id: skillId, outcome };
+      const blocks = await this.mcpCallRaw("awareness_mark_skill_used", args);
+      if (blocks.length === 0) return { error: "No response from daemon" };
+      try {
+        return JSON.parse(blocks[0].text) as Record<string, unknown>;
+      } catch {
+        return { result: blocks[0].text };
+      }
+    }
+
+    // Cloud mode: REST API
+    const url = `${this.baseUrl}/memories/${this.memoryId}/skills/${skillId}/use`;
+    const body = outcome !== "success" ? { outcome } : undefined;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!response.ok) {
+      return { error: `API error: ${response.status}` };
+    }
+    return (await response.json()) as Record<string, unknown>;
+  }
 }
