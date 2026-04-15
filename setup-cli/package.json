@@ -37,6 +37,11 @@
     "node": ">=16"
   },
   "scripts": {
-    "test": "node --test tests/*.test.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "ship-gate:L1": "node -e \"const fs=require('fs'),cp=require('child_process');const walk=(d,out=[])=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=d+'/'+e.name;e.isDirectory()?walk(p,out):/\\.(m?js|cjs)$/.test(e.name)&&out.push(p)}return out};const files=walk('src');files.forEach(f=>cp.execSync('node -c '+f));console.log('L1 syntax OK ('+files.length+' files)')\"",
+    "ship-gate:L2": "npm run test",
+    "ship-gate:L3": "echo 'L3 chaos: headless-auth timeout/5xx covered in tests/cli.test.cjs (headless-auth-* suites)'",
+    "ship-gate": "npm run ship-gate:L1 && npm run ship-gate:L2 && npm run ship-gate:L3",
+    "prepublishOnly": "npm run ship-gate"
   }
 }

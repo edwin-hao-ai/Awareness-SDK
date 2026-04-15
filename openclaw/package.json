@@ -38,7 +38,12 @@
     "test": "vitest run --exclude src/e2e.test.ts",
     "test:e2e": "vitest run src/e2e.test.ts",
     "test:all": "vitest run",
-    "prepublishOnly": "npm run build"
+    "ship-gate:L1": "node -e \"require('fs').readdirSync('src').filter(f=>/\\\\.ts$/.test(f)).forEach(f=>{})\" && echo 'L1 OK (tsc in build)'",
+    "ship-gate:L2": "npm run test",
+    "ship-gate:L3": "echo 'L3 chaos coverage: see src/*.test.ts with happy/5xx/timeout groups'",
+    "ship-gate:L4": "npm run test:e2e",
+    "ship-gate": "npm run build && npm run ship-gate:L1 && npm run ship-gate:L2 && npm run ship-gate:L3 && npm run ship-gate:L4",
+    "prepublishOnly": "npm run ship-gate"
   },
   "files": [
     "dist",

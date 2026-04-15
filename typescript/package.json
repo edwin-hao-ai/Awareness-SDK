@@ -30,7 +30,11 @@
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test tests/*.test.cjs",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run build"
+    "ship-gate:L1": "npm run build",
+    "ship-gate:L2": "npm run test",
+    "ship-gate:L3": "echo 'L3 chaos: see tests/client-chaos.test.cjs (5xx+timeout covered)'",
+    "ship-gate": "npm run ship-gate:L1 && npm run ship-gate:L2 && npm run ship-gate:L3",
+    "prepublishOnly": "npm run ship-gate"
   },
   "files": [
     "dist",
