@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.5] - 2026-04-15
+
+### Changed
+- **Salience-aware extraction guidance**: bundled `awareness-spec.json` now includes HIGH_SALIENCE signals and `novelty_score`/`salience_reason` fields in `write_guide`. Local daemon users now receive the same extraction quality improvements as cloud MCP users.
+
 ## [0.6.4] - 2026-04-15
 
 ### Added — Skill export (F-032 extension)

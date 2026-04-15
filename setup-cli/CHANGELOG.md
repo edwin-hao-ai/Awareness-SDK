@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.6] - 2026-04-15
+
+### Changed
+- **Salience-aware extraction guidance**: bundled `awareness-spec.json` updated with HIGH_SALIENCE signals and `novelty_score`/`salience_reason` fields. IDE rules injected by `setup` CLI now guide LLMs to prioritize decisions, bug fixes, and approach reversals with structured salience metadata.
+
 ## [0.4.5] - 2026-04-15
 
 ### Changed
