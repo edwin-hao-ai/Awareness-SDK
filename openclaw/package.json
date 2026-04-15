@@ -1,6 +1,6 @@
 {
   "name": "@awareness-sdk/openclaw-memory",
-  "version": "0.6.7",
+  "version": "0.6.8",
   "description": "OpenClaw memory plugin backed by Awareness Memory Cloud",
   "license": "Apache-2.0",
   "repository": {
