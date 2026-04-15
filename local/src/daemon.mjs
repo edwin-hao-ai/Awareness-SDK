@@ -57,7 +57,7 @@ import { startFileWatcher, startWorkspaceWatcher, startGitHeadWatcher } from './
 import { scanWorkspace, indexWorkspaceFiles, getGitChanges, getCurrentCommit, isGitRepo, markDeletedFiles, handleRenamedFiles } from './core/workspace-scanner.mjs';
 import { loadScanState, saveScanState, createScanState, updateScanState, appendScanError } from './core/scan-state.mjs';
 import { loadScanConfig } from './core/scan-config.mjs';
-import { initTelemetry, getTelemetry } from './core/telemetry.mjs';
+import { initTelemetry, getTelemetry, track } from './core/telemetry.mjs';
 import { loadGitignoreRules } from './core/gitignore-parser.mjs';
 import { classifyFile } from './core/scan-defaults.mjs';
 import {
@@ -327,6 +327,7 @@ export class AwarenessLocalDaemon {
 
     // ---- Cloud sync (optional) ----
     const config = this._loadConfig();
+
     if (config.cloud?.enabled) {
       try {
         this.cloudSync = new CloudSync(config, this.indexer, this.memoryStore);
@@ -536,6 +537,7 @@ export class AwarenessLocalDaemon {
       jsonResponse(res, { error: 'Not Found' }, 404);
     } catch (err) {
       console.error('[awareness-local] request error:', err.message);
+      track('error_occurred', { error_code: err.code || 'unknown', component: 'api' });
       jsonResponse(res, { error: 'Internal Server Error' }, 500);
     }
   }

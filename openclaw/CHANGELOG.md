@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.6] - 2026-04-15
+
+### Changed
+- **Salience-aware extraction guidance**: `awareness_record` step 4 now includes HIGH_SALIENCE signals — LLM prioritizes decisions, bug fixes, approach reversals, and never/always rules with `novelty_score` and `salience_reason` fields. Improves knowledge card quality and reduces noise.
+
 ## [0.6.5] - 2026-04-15
 
 ### Changed
