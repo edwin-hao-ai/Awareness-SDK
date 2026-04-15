@@ -601,7 +601,11 @@ export class AwarenessInterceptor {
       // Replace {existing_cards} placeholder in prompt
       const cardsJson = existingCards.length > 0 ? JSON.stringify(existingCards, null, 2) : "[]";
       const filledPrompt = systemPrompt.replace("{existing_cards}", cardsJson);
-      const compactEvents = compactEventsForExtraction(events);
+      const compactEvents = compactEventsForExtraction(events, {
+        maxEvents: 12,
+        maxCharsPerEvent: 480,
+        maxTotalChars: 3600,
+      });
       const userContent = JSON.stringify({ events: compactEvents });
 
       const text = await this.callLLMForExtraction(filledPrompt, userContent);

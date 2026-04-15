@@ -795,13 +795,14 @@ test("--cloud flag triggers cloud mode (with explicit args)", async () => {
   }
 });
 
-test("buildMcpServerConfig local mode omits auth headers", () => {
-  const config = rulesModule.buildMcpServerConfig({
-    mcpUrl: "http://localhost:37800/mcp",
-    isLocal: true,
-  });
+test("buildMcpServerConfig local mode uses stdio (no url, no auth)", () => {
+  const config = rulesModule.buildMcpServerConfig({ isLocal: true });
   const entry = config.mcpServers["awareness-memory"];
-  assert.equal(entry.url, "http://localhost:37800/mcp");
+  // Local mode uses npx stdio bridge — no url, no headers
+  assert.equal(entry.type, "stdio");
+  assert.equal(entry.command, "npx");
+  assert.ok(Array.isArray(entry.args));
+  assert.equal(entry.url, undefined);
   assert.equal(entry.headers, undefined);
 });
 
@@ -825,12 +826,11 @@ test("buildMcpServerConfig cloud mode includes auth headers", () => {
   assert.equal(entry.headers["X-Awareness-Memory-Id"], "mem_id");
 });
 
-test("syncIdeMcpConfig local mode creates config without auth headers", () => {
+test("syncIdeMcpConfig local mode creates stdio config without auth headers", () => {
   const cwd = makeTempDir();
   const result = rulesModule.syncIdeMcpConfig({
     cwd,
     ideId: "copilot",
-    mcpUrl: "http://localhost:37800/mcp",
     isLocal: true,
   });
   assert.equal(result.ok, true);
@@ -838,8 +838,11 @@ test("syncIdeMcpConfig local mode creates config without auth headers", () => {
   const content = fs.readFileSync(path.join(cwd, ".vscode", "mcp.json"), "utf-8");
   const parsed = JSON.parse(content);
   const entry = parsed.servers["awareness-memory"];
-  assert.equal(entry.url, "http://localhost:37800/mcp");
-  // No headers in local mode
+  // Local mode writes stdio entry — no url, no headers
+  assert.equal(entry.type, "stdio");
+  assert.equal(entry.command, "npx");
+  assert.ok(Array.isArray(entry.args));
+  assert.equal(entry.url, undefined);
   assert.equal(entry.headers, undefined);
 });
 

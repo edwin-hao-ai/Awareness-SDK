@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.4.4] - 2026-04-15
+
+### Changed
+- **LongMemEval benchmark README**: Enriched documentation with full benchmark methodology, competitive analysis, and ASCII art visualizations. R@5=95.6% vs 61.2% baseline, verified on 500-question LongMemEval-Omni subset.
+
 ## [2.4.3] - 2026-04-11
 
 ### Fixed (real local-mode bridge — supersedes the v2.4.2 default-port "fix")

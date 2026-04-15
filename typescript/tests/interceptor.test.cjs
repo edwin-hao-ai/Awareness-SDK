@@ -7,7 +7,7 @@ test("runExtraction compacts events before LLM call and submits insights", async
   const fakeClient = {
     retrieve: async () => ({ results: [] }),
     rememberStep: async () => ({}),
-    submitInsights: async (input) => {
+    _submitInsights: async (input) => {
       submitCalls.push(input);
       return { accepted: true };
     },

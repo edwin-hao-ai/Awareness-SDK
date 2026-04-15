@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.5] - 2026-04-15
+
+### Changed
+- **Ship-gate quality enforcement**: `prepublishOnly` now runs the full 5-layer ship-gate (`build → L1 static → L2 unit → L3 chaos → L4 e2e`). Future releases require all gates green before any npm publish.
+- **LongMemEval benchmark README**: Updated with ASCII art visualizations showing R@5=95.6% vs 61.2% baseline.
+
 ## [0.6.4] - 2026-04-13
 
 ### Added

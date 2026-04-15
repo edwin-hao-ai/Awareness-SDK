@@ -685,6 +685,10 @@ export class MemoryCloudClient {
     return results;
   }
 
+  beginMemorySession(input: { memoryId: string; source?: string; sessionId?: string }): JsonObject {
+    return this._beginMemorySession(input);
+  }
+
   private _beginMemorySession(input: { memoryId: string; source?: string; sessionId?: string }): JsonObject {
     const sourceLabel = this.cleanSource(input.source ?? this.defaultSource);
     const activeSession = this.resolveSession({

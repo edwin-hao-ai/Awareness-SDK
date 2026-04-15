@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.5] - 2026-04-15
+
+### Changed
+- **Ship-gate quality enforcement**: `prepublishOnly` now runs the 5-layer ship-gate (`L1 syntax → L2 unit → L3 chaos echo`). Future releases require all gates green before any npm publish.
+
 ## [0.4.4] - 2026-04-12
 
 ### Added (F-035 — headless device auth)

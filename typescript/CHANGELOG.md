@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.4.4] - 2026-04-15
+
+### Added
+- **L3 chaos tests** (`tests/client-chaos.test.cjs`): Three failure-mode tests — 502 HTML body, ETIMEDOUT, empty response — all verified the SDK surfaces a proper error instead of silently returning undefined.
+
+### Changed
+- **Ship-gate quality enforcement**: `prepublishOnly` now runs the 5-layer ship-gate (`build → L1 → L2 → L3`). Future releases require all gates green before any npm publish.
+- **LongMemEval benchmark README**: Updated with ASCII art visualizations showing R@5=95.6% vs 61.2% baseline.
+
 ## [2.4.3] - 2026-04-11
 
 ### Fixed (real local-mode bridge — supersedes the v2.4.2 default-port "fix")
