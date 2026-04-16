@@ -42,7 +42,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       "Call this when you're unsure what to do next with Awareness memory tools.\n" +
       "Returns a step-by-step checklist so you always know the right next action.\n" +
       "Low-cost call — use it anytime you need a reminder of the workflow.",
-    inputSchema: { type: "object", properties: {} },
+    parameters: { type: "object", properties: {} },
     execute: async () => ({
       workflow: [
         { step: 1, action: "awareness_init", when: "FIRST thing every session", what: "Get session_id + past context + active_skills[]" },
@@ -72,7 +72,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       "RETURNS: session_id, recent summaries, open tasks, knowledge cards.\n" +
       "If response contains _setup_action, you MUST follow it to write rules.\n" +
       "AFTER THIS: call awareness_recall to check for relevant past context.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         days: {
@@ -120,7 +120,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       "2. When a task matches a role, call awareness_get_agent_prompt(agent_role='<role>').\n" +
       "3. Spawn a sub-agent with the returned activation_prompt as its system prompt.\n" +
       "4. The sub-agent passes agent_role='<role>' to all awareness_* calls for memory isolation.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         agent_role: {
@@ -146,7 +146,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       "Call BEFORE starting work to avoid re-solving solved problems.\n" +
       "Usage: awareness_recall(semantic_query=\"How was auth implemented?\", keyword_query=\"auth JWT\")\n" +
       "Just provide semantic_query for most tasks — defaults handle the rest.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         semantic_query: {
@@ -263,7 +263,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       "Fast DB lookup — use instead of awareness_recall when you know WHAT you want.\n" +
       "awareness_recall = search by meaning (semantic). awareness_lookup = get by type (<50ms).\n" +
       "Examples: type=\"tasks\" for open tasks, type=\"knowledge\" for cards, type=\"risks\" for risks.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         type: {
@@ -312,7 +312,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       "CRITICAL: When response contains _extraction_instruction, you MUST follow it\n" +
       "to extract insights, then call awareness_record(action=\"write\", content=\"summary\", insights=<json>).\n" +
       "Skipping = raw events stored but NO searchable knowledge cards created.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         action: {
@@ -376,7 +376,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       "Search across your persistent memory using semantic + keyword hybrid retrieval.\n" +
       "Powered by Awareness Memory — structured knowledge cards, cross-session recall.\n" +
       "Returns relevant snippets with file path, score, and context.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         query: { type: "string", description: "Natural language search query." },
@@ -423,7 +423,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
     description:
       "Retrieve the full content of a specific memory item by ID.\n" +
       "Use after memory_search to get complete details of a relevant result.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         id: { type: "string", description: "Memory item ID to retrieve." },
@@ -458,7 +458,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       "Call this when a task matches an active skill from the <skills> section.\n" +
       "The skill will be marked as used automatically (resets decay timer).\n" +
       "After completing the task, call awareness_mark_skill_used with outcome feedback.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         skill_id: {
@@ -493,7 +493,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       "Closes the feedback loop: 'success' (default) resets decay fully,\n" +
       "'partial' gives reduced boost, 'failed' decreases confidence.\n" +
       "3+ consecutive failures auto-flag the skill for review.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         skill_id: {

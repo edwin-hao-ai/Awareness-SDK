@@ -121,9 +121,9 @@ describe("registerTools", () => {
       expect(result.context).toBeDefined();
     });
 
-    it("has user_id in inputSchema", () => {
+    it("has user_id in parameters", () => {
       const tools = setupTools();
-      const schema = tools["awareness_init"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_init"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, unknown>;
       expect(props.user_id).toBeDefined();
     });
@@ -135,13 +135,13 @@ describe("registerTools", () => {
   describe("awareness_recall", () => {
     it("requires semantic_query", () => {
       const tools = setupTools();
-      const schema = tools["awareness_recall"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_recall"].parameters as Record<string, unknown>;
       expect(schema.required).toEqual(["semantic_query"]);
     });
 
     it("supports all 5 recall modes", () => {
       const tools = setupTools();
-      const schema = tools["awareness_recall"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_recall"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, Record<string, unknown>>;
       expect(props.recall_mode.enum).toEqual([
         "precise",
@@ -154,7 +154,7 @@ describe("registerTools", () => {
 
     it("exposes multi_level, cluster_expand, confidence_threshold, include_installed, user_id, agent_role", () => {
       const tools = setupTools();
-      const schema = tools["awareness_recall"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_recall"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, unknown>;
       expect(props.bm25_weight).toBeDefined();
       expect(props.multi_level).toBeDefined();
@@ -204,13 +204,13 @@ describe("registerTools", () => {
   describe("awareness_lookup", () => {
     it("requires type parameter", () => {
       const tools = setupTools();
-      const schema = tools["awareness_lookup"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_lookup"].parameters as Record<string, unknown>;
       expect(schema.required).toEqual(["type"]);
     });
 
     it("supports all 10 lookup types", () => {
       const tools = setupTools();
-      const schema = tools["awareness_lookup"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_lookup"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, Record<string, unknown>>;
       expect(props.type.enum).toEqual([
         "context",
@@ -228,7 +228,7 @@ describe("registerTools", () => {
 
     it("has graph/rules-specific params in schema", () => {
       const tools = setupTools();
-      const schema = tools["awareness_lookup"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_lookup"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, unknown>;
       expect(props.format).toBeDefined();
       expect(props.entity_id).toBeDefined();
@@ -239,7 +239,7 @@ describe("registerTools", () => {
 
     it("has user_id in schema", () => {
       const tools = setupTools();
-      const schema = tools["awareness_lookup"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_lookup"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, unknown>;
       expect(props.user_id).toBeDefined();
     });
@@ -251,13 +251,13 @@ describe("registerTools", () => {
   describe("awareness_record", () => {
     it("requires action parameter", () => {
       const tools = setupTools();
-      const schema = tools["awareness_record"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_record"].parameters as Record<string, unknown>;
       expect(schema.required).toEqual(["action"]);
     });
 
     it("supports write and update_task actions", () => {
       const tools = setupTools();
-      const schema = tools["awareness_record"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_record"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, Record<string, unknown>>;
       expect(props.action.enum).toEqual([
         "write",
@@ -267,7 +267,7 @@ describe("registerTools", () => {
 
     it("has user_id and insights in schema", () => {
       const tools = setupTools();
-      const schema = tools["awareness_record"].inputSchema as Record<string, unknown>;
+      const schema = tools["awareness_record"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, unknown>;
       expect(props.user_id).toBeDefined();
       expect(props.insights).toBeDefined();

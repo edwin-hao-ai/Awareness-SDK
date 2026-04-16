@@ -64,7 +64,7 @@ export interface ToolDefinition {
   /** Tool name used by the OpenClaw host for registration. Should match id. */
   name: string;
   description: string;
-  inputSchema: Record<string, unknown>;
+  parameters: Record<string, unknown>;
   execute: (input: Record<string, unknown>) => Promise<unknown>;
 }
 

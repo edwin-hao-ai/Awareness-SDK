@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.7] - 2026-04-16
+
+### Changed
+- Aligning with overall system improvements in OpenClaw plugin v0.6.9
+- Awareness system now uses consistent parameters schema across all integrations
+- No functional changes to scripts, but improved compatibility with latest OpenClaw versions
+
+## [0.3.6] - 2026-04-16
+
+### Changed
+- Aligning with overall system improvements in OpenClaw plugin v0.6.9
+- Awareness system now uses consistent parameters schema across all integrations
+- No functional changes to scripts, but improved compatibility with latest OpenClaw versions
+
+## [0.3.5] - 2026-04-16
+
+### Changed
+- Aligning with overall system improvements in OpenClaw plugin v0.6.9
+- Awareness system now uses consistent parameters schema across all integrations
+- No functional changes to scripts, but improved compatibility with latest OpenClaw versions
+
 ## [0.3.4] - 2026-04-12
 
 ### Fixed (F-035 gap — scripts missed in 0.3.3 publish)

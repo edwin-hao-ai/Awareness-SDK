@@ -58,7 +58,7 @@ export function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE
       "Call with action='start_auth' to start a mobile-friendly device auth flow (no manual config editing needed). " +
       "Call with action='check_auth' to check if auth was approved. " +
       "Or call with no arguments for full setup instructions.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         action: {
