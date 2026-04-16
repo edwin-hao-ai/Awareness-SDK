@@ -73,7 +73,7 @@ export function registerSetupMode(api: PluginApi, baseUrl: string = DEFAULT_BASE
         },
       },
     },
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (_toolCallId: string, args: Record<string, unknown>) => {
       const action = args.action as string | undefined;
 
       // --- Device auth: start ---

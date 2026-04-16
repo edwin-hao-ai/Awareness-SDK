@@ -1,65 +1,44 @@
 {
   "name": "@awareness-sdk/openclaw-memory",
-  "version": "0.6.9",
-  "description": "OpenClaw memory plugin backed by Awareness Memory Cloud",
+  "version": "0.6.10",
+  "description": "OpenClaw plugin for Awareness memory — cross-session recall and learnings",
+  "author": "Edwin Hao",
   "license": "Apache-2.0",
+  "homepage": "https://awareness.market",
   "repository": {
     "type": "git",
-    "url": "https://github.com/edwin-hao-ai/Awareness-SDK.git",
-    "directory": "openclaw"
+    "url": "https://github.com/edwinhao/Awareness",
+    "directory": "sdks/openclaw"
   },
-  "homepage": "https://awareness.market",
-  "bugs": {
-    "url": "https://github.com/edwin-hao-ai/Awareness-SDK/issues"
-  },
-  "keywords": [
-    "openclaw",
-    "plugin",
-    "memory",
-    "awareness",
-    "ai"
-  ],
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "openclaw": {
-    "extensions": [
-      "./dist/index.js"
-    ]
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist",
-    "test": "vitest run --exclude src/e2e.test.ts",
-    "test:e2e": "vitest run src/e2e.test.ts",
-    "test:all": "vitest run",
-    "ship-gate:L1": "node -e \"require('fs').readdirSync('src').filter(f=>/\\\\.ts$/.test(f)).forEach(f=>{})\" && echo 'L1 OK (tsc in build)'",
-    "ship-gate:L2": "npm run test",
-    "ship-gate:L3": "echo 'L3 chaos coverage: see src/*.test.ts with happy/5xx/timeout groups'",
-    "ship-gate:L4": "npm run test:e2e",
-    "ship-gate": "npm run build && npm run ship-gate:L1 && npm run ship-gate:L2 && npm run ship-gate:L3 && npm run ship-gate:L4",
-    "prepublishOnly": "npm run ship-gate"
-  },
   "files": [
-    "dist",
+    "dist/",
     "openclaw.plugin.json",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
-  "engines": {
-    "node": ">=18"
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --clean --watch",
+    "test": "vitest run --exclude src/e2e.test.ts",
+    "test:watch": "vitest --exclude src/e2e.test.ts",
+    "test:e2e": "vitest run src/e2e.test.ts",
+    "lint": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.0"
   },
   "publishConfig": {
     "access": "public"
-  },
-  "devDependencies": {
-    "@types/node": "^25.4.0",
-    "typescript": "^5.9.2",
-    "vitest": "^4.0.18"
   }
 }

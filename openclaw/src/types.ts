@@ -65,7 +65,7 @@ export interface ToolDefinition {
   name: string;
   description: string;
   parameters: Record<string, unknown>;
-  execute: (input: Record<string, unknown>) => Promise<unknown>;
+  execute: (toolCallId: string, input: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>;
 }
 
 // ---------------------------------------------------------------------------

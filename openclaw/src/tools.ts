@@ -96,7 +96,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         },
       },
     },
-    execute: async (input) => {
+    execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const days = input.days !== undefined ? Number(input.days) : undefined;
       const maxCards = input.max_cards !== undefined ? Number(input.max_cards) : undefined;
       const maxTasks = input.max_tasks !== undefined ? Number(input.max_tasks) : undefined;
@@ -130,7 +130,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       },
       required: ["agent_role"],
     },
-    execute: async (input) => {
+    execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       return client.getAgentPrompt(String(input.agent_role ?? ""));
     },
   });
@@ -226,7 +226,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       },
       required: ["semantic_query"],
     },
-    execute: async (input) => {
+    execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const legacyFullTextWeight = input[LEGACY_FULL_TEXT_WEIGHT_KEY];
       return client.search({
         semanticQuery: String(input.semantic_query ?? ""),
@@ -247,7 +247,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
         includeInstalled: input.include_installed !== undefined ? Boolean(input.include_installed) : true,
         userId: input.user_id !== undefined ? String(input.user_id) : undefined,
         agentRole: input.agent_role !== undefined ? String(input.agent_role) : undefined,
-        detail: input.detail !== undefined ? String(input.detail) as "summary" | "full" : undefined,
+        detail: (input.detail as "summary" | "full" | undefined),
         ids: Array.isArray(input.ids) ? (input.ids as unknown[]).map(String) : undefined,
       });
     },
@@ -289,7 +289,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       },
       required: ["type"],
     },
-    execute: async (input) => {
+    execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       return client.getData(
         String(input.type ?? "context"),
         input as Record<string, unknown>,
@@ -342,7 +342,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       },
       required: ["action"],
     },
-    execute: async (input) => {
+    execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const result = await client.write(
         String(input.action ?? "remember"),
         input as Record<string, unknown>,
@@ -384,7 +384,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       },
       required: ["query"],
     },
-    execute: async (input) => {
+    execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const query = String(input.query || "");
       const limit = Number(input.limit) || 10;
       const results = await client.search({
@@ -430,7 +430,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       },
       required: ["id"],
     },
-    execute: async (input) => {
+    execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const id = String(input.id || "");
       if (!id) return { error: "ID is required" };
 
@@ -472,7 +472,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       },
       required: ["skill_id"],
     },
-    execute: async (input) => {
+    execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const skillId = String(input.skill_id || "");
       const context = String(input.context || "");
       if (!skillId) return { error: "skill_id is required" };
@@ -508,7 +508,7 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
       },
       required: ["skill_id"],
     },
-    execute: async (input) => {
+    execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const skillId = String(input.skill_id || "");
       if (!skillId) return { error: "skill_id is required" };
       const outcome = (input.outcome as "success" | "partial" | "failed") || "success";

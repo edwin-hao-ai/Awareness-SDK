@@ -81,7 +81,7 @@ describe("registerTools", () => {
   describe("__awareness_workflow__", () => {
     it("returns a structured workflow checklist without API calls", async () => {
       const tools = setupTools();
-      const result = await tools["__awareness_workflow__"].execute({}) as Record<string, unknown>;
+      const result = await tools["__awareness_workflow__"].execute("", {}) as Record<string, unknown>;
       expect(result).toHaveProperty("workflow");
       expect(result).toHaveProperty("tips");
       expect(Array.isArray(result.workflow)).toBe(true);
@@ -111,7 +111,7 @@ describe("registerTools", () => {
       );
 
       const tools = setupTools();
-      const result = (await tools["awareness_init"].execute({
+      const result = (await tools["awareness_init"].execute("", {
         days: 14,
         max_cards: 10,
         max_tasks: 5,
@@ -169,7 +169,7 @@ describe("registerTools", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ results: [] }));
 
       const tools = setupTools();
-      await tools["awareness_recall"].execute({
+      await tools["awareness_recall"].execute("", {
         semantic_query: "auth decisions",
         keyword_query: "JWT token",
         scope: "knowledge",
@@ -276,7 +276,7 @@ describe("registerTools", () => {
     it("action=write with string content records text", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1 }));
       const tools = setupTools();
-      await tools["awareness_record"].execute({
+      await tools["awareness_record"].execute("", {
         action: "write",
         content: "Important decision",
       });
@@ -288,7 +288,7 @@ describe("registerTools", () => {
     it("action=write with text param (legacy) records text", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1 }));
       const tools = setupTools();
-      await tools["awareness_record"].execute({
+      await tools["awareness_record"].execute("", {
         action: "write",
         text: "Legacy text param",
       });
@@ -300,7 +300,7 @@ describe("registerTools", () => {
     it("action=write with array content sends batch", async () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 2 }));
       const tools = setupTools();
-      await tools["awareness_record"].execute({
+      await tools["awareness_record"].execute("", {
         action: "write",
         content: ["Step 1", "Step 2"],
       });
@@ -313,7 +313,7 @@ describe("registerTools", () => {
       mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1 }));
       const tools = setupTools();
       const insights = { knowledge_cards: [{ title: "Test", category: "decision" }] };
-      await tools["awareness_record"].execute({
+      await tools["awareness_record"].execute("", {
         action: "write",
         content: "Made a decision",
         insights,

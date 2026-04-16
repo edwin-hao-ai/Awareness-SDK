@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.10] - 2026-04-16
+
+### Fixed
+- **OpenClaw tool execution**: Fixed execute function signatures to accept (toolCallId, input) parameters as expected by the OpenClaw protocol, resolving the issue where input.semantic_query was undefined due to incorrect parameter handling.
+
+## [0.6.9] - 2026-04-16
+
+### Fixed
+- **Input schema validation**: Fixed registerTool API to use `parameters` instead of `inputSchema` to prevent "schema must be object or boolean" validation errors when calling tools. The `inputSchema` field has been deprecated in favor of the standard `parameters` field for defining tool input schemas.
+
 ## [0.6.7] - 2026-04-16
 
 ### Added

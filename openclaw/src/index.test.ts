@@ -376,7 +376,7 @@ describe("register (plugin entry point)", () => {
         return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve("") });
       });
 
-      const result = await setupTool.execute({ action: "start_auth" }) as Record<string, unknown>;
+      const result = await setupTool.execute("", { action: "start_auth" }) as Record<string, unknown>;
       return result;
     }
 
@@ -431,7 +431,7 @@ describe("register (plugin entry point)", () => {
           }),
       });
 
-      const result = await tools["awareness_setup"].execute({ action: "start_auth" }) as Record<string, unknown>;
+      const result = await tools["awareness_setup"].execute("", { action: "start_auth" }) as Record<string, unknown>;
       expect(result.expires_in_seconds).toBe(900);
     });
   });
