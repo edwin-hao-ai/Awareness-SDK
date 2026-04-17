@@ -132,6 +132,18 @@ Connects your IDE to the memory daemon:
 | [`awareness-memory-cloud`](https://pypi.org/project/awareness-memory-cloud/) | Python SDK with interceptors |
 | [`@awareness-sdk/openclaw-memory`](https://www.npmjs.com/package/@awareness-sdk/openclaw-memory) | OpenClaw plugin |
 
+## What makes Awareness different
+
+Most memory systems pick one extraction strategy. Awareness combines them:
+
+- **Hybrid retrieval by default** — BM25 full-text + vector cosine + knowledge-graph 1-hop expansion, fused with Reciprocal Rank Fusion. 95.6% R@5 on LongMemEval, zero LLM calls on the retrieval side.
+- **Salience-aware extraction** (v0.4.7+) — the client's LLM self-scores every card on `novelty` / `durability` / `specificity`; cards below 0.4 on novelty or durability are dropped server-side. Framework metadata is filtered before extraction runs, so raw logs never leak into your knowledge base.
+- **Project isolation** — `X-Awareness-Project-Dir` header scopes memory per project.
+- **Zero-LLM backend** — all extraction runs on the client's LLM. No inference costs pass through to you.
+- **One memory, many clients** — same daemon reachable via Claude Code / Cursor / Windsurf / OpenClaw / plain MCP.
+
+See [`docs/analysis/MEMPALACE_COMPARISON_2026-04-17.md`](https://github.com/edwin-hao-ai/Awareness/blob/main/docs/analysis/MEMPALACE_COMPARISON_2026-04-17.md) for the honest side-by-side against MemPalace (96.6% R@5 via raw verbatim storage).
+
 ## License
 
 Apache 2.0

@@ -240,6 +240,21 @@ Once connected, Claude Code has access to these Awareness MCP tools:
 
 ---
 
+## What makes Awareness different
+
+Most memory systems pick one extraction strategy. Awareness combines them:
+
+- **Hybrid retrieval by default** — BM25 full-text + vector cosine + knowledge-graph 1-hop expansion, fused with Reciprocal Rank Fusion. 95.6% R@5 on LongMemEval, zero LLM calls on the retrieval side.
+- **Salience-aware extraction** — Claude self-scores every card on `novelty` / `durability` / `specificity`; cards below 0.4 on novelty or durability are dropped server-side. Framework metadata (`Sender (untrusted metadata)`, `turn_brief`, `[Operational context ...]`) is filtered before extraction runs, so raw tool-use turns never leak into your knowledge base.
+- **Project isolation** — `X-Awareness-Project-Dir` header scopes memory per project. Your work memory doesn't leak into your personal memory, even on the same machine.
+- **Learning over time** — Ebbinghaus-style card decay, skill crystallization from repeated patterns, workspace graph self-prune to keep `index.db` bounded.
+- **Zero-LLM backend** — all extraction runs on Claude itself. The backend is a coordinator + storage layer; no inference costs pass through to you.
+- **One memory, many clients** — same daemon reachable via Claude Code skills, OpenClaw plugin, npm / pip / ClawHub, and a plain MCP server. Install any one surface and the rest just work against the same memory.
+
+See [`docs/analysis/MEMPALACE_COMPARISON_2026-04-17.md`](https://github.com/edwin-hao-ai/Awareness/blob/main/docs/analysis/MEMPALACE_COMPARISON_2026-04-17.md) for the honest side-by-side against MemPalace (96.6% R@5 via raw verbatim storage) — what we'd adopt from their approach and what we keep from ours.
+
+---
+
 ## License
 
 Apache-2.0

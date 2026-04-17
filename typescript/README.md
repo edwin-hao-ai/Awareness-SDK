@@ -296,3 +296,17 @@ Readers: `readExportPackage(input)`, `parseJsonlText(text)`
 
 - Basic flow: `examples/basic-flow.ts`
 - Export + read package: `examples/export-and-read.ts`
+
+---
+
+## What makes Awareness different
+
+Most memory systems pick one extraction strategy. Awareness combines them:
+
+- **Hybrid retrieval by default** — BM25 full-text + vector cosine + knowledge-graph 1-hop expansion, fused with Reciprocal Rank Fusion. 95.6% R@5 on LongMemEval, zero LLM calls on the retrieval side.
+- **Salience-aware extraction** — the client's own LLM self-scores every card on `novelty` / `durability` / `specificity`; cards below 0.4 on novelty or durability are dropped server-side. Framework metadata (`Sender (untrusted metadata)`, `turn_brief`) is filtered before extraction runs.
+- **Project isolation** — `X-Awareness-Project-Dir` header scopes memory per project.
+- **Zero-LLM backend** — all extraction runs on your LLM (Claude, GPT-4, Gemini, local Llama). The backend is a coordinator + storage layer; no inference costs pass through to you.
+- **One memory, many clients** — same data reachable via Claude Code, OpenClaw, npm / pip / ClawHub, MCP server.
+
+See [`docs/analysis/MEMPALACE_COMPARISON_2026-04-17.md`](https://github.com/edwin-hao-ai/Awareness/blob/main/docs/analysis/MEMPALACE_COMPARISON_2026-04-17.md) for the honest side-by-side against MemPalace.
