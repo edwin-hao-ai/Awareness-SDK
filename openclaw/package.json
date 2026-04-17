@@ -1,6 +1,6 @@
 {
   "name": "@awareness-sdk/openclaw-memory",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "OpenClaw plugin for Awareness memory — cross-session recall and learnings",
   "author": "Edwin Hao",
   "license": "Apache-2.0",
@@ -13,6 +13,9 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "openclaw": {
+    "extensions": ["./dist/index.js"]
+  },
   "files": [
     "dist/",
     "openclaw.plugin.json",
