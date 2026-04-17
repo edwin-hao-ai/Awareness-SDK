@@ -13,8 +13,11 @@ Try MCP tools first (`awareness_init`, `awareness_recall`, `awareness_record`, `
 If MCP tools are NOT available, use Bash to call the local daemon HTTP API directly:
 
 ```bash
-# awareness_init
+# awareness_init — fresh session, no prior-session noise (default max_sessions=0)
 curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_init","arguments":{"source":"claude-code"}}}'
+
+# awareness_init — resume/continuity mode, include last N session summaries
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_init","arguments":{"source":"claude-code","max_sessions":3}}}'
 
 # awareness_recall — pass ONE query string, daemon picks the rest
 curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_recall","arguments":{"query":"<natural-language question>","limit":10}}}'
@@ -27,7 +30,10 @@ The response is JSON-RPC: `result.content[0].text` contains the tool output as J
 
 ## Steps
 
-1. Call `awareness_init` with source: "claude-code"
+1. Call `awareness_init` with source: "claude-code".
+   - Default mode (fresh session): `awareness_init({ source: "claude-code" })` — no prior-session summaries in payload, saves ~500-1000 prompt tokens for brand-new tasks.
+   - Resume mode: `awareness_init({ source: "claude-code", max_sessions: 3 })` — adds last 3 session summaries for explicit continuity ("continue where we left off").
+   - Heuristic: if $ARGUMENTS mentions "continue / resume / yesterday / last time", use resume mode.
 
 2. Store the returned session_id for use in subsequent awareness_record calls.
 

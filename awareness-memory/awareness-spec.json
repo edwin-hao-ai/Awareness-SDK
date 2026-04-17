@@ -175,7 +175,7 @@
     {
       "name": "awareness_init",
       "short_desc": "Load cross-session project memory and context",
-      "long_desc": "Load cross-session project memory. Returns session_id, user_preferences (personal preferences, identity, career — highest priority, present FIRST), context (narratives, tasks, knowledge, active_skills, attention_summary), and usage rules. Call ONCE at session start. ATTENTION PROTOCOL: When context.attention_summary.needs_attention is true, review all attention items (stale tasks, high risks) and automatically: (1) remind the user about stale tasks, (2) warn about high risks before starting work, (3) update resolved items via awareness_record."
+      "long_desc": "Load cross-session project memory. Returns session_id, user_preferences (personal preferences, identity, career — highest priority, present FIRST), context (narratives, tasks, knowledge, active_skills, attention_summary), and usage rules. Call ONCE at session start.\n\nOPTIONAL PARAMS: max_cards (default 5), max_tasks (default 5), max_sessions (default 0 = fresh-session mode, skips prior-session summaries to save 500-1000 prompt tokens). Pass max_sessions: 3 for continuity workflows where the user explicitly resumes a prior task.\n\nATTENTION PROTOCOL: When context.attention_summary.needs_attention is true, review all attention items (stale tasks, high risks) and automatically: (1) remind the user about stale tasks, (2) warn about high risks before starting work, (3) update resolved items via awareness_record."
     },
     {
       "name": "awareness_get_agent_prompt",
