@@ -133,10 +133,19 @@ describe("registerTools", () => {
   // awareness_recall
   // =========================================================================
   describe("awareness_recall", () => {
-    it("requires semantic_query", () => {
+    it("requires query (F-053 single-parameter surface)", () => {
       const tools = setupTools();
       const schema = tools["awareness_recall"].parameters as Record<string, unknown>;
-      expect(schema.required).toEqual(["semantic_query"]);
+      expect(schema.required).toEqual(["query"]);
+    });
+
+    it("keeps legacy semantic_query/keyword_query in properties as [DEPRECATED] for compat", () => {
+      const tools = setupTools();
+      const schema = tools["awareness_recall"].parameters as Record<string, unknown>;
+      const props = schema.properties as Record<string, { description?: string }>;
+      expect(props.semantic_query).toBeDefined();
+      expect(props.keyword_query).toBeDefined();
+      expect(props.semantic_query.description ?? "").toMatch(/\[DEPRECATED\]/);
     });
 
     it("supports all 5 recall modes", () => {
@@ -249,10 +258,18 @@ describe("registerTools", () => {
   // awareness_record
   // =========================================================================
   describe("awareness_record", () => {
-    it("requires action parameter", () => {
+    it("requires content (F-053 single-parameter surface)", () => {
       const tools = setupTools();
       const schema = tools["awareness_record"].parameters as Record<string, unknown>;
-      expect(schema.required).toEqual(["action"]);
+      expect(schema.required).toEqual(["content"]);
+    });
+
+    it("keeps action in properties but marks it [DEPRECATED]", () => {
+      const tools = setupTools();
+      const schema = tools["awareness_record"].parameters as Record<string, unknown>;
+      const props = schema.properties as Record<string, { description?: string }>;
+      expect(props.action).toBeDefined();
+      expect(props.action.description ?? "").toMatch(/\[DEPRECATED\]/);
     });
 
     it("supports write and update_task actions", () => {

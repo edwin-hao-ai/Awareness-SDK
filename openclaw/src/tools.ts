@@ -46,14 +46,14 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
     execute: async () => ({
       workflow: [
         { step: 1, action: "awareness_init", when: "FIRST thing every session", what: "Get session_id + past context + active_skills[]" },
-        { step: 2, action: "awareness_recall", when: "BEFORE starting work", what: "Search memory for relevant past context" },
-        { step: 3, action: "awareness_record", when: "AFTER every change", what: 'awareness_record(action="write", content=<detailed description with reasoning, code snippets, files changed>)' },
+        { step: 2, action: "awareness_recall", when: "BEFORE starting work", what: 'Single-parameter: awareness_recall(query="<natural-language question>")' },
+        { step: 3, action: "awareness_record", when: "AFTER every change", what: 'Single-parameter: awareness_record(content="<detailed description with reasoning, code snippets, files changed>")' },
         { step: 4, action: "handle _extraction_instruction", when: "response contains _extraction_instruction", what: 'Salience-aware extraction. Your job is NOT "generate a card for every turn" — it is "identify the distilled essence worth recalling in 6 months". Returning empty arrays is a first-class answer. EXTRACT when: user made a decision (with reason); non-obvious bug fixed (symptom+root_cause+fix+avoidance); workflow established; user stated preference/constraint; pitfall+workaround; important new fact. DO NOT EXTRACT: agent framework metadata (Sender (untrusted metadata), turn_brief, [Operational context metadata ...], [Subagent Context] — even when wrapped in Request:/Result:/Send: envelopes); greetings; pure commands ("run tests"); "what can you do" turns; code restatement (git has it); test/debug sessions verifying the tool itself; transient status. EACH CARD must carry three 0.0-1.0 scores: novelty_score, durability_score, specificity_score. Cards with novelty<0.4 OR durability<0.4 will be discarded. Do NOT gate on length. Each summary = 400-800 char wiki-style Markdown. Then call awareness_record(action="write", content="summary", insights=<json>).', warning: "Skipping = NO searchable knowledge cards; over-extracting pollutes memory — empty arrays are OK for noise turns" },
         { step: 5, action: "handle _skill_crystallization_hint (F-034)", when: "awareness_record response contains _skill_crystallization_hint", what: 'Review hint.similar_cards, synthesize into a skill, submit: awareness_record(insights={skills:[{name, summary, methods:[], trigger_conditions:[], tags:[], source_card_ids:[]}]})', warning: "Converts repeated patterns into reusable skills — skipping wastes the signal." },
       ],
       tips: {
         recall_vs_lookup: "awareness_recall = search by meaning. awareness_lookup = get by type (<50ms).",
-        session_end: 'Call awareness_record(action="write", content=[...array of summaries...]) for batch recording.',
+        session_end: 'Call awareness_record(content="<final session summary>") with a final summary.',
         perception_signals: "awareness_record response may include 'perception' array (guards, patterns, resonance, staleness, contradictions). Treat guards as blocking warnings; patterns/resonance as context hints.",
         active_skills: "awareness_init returns active_skills[]: pre-loaded reusable procedures. When a task matches a skill's domain, apply its summary + methods instead of re-deriving the pattern.",
       },
@@ -142,94 +142,78 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
     id: "awareness_recall",
     name: "awareness_recall",
     description:
-      "Search persistent memory for past decisions, solutions, and knowledge.\n\n" +
+      "Search persistent memory — pass ONE query string and the server does the rest.\n\n" +
       "Call BEFORE starting work to avoid re-solving solved problems.\n" +
-      "Usage: awareness_recall(semantic_query=\"How was auth implemented?\", keyword_query=\"auth JWT\")\n" +
-      "Just provide semantic_query for most tasks — defaults handle the rest.",
+      "Usage: awareness_recall(query=\"why did we choose pgvector?\")\n" +
+      "Daemon auto-routes across memories + knowledge cards + workspace graph and picks\n" +
+      "the right detail level based on token budget. Legacy multi-parameter surface still\n" +
+      "works (logs [deprecated param used] warning) — semantic_query/keyword_query/scope/\n" +
+      "recall_mode/detail/ids/multi_level/cluster_expand/include_installed will be removed\n" +
+      "8 weeks after F-053 Phase 5.",
     parameters: {
       type: "object",
       properties: {
-        semantic_query: {
+        query: {
           type: "string",
-          description: "Expanded natural-language question for vector search.",
+          description:
+            "Natural-language query — the ONLY parameter callers need. Example: " +
+            "\"why did we pick pgvector over Pinecone?\"",
         },
-        keyword_query: {
-          type: "string",
-          description: "2-5 precise terms for full-text matching (file names, function names, error codes).",
-        },
-        scope: {
-          type: "string",
-          enum: ["all", "timeline", "knowledge", "insights"],
-          description: "Layer to search: all (default), timeline, knowledge, or insights.",
-          default: "all",
+        token_budget: {
+          type: "integer",
+          description:
+            "Optional budget hint in tokens (default 5000). ≥50K → raw-heavy mix, " +
+            "20K-50K → balanced, <20K → compressed card summaries.",
+          default: 5000,
         },
         limit: {
           type: "integer",
           description: "Maximum results (default 6, max 30).",
           default: 6,
         },
-        vector_weight: {
-          type: "number",
-          description: "Weight for vector search in hybrid mode (default 0.7).",
-          default: 0.7,
+
+        // --- [DEPRECATED] legacy multi-parameter surface (kept for compat) ---
+        semantic_query: { type: "string", description: "[DEPRECATED] Use `query` instead." },
+        keyword_query: { type: "string", description: "[DEPRECATED] Use `query` instead." },
+        scope: {
+          type: "string",
+          enum: ["all", "timeline", "knowledge", "insights"],
+          description: "[DEPRECATED] Daemon auto-scopes.",
         },
-        bm25_weight: {
-          type: "number",
-          description: "Weight for BM25 keyword search in hybrid mode (default 0.3).",
-          default: 0.3,
-        },
+        vector_weight: { type: "number", description: "[DEPRECATED] Server picks weights." },
+        bm25_weight: { type: "number", description: "[DEPRECATED] Server picks weights." },
         recall_mode: {
           type: "string",
           enum: ["precise", "session", "structured", "hybrid", "auto"],
-          description:
-            "Recall strategy: hybrid (DB + top vectors, default), auto, precise (chunks only), " +
-            "session (expand to full sessions), structured (zero vector, DB-only, ~1-2k tokens).",
-          default: "hybrid",
+          description: "[DEPRECATED] Daemon auto-routes.",
         },
-        multi_level: {
-          type: "boolean",
-          description: "Enable broader context retrieval across sessions and time ranges.",
-        },
-        cluster_expand: {
-          type: "boolean",
-          description: "Enable topic-based context expansion for deeper exploration.",
-        },
-        confidence_threshold: {
-          type: "number",
-          description: "Minimum confidence threshold for structured/hybrid cards (0-1).",
-        },
-        include_installed: {
-          type: "boolean",
-          description: "Search installed marketplace memories in addition to primary memory (default true).",
-        },
-        user_id: {
-          type: "string",
-          description: "Filter results by user ID (multi-user memory).",
-        },
-        agent_role: {
-          type: "string",
-          description: "Override agent role for scoped recall (defaults to plugin config).",
-        },
+        multi_level: { type: "boolean", description: "[DEPRECATED] Always on." },
+        cluster_expand: { type: "boolean", description: "[DEPRECATED] Always on." },
+        confidence_threshold: { type: "number", description: "[DEPRECATED]" },
+        include_installed: { type: "boolean", description: "[DEPRECATED] Always on." },
+        user_id: { type: "string", description: "Filter results by user ID (multi-user memory)." },
+        agent_role: { type: "string", description: "Override agent role (defaults to plugin config)." },
         detail: {
           type: "string",
           enum: ["summary", "full"],
-          description:
-            "Progressive disclosure mode. " +
-            "'summary' = lightweight index (~50-100 tokens each, returns title/summary/score/tokens_est). " +
-            "'full' = complete content for items specified in 'ids' (from a prior summary call).",
+          description: "[DEPRECATED] Budget-driven.",
         },
         ids: {
           type: "array",
           items: { type: "string" },
-          description: "Item IDs to expand (used with detail='full'). IDs come from a prior detail='summary' call.",
+          description: "[DEPRECATED] Progressive disclosure — pair with detail=full.",
         },
       },
-      required: ["semantic_query"],
+      required: ["query"],
     },
     execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const legacyFullTextWeight = input[LEGACY_FULL_TEXT_WEIGHT_KEY];
+      // F-053 Phase 2: resolve effective query from `query` (preferred) or legacy aliases.
+      const effectiveQuery = String(
+        input.query ?? input.semantic_query ?? input.keyword_query ?? "",
+      );
       return client.search({
-        semanticQuery: String(input.semantic_query ?? ""),
+        semanticQuery: effectiveQuery,
         keywordQuery: input.keyword_query !== undefined ? String(input.keyword_query) : undefined,
         scope: (input.scope as "all" | "timeline" | "knowledge" | "insights") ?? "all",
         limit: input.limit !== undefined ? Number(input.limit) : undefined,
@@ -304,43 +288,46 @@ export function registerTools(api: PluginApi, client: AwarenessClient): void {
     id: "awareness_record",
     name: "awareness_record",
     description:
-      "Save what you did/decided/learned to persistent memory.\n\n" +
+      "Save memory — pass ONE content string and the server does the rest.\n\n" +
       "Call AFTER every meaningful action. If you don't record it, it's lost.\n" +
-      "PRIMARY: awareness_record(action=\"write\", content=<detailed description with reasoning, code snippets, files>)\n" +
-      "BATCH: awareness_record(action=\"write\", content=[\"step1\", \"step2\", ...])\n" +
-      "WITH INSIGHTS: awareness_record(action=\"write\", content=\"summary\", insights={...})\n\n" +
+      "PRIMARY: awareness_record(content=<detailed description with reasoning, code snippets, files>)\n" +
+      "WITH INSIGHTS: awareness_record(content=\"summary\", insights={...})\n\n" +
       "CRITICAL: When response contains _extraction_instruction, you MUST follow it\n" +
-      "to extract insights, then call awareness_record(action=\"write\", content=\"summary\", insights=<json>).\n" +
+      "to extract insights, then call awareness_record(content=\"summary\", insights=<json>).\n" +
       "Skipping = raw events stored but NO searchable knowledge cards created.",
     parameters: {
       type: "object",
       properties: {
-        action: {
-          type: "string",
-          enum: ["write", "update_task"],
-          description: "Write action to perform.",
-        },
         content: {
           type: "string",
-          description: "Content to record. String for single event, JSON-stringified array for batch. Falls back to 'text' param for legacy compatibility.",
-        },
-        text: { type: "string", description: "Text content (legacy alias for content)." },
-        task_id: { type: "string", description: "Task ID for update_task action." },
-        status: { type: "string", description: "New status for update_task (completed, in_progress, pending)." },
-        metadata: {
-          type: "object",
-          description: "Additional metadata to attach to events.",
-        },
-        user_id: {
-          type: "string",
-          description: "User ID for multi-user memory attribution.",
+          description:
+            "Memory content (markdown, detailed natural language). The ONLY parameter " +
+            "callers need — server defaults action=write and triggers async extraction. " +
+            "Example: awareness_record(content=\"Today I decided to...\").",
         },
         insights: {
           type: "object",
-          description: "Pre-extracted structured insights to store with this event. Include knowledge_cards, action_items, risks, completed_tasks. When provided, skips the _extraction_instruction round-trip.",
+          description:
+            "Optional pre-extracted structured insights. Include knowledge_cards, " +
+            "action_items, risks, completed_tasks. When provided, skips the " +
+            "_extraction_instruction round-trip.",
         },
+
+        // --- Advanced actions (explicit — server will not infer these) ---
+        action: {
+          type: "string",
+          enum: ["write", "update_task"],
+          description:
+            "[DEPRECATED] Defaults to \"write\" when content is provided. " +
+            "update_task still requires explicit action=update_task + task_id + status.",
+        },
+        text: { type: "string", description: "[DEPRECATED] Legacy alias for content." },
+        task_id: { type: "string", description: "Task ID (only for action=update_task)." },
+        status: { type: "string", description: "New status (only for action=update_task)." },
+        metadata: { type: "object", description: "Optional metadata to attach to events." },
+        user_id: { type: "string", description: "User ID for multi-user memory attribution." },
       },
-      required: ["action"],
+      required: ["content"],
     },
     execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const result = await client.write(

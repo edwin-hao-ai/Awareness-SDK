@@ -122,10 +122,11 @@ async function main() {
       // Local daemon + optional cloud: parallel calls
       const promises = [
         mcpCall(ep.localUrl, "awareness_init", { source: "awareness-skill", query: prompt }, 6000),
+        // F-053 Phase 2: single-parameter entry point — daemon auto-routes
+        // across memories + knowledge cards + workspace graph and picks the
+        // right detail level based on token budget.
         mcpCall(ep.localUrl, "awareness_recall", {
-          semantic_query: prompt,
-          keyword_query: keywords || undefined,
-          detail: "summary",
+          query: prompt,
           limit: config.recallLimit,
         }, 6000),
       ];

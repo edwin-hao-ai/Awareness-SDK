@@ -16,11 +16,11 @@ If MCP tools are NOT available, use Bash to call the local daemon HTTP API direc
 # awareness_init
 curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_init","arguments":{"source":"claude-code"}}}'
 
-# awareness_recall
-curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_recall","arguments":{"semantic_query":"...","keyword_query":"...","detail":"summary","limit":10}}}'
+# awareness_recall — pass ONE query string, daemon picks the rest
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_recall","arguments":{"query":"<natural-language question>","limit":10}}}'
 
-# awareness_record
-curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_record","arguments":{"action":"remember","content":"...","insights":{"knowledge_cards":[...],"action_items":[...],"risks":[...]}}}}'
+# awareness_record — pass ONE content string (action=remember is implied)
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_record","arguments":{"content":"<detailed description>","insights":{"knowledge_cards":[...],"action_items":[...],"risks":[...]}}}}'
 ```
 
 The response is JSON-RPC: `result.content[0].text` contains the tool output as JSON string.
@@ -31,10 +31,8 @@ The response is JSON-RPC: `result.content[0].text` contains the tool output as J
 
 2. Store the returned session_id for use in subsequent awareness_record calls.
 
-3. If $ARGUMENTS is provided, also call `awareness_recall` with:
-   - semantic_query: expand $ARGUMENTS into a full natural-language question
-   - keyword_query: extract 2-5 precise terms from $ARGUMENTS
-   - detail: "summary"
+3. If $ARGUMENTS is provided, also call `awareness_recall` with a single parameter:
+   - `query`: expand $ARGUMENTS into a full natural-language question (daemon picks scope/mode/detail automatically)
 
 4. If the response contains `_setup_action`, you MUST follow the instruction to write workflow rules to the specified file.
 

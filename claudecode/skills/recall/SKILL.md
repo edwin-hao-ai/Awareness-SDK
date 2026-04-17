@@ -15,40 +15,32 @@ Try MCP tools first (`awareness_recall`).
 If MCP tools are NOT available, use Bash to call the local daemon HTTP API directly:
 
 ```bash
-# awareness_recall (summary)
-curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_recall","arguments":{"semantic_query":"...","keyword_query":"...","detail":"summary","limit":10}}}'
-
-# awareness_recall (full, with specific IDs)
-curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_recall","arguments":{"semantic_query":"...","detail":"full","ids":["id1","id2"]}}}'
+# F-053: single-parameter — daemon picks scope/mode/detail/weights.
+curl -s -X POST http://localhost:37800/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"awareness_recall","arguments":{"query":"why did we pick pgvector?","limit":10}}}'
 ```
 
 The response is JSON-RPC: `result.content[0].text` contains the tool output as JSON string.
 
 ## Steps
 
-1. REWRITE the user query:
-   - SEMANTIC_QUERY: Expand $ARGUMENTS into a full natural-language question with context.
-     Example: "auth bug" → "authentication bug in login flow, JWT token handling, session management"
-   - KEYWORD_QUERY: Extract 2-5 precise terms. Use exact identifiers: file names, function names, error codes.
+1. REWRITE the user query into a complete natural-language question with context.
+   Example: "auth bug" → "authentication bug in login flow, JWT token handling, session management"
 
-2. **Phase 1 — Lightweight index**:
-   Call `awareness_recall` with:
-   - semantic_query: the expanded question
-   - keyword_query: the extracted terms
-   - detail: "summary"
-   - recall_mode: "hybrid" (default), "precise" (specific facts), "session" (what happened when), or "structured" (DB-only, fastest)
+2. Call `awareness_recall` with ONE parameter:
+   - `query`: the rewritten natural-language question
+   - (optional) `limit`: default 6, max 30
+   - (optional) `token_budget`: 5K (default, card-heavy) / 30K (mixed) / 60K+ (raw-heavy)
 
-3. **Phase 2 — Expand selected items** (only when needed):
-   Call `awareness_recall` again with detail: "full" and ids: [relevant IDs from Phase 1].
-   Skip if summaries already answer the question.
+   Daemon auto-routes across memories + knowledge cards + workspace graph and picks
+   the right detail level for your token budget. You do NOT need to choose scope,
+   recall_mode, detail, ids, or weights.
 
-4. Present results clearly:
+3. Present results clearly:
    - Existing implementations that can be reused (include file paths)
    - Architectural decisions already made
    - Related past work and warnings
 
 Rules:
-- Use detail="summary" by default
-- Only escalate to detail="full" for items that need complete content
-- If results are empty, say so clearly — do not hallucinate
-- Do not dump raw JSON — summarize in plain language
+- Pass ONE query string — daemon handles the rest.
+- If results are empty, say so clearly — do not hallucinate.
+- Do not dump raw JSON — summarize in plain language.

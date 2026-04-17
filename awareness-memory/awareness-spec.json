@@ -184,8 +184,8 @@
     },
     {
       "name": "awareness_recall",
-      "short_desc": "Semantic + keyword hybrid recall with progressive disclosure (detail=summary→full)",
-      "long_desc": "Recall from persistent memory — semantic + keyword hybrid search with progressive disclosure. Use detail='summary' (default) for a lightweight index of matching items, then detail='full' with ids=[...] to expand only the relevant ones. This two-phase pattern saves tokens and improves accuracy. token_budget is deprecated — use detail+ids instead. Set include_installed=true (default) to also search installed market memories; results are merged by score and tagged with source_type."
+      "short_desc": "Search memory — pass ONE query string, daemon picks the rest",
+      "long_desc": "Search persistent memory by passing a single natural-language query. Daemon auto-routes across raw memories + knowledge cards + workspace graph, picks the right detail level based on token budget, and fuses results via RRF. Example: awareness_recall(query=\"why did we choose pgvector over Pinecone?\"). Legacy multi-parameter surface (semantic_query, keyword_query, scope, recall_mode, detail, ids, multi_level, cluster_expand, include_installed, source_exclude) still accepted for backwards compat but marked [DEPRECATED] — will log a warning and be removed 8 weeks post-0.8.0."
     },
     {
       "name": "awareness_lookup",
@@ -194,8 +194,8 @@
     },
     {
       "name": "awareness_record",
-      "short_desc": "Record what you did/decided/learned to persistent memory",
-      "long_desc": "Unified write to memory. Pass content (str, list, or dict) + insights={...} to record events and create knowledge cards in ONE call. Content auto-detected: str=single event, list=batch, str+scope=knowledge for docs. Actions: write (default), update_task."
+      "short_desc": "Save memory — pass ONE content string, daemon handles the rest",
+      "long_desc": "Save what you did/decided/learned to persistent memory. Pass a single content string and the daemon defaults action=remember and triggers client-side salience-aware extraction asynchronously. Example: awareness_record(content=\"Today I decided to switch from Pinecone to pgvector because...\"). Advanced actions (remember_batch, update_task, submit_insights) still require explicit action= for backwards compat."
     },
     {
       "name": "awareness_mark_skill_used",
@@ -209,8 +209,8 @@
     "Do these 3 things every session:",
     "",
     "1. FIRST THING: awareness_init → get session_id + past context. Always do this before any work.",
-    "2. BEFORE WORK: awareness_recall → check what you already know. Don't re-solve solved problems.",
-    "3. AFTER CHANGES: awareness_record(content=<detailed description>, insights={...}) → save what you did/decided/learned. Be detailed — include reasoning, code snippets, user quotes.",
+    "2. BEFORE WORK: awareness_recall(query=\"...\") → one natural-language question, daemon handles routing. Don't re-solve solved problems.",
+    "3. AFTER CHANGES: awareness_record(content=\"<detailed description>\", insights={...}) → save what you did/decided/learned. Be detailed — include reasoning, code snippets, user quotes.",
     "",
     "RECOMMENDED: Pass insights={knowledge_cards:[...], action_items:[...], risks:[...]} with awareness_record to create searchable knowledge in ONE step — no round-trip needed.",
     "Knowledge cards MUST be created. Skipping = the memory is stored but never structured into reusable knowledge.",
@@ -229,11 +229,11 @@
       },
       {
         "step": 2,
-        "action": "awareness_recall (two-phase progressive disclosure)",
+        "action": "awareness_recall — single-parameter search",
         "when": "BEFORE starting work on any task",
-        "what": "Phase 1: awareness_recall(semantic_query=..., keyword_query=..., detail='summary') → lightweight index. Phase 2: awareness_recall(detail='full', ids=[...relevant IDs...]) → expand only what you need.",
-        "example": "awareness_recall(semantic_query=\"How was auth implemented?\", keyword_query=\"auth JWT\", detail=\"summary\") → review → awareness_recall(detail=\"full\", ids=[\"id1\",\"id2\"])",
-        "done_check": "You've retrieved summaries, selected relevant items, and expanded the ones you need"
+        "what": "Pass ONE natural-language query. Daemon auto-routes across memories + knowledge cards + workspace graph and picks the right detail level.",
+        "example": "awareness_recall(query=\"How was auth implemented in this codebase?\")",
+        "done_check": "You've got the relevant context and know what existed before you started."
       },
       {
         "step": 3,
@@ -259,8 +259,8 @@
       }
     ],
     "tips": {
-      "recall_vs_lookup": "awareness_recall = search by meaning (semantic), use detail='summary' then detail='full'+ids for progressive disclosure. awareness_lookup = get by type (exact DB, <50ms).",
-      "session_end": "Call awareness_record(content=[step1, step2, ...], insights={...}) with a final summary.",
+      "recall_vs_lookup": "awareness_recall(query=\"...\") = search by meaning. awareness_lookup = get by type (exact DB, <50ms).",
+      "session_end": "Call awareness_record(content=\"<final session summary>\", insights={...}) at the end.",
       "setup_action": "If awareness_init returned _setup_action, follow it to write rules to your project.",
       "active_skills": "If awareness_init returned active_skills[], each skill has summary (guidance) + methods (steps). Apply matching skills to tasks — do not re-derive their patterns."
     }
