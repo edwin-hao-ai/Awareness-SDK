@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.7] - 2026-04-17
+
+### Changed
+- **Salience-aware extraction philosophy — synced with backend**. The bundled
+  `awareness-spec.json` (which `setup` writes into the user's IDE config) now
+  carries the v0.7.3 `init_guides.write_guide` from the backend: framing
+  flipped from "always create cards for …" to "identify the distilled essence
+  worth recalling in 6 months", empty `knowledge_cards: []` is a first-class
+  answer, each card must carry three 0.0-1.0 scores
+  (`novelty_score`, `durability_score`, `specificity_score`). No CLI surface
+  change — just a richer guide string that downstream LLMs read verbatim.
+
 ## [0.4.6] - 2026-04-15
 
 ### Changed

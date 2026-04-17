@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.12] - 2026-04-17
+
+### Changed
+- **Salience-aware extraction in workflow step 4** — mirrors the philosophy
+  shipped in `@awareness-sdk/local@0.7.3`. The `_extraction_instruction` hint
+  we inject into the agent now says "identify the distilled essence worth
+  recalling in 6 months", not "always create cards for …". Returning
+  `knowledge_cards: []` is a first-class answer. Each card must carry three
+  0.0-1.0 self-assessments: `novelty_score`, `durability_score`,
+  `specificity_score`. The daemon drops cards below 0.4 on novelty or 0.4
+  on durability. No migration needed — reinstall via
+  `openclaw plugins install @awareness-sdk/openclaw-memory@latest` and the
+  new guidance kicks in on the next session.
+
 ## [0.6.11](https://github.com/edwinhao/Awareness/compare/sdks/openclaw-v0.6.10...sdks/openclaw-v0.6.11) (2026-04-17)
 
 
