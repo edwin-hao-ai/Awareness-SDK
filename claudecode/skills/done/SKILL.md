@@ -20,11 +20,18 @@ The response is JSON-RPC: `result.content[0].text` contains the tool output as J
 
 ## Steps
 
-1. Gather context about this session, then extract structured insights:
-   - knowledge_cards: key facts, decisions, patterns (each with category, title, summary — write each summary as 200-800 char wiki-style Markdown, naturally structured per category)
-   - action_items: pending tasks, TODOs (each with title, description, priority)
-   - risks: potential issues (each with title, description, severity)
-   - completed_tasks: tasks from awareness_init that were completed (each with task_id, reason)
+1. Gather context about this session, then extract structured insights — **salience-aware, not greedy**:
+
+   **Philosophy** (distilled essence, not raw logs): your job is NOT "generate a card for every turn" — it is "identify what's worth recalling in 6 months on a fresh project". Empty `knowledge_cards: []` is a first-class answer when the session was just tool testing or framework metadata.
+
+   - **knowledge_cards**: only genuine insights (category, title, summary, + three 0.0-1.0 scores: `novelty_score`, `durability_score`, `specificity_score`). Summary = 400-800 char wiki-style Markdown, naturally structured per category.
+     - **EXTRACT**: decisions (with reason), non-obvious bug fixes (symptom+root_cause+fix+avoidance), workflows established, preferences/constraints stated, pitfalls + workarounds, important new facts.
+     - **DO NOT EXTRACT**: agent framework metadata (`Sender (untrusted metadata)`, `turn_brief`, `[Operational context metadata ...]` — even inside `Request:`/`Result:` envelopes); greetings; pure commands; "what can you do"; code restatement (git has it); test/debug sessions verifying the tool itself; transient status.
+     - Cards with `novelty_score < 0.4` OR `durability_score < 0.4` will be discarded by the daemon. Under-extraction beats noise.
+     - Do NOT gate on length. A 15-char preference can be more valuable than a 5000-char log.
+   - **action_items**: pending tasks, TODOs (each with title, description, priority)
+   - **risks**: potential issues (each with title, description, severity)
+   - **completed_tasks**: tasks from awareness_init that were completed (each with task_id, reason)
 
 2. Call `awareness_record` with:
    - action: "remember_batch"

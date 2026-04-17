@@ -305,16 +305,21 @@ export function buildContextXml(ctx, recallResults, perceptionSignals, options =
   }
 
   // --- Record Rule (CC skill only, optional) ---
+  // Salience-aware philosophy — synced with sdks/_shared/prompts/extraction-salience.md
   if (options.recordRuleScript) {
     parts.push("  <record-rule>");
     parts.push(`    Save significant work SILENTLY: node "${esc(options.recordRuleScript)}" '<JSON>'`);
-    parts.push('    JSON: {"content":"what+why in detail","cards":[{"title":"...","summary":"200-800 char wiki entry with Markdown","category":"<see guide>"}]}');
-    parts.push("    Card summary = mini wiki entry. Write naturally per category (see below), include file paths, commands, versions.");
-    parts.push("    Category guide (pick ONE, ask: is this about the USER or about TECH?):");
-    parts.push("      Personal (user info, non-technical): personal_preference (likes/dislikes/style), important_detail (name/role/facts), career_info, activity_preference, plan_intention, health_info");
-    parts.push("      Technical: decision (chose between options), problem_solution (bug+fix), workflow (process/setup/config steps), pitfall (warning/limitation), insight (reusable pattern), key_point (other tech fact)");
-    parts.push("    WRONG: 'My name is X, I like Y' → workflow. RIGHT: → personal_preference or important_detail");
-    parts.push("    Save decisions, solutions, pitfalls, user preferences. NOT every tool call.");
+    parts.push('    JSON: {"content":"what+why in detail","cards":[{"title":"...","summary":"400-800 char wiki entry","category":"<see guide>","novelty_score":0.0,"durability_score":0.0,"specificity_score":0.0}]}');
+    parts.push("    PHILOSOPHY: distilled essence, not raw logs. Your job is NOT 'save every turn' — it is 'identify what's worth recalling in 6 months on a fresh project'. An empty cards array is a first-class answer.");
+    parts.push("    EXTRACT when: user made a decision with reason; non-obvious bug fixed (symptom+root_cause+fix+avoidance); workflow/convention established; user stated preference or constraint; pitfall+workaround found; important new fact about user/project.");
+    parts.push("    DO NOT EXTRACT: agent framework metadata (Sender (untrusted metadata), turn_brief, [Operational context metadata ...], [Subagent Context] — even when wrapped in Request:/Result:/Send: envelopes); greetings; pure command invocations ('run tests'); 'what can you do' turns; code restatement (git has it); test/debug sessions verifying the AI tool itself; transient status/progress.");
+    parts.push("    Single question: 'If I start a fresh project 6 months from now, will being reminded of this help me?' If no → empty cards array.");
+    parts.push("    EACH CARD MUST SCORE 0.0-1.0: novelty_score (new vs known), durability_score (matters in 6 months?), specificity_score (concrete paths/commands vs vague). Cards with novelty<0.4 OR durability<0.4 will be discarded. Score honestly — under-extraction beats noise.");
+    parts.push("    Do NOT gate on length. A 15-char user preference can be more valuable than a 5000-char log.");
+    parts.push("    Categories (pick ONE, ask: is this about the USER or about TECH?):");
+    parts.push("      Personal: personal_preference (likes/dislikes/style), important_detail (name/role/facts), career_info, activity_preference, plan_intention, health_info, custom_misc");
+    parts.push("      Technical: decision (chose X over Y), problem_solution (bug+fix), workflow (steps+config), pitfall (warning+avoidance), insight (reusable pattern), key_point (other tech fact)");
+    parts.push("    GOOD summary: 'Chose pgvector over Pinecone. Saves $70/mo, co-locates with relational data, cosine <=>. Trade-off: lower QPS >10M.' BAD: 'Use pgvector instead of Pinecone.'");
     parts.push("  </record-rule>");
   }
 

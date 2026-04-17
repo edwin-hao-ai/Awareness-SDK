@@ -27,11 +27,18 @@ The response is JSON-RPC: `result.content[0].text` contains the tool output as J
 
 1. Gather context about what happened in this session.
 
-2. Extract structured insights from the session:
-   - knowledge_cards: key facts, decisions, patterns learned (each with category, title, summary, confidence). Each summary should be a 200-800 char wiki-style Markdown entry — write naturally per category (decision: alternatives+trade-offs, problem_solution: symptom+fix+files, personal_preference: preference+scope+examples). Do NOT write one-sentence summaries.
-   - action_items: pending tasks, TODOs, blockers (each with title, description, priority)
-   - risks: potential issues, concerns discovered (each with title, description, severity)
-   - completed_tasks: if awareness_init returned open_tasks, check which ones were completed (each with task_id, reason)
+2. Extract structured insights from the session — **salience-aware, not greedy**:
+
+   **Philosophy** (distilled essence, not raw logs): your job is NOT "generate a card for every turn" — it is "identify what's worth recalling in 6 months on a fresh project". Returning empty arrays for `knowledge_cards` is a first-class answer when the session was just tool testing, chatter, or framework metadata.
+
+   - **knowledge_cards**: only genuine insights (each with category, title, summary, confidence, + three 0.0-1.0 scores: `novelty_score`, `durability_score`, `specificity_score`). Each summary = 400-800 char wiki-style Markdown entry.
+     - **EXTRACT when**: user made a decision (with reason); non-obvious bug fixed (symptom+root_cause+fix+avoidance); workflow established; user stated preference or hard constraint; pitfall + workaround; important new fact about user/project.
+     - **DO NOT EXTRACT**: agent framework metadata (`Sender (untrusted metadata)`, `turn_brief`, `[Operational context metadata ...]`, `[Subagent Context]` — even wrapped in `Request:`/`Result:`/`Send:` envelopes); greetings; pure command invocations ("run tests", "save this"); "what can you do" turns; code restatement (git already has it); test/debug sessions verifying the AI tool itself; transient status ("building...", "✅ done").
+     - Cards with `novelty_score < 0.4` OR `durability_score < 0.4` will be discarded by the daemon. Score honestly — under-extraction beats noise.
+     - Do **not** gate on length. A 15-char user preference can be more valuable than a 5000-char log.
+   - **action_items**: pending tasks, TODOs, blockers (each with title, description, priority)
+   - **risks**: potential issues, concerns discovered (each with title, description, severity)
+   - **completed_tasks**: if awareness_init returned open_tasks, check which ones were completed (each with task_id, reason)
 
 3. Call `awareness_record` with:
    - action: "remember_batch"

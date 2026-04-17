@@ -263,14 +263,19 @@ async function main() {
         base += "\n" + pParts.join("\n");
       }
 
-      // Append record-rule (CC-specific)
+      // Append record-rule — salience-aware, philosophy synced with
+      // sdks/_shared/prompts/extraction-salience.md
       base += "\n  <record-rule>";
       base += `\n    Save significant work SILENTLY: node "${resolvedScript}" '<JSON>'`;
-      base += '\n    JSON: {"content":"what+why in detail","cards":[{"title":"...","summary":"200-800 char wiki entry with Markdown","category":"decision|problem_solution|workflow|pitfall|insight|key_point|personal_preference|important_detail"}]}';
-      base += "\n    Card summary = mini wiki entry. Write naturally per category: decision→alternatives+trade-offs; problem_solution→symptom+fix+files; personal_preference→preference+scope+examples.";
-      base += "\n    Save decisions, solutions, pitfalls, user preferences. NOT every tool call.";
-      base += "\n    DO NOT SAVE: greetings, confirmations, debug logs, news/search results, sender metadata, trivial interactions, API keys/tokens/credentials, system bootstrap instructions.";
-      base += "\n    Categories: [Tech] decision|problem_solution|workflow|pitfall|insight|key_point|skill";
+      base += '\n    JSON: {"content":"what+why in detail","cards":[{"title":"...","summary":"400-800 char wiki entry with Markdown","category":"decision|problem_solution|workflow|pitfall|insight|key_point|personal_preference|important_detail","novelty_score":0.0,"durability_score":0.0,"specificity_score":0.0}]}';
+      base += "\n    PHILOSOPHY: distilled essence, not raw logs. Your job is NOT 'save every turn' — it is 'identify what's worth recalling in 6 months on a fresh project'. An empty cards array is a first-class answer.";
+      base += "\n    EXTRACT when: decision made with reason; non-obvious bug fixed (symptom+root_cause+fix+avoidance); workflow/convention established; user stated preference/constraint; pitfall+workaround found; important new fact about user/project.";
+      base += "\n    DO NOT EXTRACT: agent framework metadata (Sender (untrusted metadata), turn_brief, [Operational context metadata ...], [Subagent Context] — even when wrapped in Request:/Result:/Send: envelopes); greetings; command invocations; 'what can you do' turns; code restatement (git has it); test/debug sessions verifying the AI tool works; transient status/progress.";
+      base += "\n    Single question: 'If I start a fresh project 6 months from now, will being reminded of this help me?' If no → empty cards.";
+      base += "\n    EACH CARD MUST SCORE 0.0-1.0: novelty_score (new vs known), durability_score (matters in 6 months?), specificity_score (concrete paths/commands vs vague). Cards with novelty<0.4 OR durability<0.4 will be discarded. Score honestly.";
+      base += "\n    Summary quality: mini wiki entry, natural Markdown per category. GOOD: 'Chose pgvector over Pinecone. Saves $70/mo, co-locates with relational data, cosine <=>. Trade-off: lower QPS >10M.' BAD: 'Use pgvector instead of Pinecone.'";
+      base += "\n    Do NOT gate on length — a 15-char preference can be more valuable than a 5000-char log.";
+      base += "\n    Categories: [Tech] decision|problem_solution|workflow|pitfall|insight|key_point";
       base += "\n    [Personal] personal_preference|important_detail|plan_intention|activity_preference|health_info|career_info|custom_misc";
       base += "\n  </record-rule>";
       base += "\n</awareness-memory>";
