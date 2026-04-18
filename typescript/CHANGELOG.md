@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.5.0] - 2026-04-18
+
+### Changed — local daemon bridge uses F-053 single-parameter surface
+- `retrieve().daemonArgs` now sends `{query, limit}` (+ optional `token_budget`
+  from `customKwargs`, + `agentRole` when set). Legacy fields
+  (`keywordQuery`, `scope`, `recallMode`, `detail`, `ids`) are only
+  forwarded when the caller explicitly passed them — `client.retrieve({query, memoryId})`
+  alone now produces a clean F-053 single-parameter daemon call.
+- **Why**: before this release, the TS SDK sent the pre-F-053 multi-
+  parameter shape to `@awareness-sdk/local`, which tolerated it via the
+  legacy branch but logged `[deprecated param used]` warnings AND skipped
+  Phase 3 query-type auto-routing, recency channel, and budget-tier bucket
+  shaping.
+- User-facing `client.retrieve({memoryId, query, ...})` signature unchanged.
+  Only the internal daemon call shape changed.
+
+### Added — developer simulation harness
+- `tests/sdk-simulation/developer_simulation.cjs` exercises the full path:
+  boot isolated daemon → direct-MCP record → Vercel AI Gateway LLM-rewrite
+  user question → SDK `retrieve()` → assert F-053 daemon_args shape
+  (`keys=["limit","query"]`) + correct memory in top-3. Passes end-to-end
+  against qwen-3-14b.
+
+### Compatibility
+- Requires `@awareness-sdk/local@0.8.0+` for full Phase 3 quality.
+
 ## [2.4.4] - 2026-04-15
 
 ### Added

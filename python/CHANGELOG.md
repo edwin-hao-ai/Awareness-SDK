@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.5.0] - 2026-04-18
+
+### Changed — local daemon bridge uses F-053 single-parameter surface
+- `retrieve().daemon_args` now sends `{query, limit}` (+ optional `token_budget`
+  from `custom_kwargs`, + `agent_role` when set). Legacy fields
+  (`keyword_query`, `scope`, `recall_mode`, `detail`, `ids`) are only
+  forwarded when the caller explicitly passed them — `retrieve(query=...)`
+  alone now produces a clean F-053 single-parameter daemon call.
+- **Why**: before this release, the Python SDK sent the pre-F-053 multi-
+  parameter shape to `@awareness-sdk/local`, which tolerated it via the
+  legacy branch but logged `[deprecated param used]` warnings AND skipped
+  Phase 3 query-type auto-routing, recency channel, and budget-tier bucket
+  shaping. Users got worse recall than Claude Code / OpenClaw users.
+- User-facing `retrieve(memory_id=..., query="...", limit=...)` signature
+  unchanged. Only the internal daemon call shape changed.
+
+### Added — developer simulation harness
+- `tests/sdk-simulation/developer_simulation.py` exercises the full path:
+  boot isolated daemon → SDK record → Vercel AI Gateway LLM-rewrite user
+  question → SDK `retrieve()` → assert F-053 daemon_args shape + correct
+  memory in top-3. Passes end-to-end against qwen-3-14b.
+
+### Compatibility
+- Requires `@awareness-sdk/local@0.8.0+` for full Phase 3 quality (recency
+  channel + budget-tier shaping). Older daemons still work via the legacy
+  `recall_mode`/`scope`/`detail` forwarding path — callers that still pass
+  these explicitly keep working unchanged.
+
 ## [2.4.4] - 2026-04-15
 
 ### Changed
