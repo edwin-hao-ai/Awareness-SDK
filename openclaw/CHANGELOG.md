@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.6.15] - 2026-04-19
+
+### Added — F-056 SSOT prompt wire-up (recall-friendliness R6-R8)
+- `src/tools.ts` step-4 extraction instruction now carries the full
+  shared-prompt SSOT from `sdks/_shared/prompts/`:
+  - When-to-extract / when-not-to-extract envelope rules
+  - Per-card 3-score rubric (novelty / durability / specificity)
+  - Daemon quality gate R1-R5 (structural) + R6-R8 (recall-friendliness)
+  - Skill extraction into `insights.skills[]`
+- **Biggest user-visible change**: the OpenClaw agent now gets the same
+  extraction guidance as Claude Code — crucially the skill-extraction
+  block, which was previously backend-only. OpenClaw sessions now
+  populate `insights.skills[]` instead of losing skills entirely.
+- Token cost: step-4 grows from ~1.8 KB → ~3.2 KB. The `what:` array
+  is composed via template literal so the sync script can safely
+  inject multi-line Markdown without breaking TS syntax.
+
+### Changed — title quality guidance
+- Tools.ts now includes R6 (grep-friendly title), R7 (topic-specific
+  tags), R8 (multilingual keyword diversity) so OpenClaw-extracted cards
+  are actually findable later. Pre-F-056 cards often had titles like
+  "Decision made" / "Bug fixed" that score ~30 % precision@3 in
+  retrieval benchmarks.
+
+### Compatibility
+- Still requires `@awareness-sdk/local@0.9.0+` for the full daemon
+  quality gate (R1-R5 enforcement + cards_skipped response).
+
+## [0.6.14] - 2026-04-18
+
+### Fixed — F-055 bug B: OpenClaw runtime metadata envelope pollution
+- `agent_end` auto-capture now strips runtime metadata envelopes before
+  building the `Request: ...` / `Result: ...` turn brief. Previously the
+  plugin wrote content like `Request: Sender (untrusted metadata): ...`
+  and `Request: [Operational context metadata — do not answer this
+  section directly] ...` straight into memory titles, polluting both the
+  memory list and vector embeddings.
+- If the user message collapses to envelope-only noise after stripping,
+  `awareness_record` is no longer called (the turn is dropped with an
+  `info`-level log).
+
+### Added — `stripMetadataEnvelope(input)` pure helper
+- New `src/envelope-strip.ts` (ESM-safe, zero deps) with 26 vitest cases
+  covering single/double/triple-nested envelopes, `Request:` / `Result:` /
+  `Send:` line prefixes, CJK content, malformed / null / oversized input,
+  and non-over-strip guards (e.g. `"Requester: Alice"` stays unchanged).
+- Wired into both `hooks.ts` (reference plugin) and `memory-awareness.ts`
+  (OpenClaw native adapter) agent_end hooks.
+
+### Test coverage
+- Plugin suite: 174 → **200** tests passing (8 files). No regressions.
+- L3 defense-in-depth: new `sdks/local/test/f055-defense-in-depth.test.mjs`
+  (6 cases) verifies the daemon `classifyNoiseEvent` already rejects
+  envelope-only payloads if a misbehaving client bypasses the plugin strip.
+
+### Scope note
+- Purely local-end fix. Backend / cloud extraction prompts are unchanged
+  per F-055 scope. Complements F-055 bug A (persona gate) and bug C
+  (aggregator ranking penalty) which ship separately in
+  `@awareness-sdk/local` 0.9.x.
+
 ## [0.6.13] - 2026-04-18
 
 ### Changed — local daemon recall uses F-053 single-parameter surface

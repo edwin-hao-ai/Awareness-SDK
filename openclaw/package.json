@@ -1,6 +1,6 @@
 {
   "name": "@awareness-sdk/openclaw-memory",
-  "version": "0.6.13",
+  "version": "0.6.15",
   "description": "OpenClaw plugin for Awareness memory — cross-session recall and learnings",
   "author": "Edwin Hao",
   "license": "Apache-2.0",

@@ -8,6 +8,7 @@
  */
 
 import { AwarenessClient } from "./client";
+import { stripMetadataEnvelope } from "./envelope-strip";
 import type {
   SessionContext,
   ActiveSkill,
@@ -478,9 +479,22 @@ const awarenessPlugin = {
 
           if (messageCount === 0) return;
 
+          // F-055 bug B: strip OpenClaw runtime metadata envelopes so
+          // "Sender (untrusted metadata): ..." / "[Subagent Context]" etc.
+          // never leak into memory titles or embeddings.
+          const strippedUser = stripMetadataEnvelope(firstUserContent);
+          const strippedAssistant = stripMetadataEnvelope(lastAssistantContent);
+
+          if (firstUserContent && !strippedUser) {
+            api.logger.info(
+              "awareness: skipped metadata-only turn (envelope-only user message)",
+            );
+            return;
+          }
+
           const parts: string[] = [];
-          if (firstUserContent) parts.push(`Request: ${firstUserContent.slice(0, 300)}`);
-          if (lastAssistantContent) parts.push(`Result: ${lastAssistantContent.slice(0, 400)}`);
+          if (strippedUser) parts.push(`Request: ${strippedUser.slice(0, 300)}`);
+          if (strippedAssistant) parts.push(`Result: ${strippedAssistant.slice(0, 400)}`);
           parts.push(`Turns: ${messageCount} messages`);
 
           await client.record(parts.join("\n"), {

@@ -3,6 +3,7 @@ import type { AwarenessClient } from "./client";
 import * as fs from "fs";
 import * as path from "path";
 import { syncDailyLog } from "./sync";
+import { stripMetadataEnvelope } from "./envelope-strip";
 
 // ---------------------------------------------------------------------------
 // Language-agnostic keyword extraction for full-text search (zero LLM cost)
@@ -464,13 +465,28 @@ export function registerHooks(
             return;
           }
 
+          // F-055 bug B: strip OpenClaw runtime metadata envelopes before
+          // building the turn brief, so envelope text never reaches memory
+          // titles / embeddings / card extraction.
+          const strippedUser = stripMetadataEnvelope(firstUserContent);
+          const strippedAssistant = stripMetadataEnvelope(lastAssistantContent);
+
+          // If the user side collapses to envelope-only noise, skip the
+          // whole capture — there is nothing useful to remember.
+          if (firstUserContent && !strippedUser) {
+            api.logger.info(
+              "Awareness auto-capture: skipped metadata-only turn (envelope-only)",
+            );
+            return;
+          }
+
           // Build structured turn brief
           const parts: string[] = [];
-          if (firstUserContent) {
-            parts.push(`Request: ${firstUserContent.slice(0, 300)}`);
+          if (strippedUser) {
+            parts.push(`Request: ${strippedUser.slice(0, 300)}`);
           }
-          if (lastAssistantContent) {
-            parts.push(`Result: ${lastAssistantContent.slice(0, 400)}`);
+          if (strippedAssistant) {
+            parts.push(`Result: ${strippedAssistant.slice(0, 400)}`);
           }
           parts.push(`Turns: ${messageCount} messages`);
           const summary = parts.join("\n");

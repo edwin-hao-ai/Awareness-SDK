@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.9] - 2026-04-19
+
+### Changed — F-056 prompt SSOT re-sync (bundled `awareness-spec.json`)
+- Bundled `awareness-spec.json` refreshed to match `backend/awareness-spec.json`
+  as of 2026-04-19. `init_guides.write_guide` now carries the F-055 / F-056
+  extraction contract in full:
+  - Daemon quality gate R1-R5 (structural) — length / envelope / placeholder.
+  - Recall-friendliness R6-R8 (soft) — grep-friendly title / topic-specific tags
+    / multilingual keyword diversity.
+  - Explicit skill extraction under `insights.skills[]` (previously only
+    hinted as "deprecated `skill` category").
+- New-user IDEs configured by `awareness-setup` now receive the same extraction
+  guidance as Claude Code and OpenClaw — no drift between channels.
+
+### Compatibility
+- Requires `@awareness-sdk/local@0.9.0+` for daemon-side enforcement of R1-R5.
+
 ## [0.4.8] - 2026-04-18
 
 ### Changed — F-053 single-parameter prompt re-sync (bundled `awareness-spec.json`)

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.9] - 2026-04-19
+
+### Added — F-056 SSOT wire-up (recall-friendliness guidance)
+- `SKILL.md` now embeds the full shared prompt SSOT (5 slots) via
+  `<!-- SHARED:... BEGIN/END -->` markers auto-synced from
+  `sdks/_shared/prompts/`. ClawHub users get the same extraction
+  guidance as Claude Code and OpenClaw:
+  - When-to-extract / when-NOT-to-extract (envelope + greeting + noise filters)
+  - Per-card scoring (novelty / durability / specificity)
+  - Daemon quality gate R1-R5 (structural) + R6-R8 (recall-friendliness)
+  - Skill extraction under `insights.skills[]`
+- Previous `SKILL.md` only showed a trivial record example with the
+  no-longer-existing `category:"architecture"`. Fixed to use a proper
+  `category:"decision"` example with required scoring fields.
+- `scripts/harness-builder.mjs` record-rule also carries the new
+  R6-R8 guidance so local-mode hook users get the same lift.
+
+### Compatibility
+- Requires `@awareness-sdk/local@0.9.0+` for daemon-side R1-R5 enforcement.
+
 ## [0.3.8] - 2026-04-18
 
 ### Fixed — MCP `insights` arg no longer rejected as `expected object, received string`
