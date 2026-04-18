@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.8] - 2026-04-18
+
+### Changed — F-053 single-parameter prompt re-sync (bundled `awareness-spec.json`)
+- **What slipped through in 0.4.7**: when F-053 shipped the single-parameter
+  MCP surface (`awareness_recall({query: "..."})` / `awareness_record({content: "..."})`),
+  the prompt text bundled with setup-cli still described the pre-F-053 two-phase
+  progressive-disclosure pattern (`awareness_recall(semantic_query=..., keyword_query=..., detail='summary')`
+  then `detail='full' + ids=[...]`). Users running `npx @awareness-sdk/setup` got
+  an `awareness-spec.json` that taught their IDE agent the **old** API, causing
+  deprecation-warning spam and worse recall quality (no Phase 3 query-type
+  routing, no recency channel, no budget-tier shaping for the agent's calls).
+- **Fix (this release)**: `sdks/setup-cli/awareness-spec.json` is now a byte-for-byte
+  copy of `backend/awareness-spec.json` (the SSOT per `CLAUDE.md`). Three sections
+  changed materially:
+  - `awareness_recall.long_desc` → "Pass a single natural-language query..."
+  - `awareness_record.long_desc` → "Pass a single content string..."
+  - `workflow_reference.action` for recall → "single-parameter search" (was "two-phase progressive disclosure")
+- **No CLI behaviour change** — same `setup` / `test-recall` / `reset` commands,
+  same exit codes, same side effects. Only the bundled spec text is newer.
+- Aligned with `@awareness-sdk/local@0.8.0` and `awareness-memory@0.3.8` published
+  the same day.
+
 ## [0.4.7] - 2026-04-17
 
 ### Changed
