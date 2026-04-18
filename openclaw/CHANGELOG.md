@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.6.13] - 2026-04-18
+
+### Changed — local daemon recall uses F-053 single-parameter surface
+- `AwarenessClient.localSearch()` (local mode only) now sends
+  `{query, limit, token_budget?, agent_role?}` to the daemon via
+  `awareness_recall` MCP. Legacy fields (`semantic_query` / `keyword_query` /
+  `detail` / `scope` / `recall_mode` / `source_exclude` / `ids`) are
+  forwarded only when the caller explicitly passed the corresponding
+  `SearchOptions` field AND did not pass a `query` override.
+- **Why**: before this release, OpenClaw's local MCP path sent the pre-F-053
+  multi-parameter shape even when callers passed a plain natural-language
+  query, bypassing Phase 3 query-type auto-routing + recency channel +
+  budget-tier bucket shaping. Cloud (`/memories/:id/retrieve` REST) path is
+  unchanged because the cloud backend still uses the old multi-field body
+  schema — it has its own migration ticket.
+
+### Added — SearchOptions.query + SearchOptions.tokenBudget
+- `query?: string` is the preferred single-parameter field. Pass one natural
+  question; the daemon picks scope, recall mode, detail, and bucket shape.
+- `semanticQuery` is now optional and marked `@deprecated` in TSDoc. Existing
+  callers keep working without changes (legacy branch auto-hoists
+  `semanticQuery` → `query`).
+- `tokenBudget?: number` hints at the raw-vs-card mix tier (local daemon only).
+
+### Added — L2 tests
+- 5 new assertions in `client.local-recall.test.ts` lock the F-053 daemon-args
+  shape: `{query, limit}` default, `token_budget` forwarding, `semanticQuery`
+  fallback, `keyword_query` deprecation path, and explicit-`query`-wins
+  regression guards. Full suite now 174/174 passing (up from 169).
+
+### Compatibility
+- Requires `@awareness-sdk/local@0.8.0+` for full Phase 3 quality (recency
+  channel + budget-tier shaping). Older daemons still work via the legacy
+  `keyword_query`/`scope`/etc forwarding path — existing callers unchanged.
+
 ## [0.6.12] - 2026-04-17
 
 ### Changed

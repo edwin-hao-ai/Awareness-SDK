@@ -72,8 +72,13 @@ function parseRecallSummaryBlocks(
 // ---------------------------------------------------------------------------
 
 export interface SearchOptions {
-  semanticQuery: string;
+  /** F-053 single-parameter natural-language query. Preferred over `semanticQuery`. */
+  query?: string;
+  /** @deprecated Use `query`. Kept for backwards compatibility. */
+  semanticQuery?: string;
   keywordQuery?: string;
+  /** Token budget hint for bucket-tier shaping (local daemon only, default 20000). */
+  tokenBudget?: number;
   scope?: "all" | "timeline" | "knowledge" | "insights";
   limit?: number;
   vectorWeight?: number;
@@ -274,19 +279,33 @@ export class AwarenessClient {
   /**
    * Local daemon search via MCP awareness_recall.
    * Converts the MCP two-block response into RecallResult format.
+   *
+   * F-053 single-parameter path: prefer `opts.query`. When only
+   * `semanticQuery`/`keywordQuery` are passed (legacy callers), fall back to
+   * `semanticQuery` as the primary query. Legacy fields are forwarded only
+   * when the caller explicitly passed them.
    */
   private async localSearch(opts: SearchOptions): Promise<RecallResult> {
+    const effectiveQuery = opts.query ?? opts.semanticQuery ?? opts.keywordQuery ?? "";
     const args: Record<string, unknown> = {
-      detail: opts.detail ?? "summary",
+      query: effectiveQuery,
       limit: Math.max(1, Math.min(opts.limit ?? 6, 30)),
     };
-    if (opts.semanticQuery) args.semantic_query = opts.semanticQuery;
-    if (opts.keywordQuery) args.keyword_query = opts.keywordQuery;
+    if (opts.tokenBudget !== undefined && opts.tokenBudget > 0) {
+      args.token_budget = opts.tokenBudget;
+    }
+    const agentRole = opts.agentRole ?? this.agentRole;
+    if (agentRole) args.agent_role = agentRole;
+    // Legacy fields — forwarded only when the caller explicitly passed them
+    // AND a distinct `query` wasn't provided. Daemon logs deprecation warning
+    // for these to surface upgrade signal.
+    if (opts.query === undefined && opts.keywordQuery) {
+      args.keyword_query = opts.keywordQuery;
+    }
     if (opts.ids && opts.ids.length > 0) args.ids = opts.ids;
     if (opts.scope) args.scope = opts.scope;
     if (opts.recallMode) args.recall_mode = opts.recallMode;
-    const agentRole = opts.agentRole ?? this.agentRole;
-    if (agentRole) args.agent_role = agentRole;
+    if (opts.detail) args.detail = opts.detail;
     if (opts.sourceExclude && opts.sourceExclude.length > 0) args.source_exclude = opts.sourceExclude;
 
     const blocks = await this.mcpCallRaw("awareness_recall", args);

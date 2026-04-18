@@ -138,4 +138,110 @@ describe("AwarenessClient local recall", () => {
     expect(result.results).toHaveLength(1);
     expect(result.results?.[0]?.content).toContain("JWT auth");
   });
+
+  // ---------------------------------------------------------------------
+  // F-053 single-parameter daemon args alignment (2026-04-18)
+  // ---------------------------------------------------------------------
+
+  it("local search sends F-053 single-param `query` field (preferred over semanticQuery)", async () => {
+    mockFetch.mockReturnValueOnce(
+      jsonResponse({
+        result: { content: [{ type: "text", text: "Found 0 memories:" }] },
+      }),
+    );
+    const client = new AwarenessClient(
+      "http://localhost:37800/api/v1",
+      "",
+      "local",
+      "builder_agent",
+    );
+    await client.search({ query: "why did we pick pgvector over Pinecone" });
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const args = body.params.arguments;
+    expect(args.query).toBe("why did we pick pgvector over Pinecone");
+    expect(args.limit).toBeGreaterThan(0);
+    // F-053 regression guards: daemon_args must be clean single-param.
+    expect(args).not.toHaveProperty("semantic_query");
+    expect(args).not.toHaveProperty("keyword_query");
+    expect(args).not.toHaveProperty("detail");
+  });
+
+  it("local search forwards tokenBudget as `token_budget` for bucket-tier shaping", async () => {
+    mockFetch.mockReturnValueOnce(
+      jsonResponse({
+        result: { content: [{ type: "text", text: "Found 0 memories:" }] },
+      }),
+    );
+    const client = new AwarenessClient(
+      "http://localhost:37800/api/v1",
+      "",
+      "local",
+      "builder_agent",
+    );
+    await client.search({ query: "test", tokenBudget: 50000, limit: 10 });
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const args = body.params.arguments;
+    expect(args.token_budget).toBe(50000);
+    expect(args.limit).toBe(10);
+  });
+
+  it("local search legacy compat: falls back to semanticQuery when query absent", async () => {
+    mockFetch.mockReturnValueOnce(
+      jsonResponse({
+        result: { content: [{ type: "text", text: "Found 0 memories:" }] },
+      }),
+    );
+    const client = new AwarenessClient(
+      "http://localhost:37800/api/v1",
+      "",
+      "local",
+      "builder_agent",
+    );
+    await client.search({ semanticQuery: "legacy call" });
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const args = body.params.arguments;
+    // Legacy semanticQuery is hoisted to the single-param `query` field.
+    expect(args.query).toBe("legacy call");
+    // No double-sending under the old key.
+    expect(args).not.toHaveProperty("semantic_query");
+  });
+
+  it("local search forwards explicit keywordQuery only when `query` absent (deprecation signal)", async () => {
+    mockFetch.mockReturnValueOnce(
+      jsonResponse({
+        result: { content: [{ type: "text", text: "Found 0 memories:" }] },
+      }),
+    );
+    const client = new AwarenessClient(
+      "http://localhost:37800/api/v1",
+      "",
+      "local",
+      "builder_agent",
+    );
+    // Pure legacy call — no query, only keywordQuery
+    await client.search({ semanticQuery: "fallback", keywordQuery: "pgvector pinecone" });
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const args = body.params.arguments;
+    expect(args.query).toBe("fallback");
+    expect(args.keyword_query).toBe("pgvector pinecone");
+  });
+
+  it("local search with explicit query does NOT forward keywordQuery (single-param wins)", async () => {
+    mockFetch.mockReturnValueOnce(
+      jsonResponse({
+        result: { content: [{ type: "text", text: "Found 0 memories:" }] },
+      }),
+    );
+    const client = new AwarenessClient(
+      "http://localhost:37800/api/v1",
+      "",
+      "local",
+      "builder_agent",
+    );
+    await client.search({ query: "modern single-param call", keywordQuery: "should be dropped" });
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const args = body.params.arguments;
+    expect(args.query).toBe("modern single-param call");
+    expect(args).not.toHaveProperty("keyword_query");
+  });
 });
