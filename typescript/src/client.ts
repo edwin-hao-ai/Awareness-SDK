@@ -343,19 +343,32 @@ export class MemoryCloudClient {
     if (input.ids && input.ids.length > 0) body["ids"] = input.ids;
 
     // Local daemon bridge: use awareness_recall when in local/auto mode.
+    // F-053 single-parameter surface — pass only `query` and let the daemon
+    // auto-route (query-type classifier + recency channel + budget-tier
+    // shaping). Legacy fields (semantic_query/keyword_query/scope/recall_mode)
+    // are only forwarded when the caller explicitly passed them, marked so
+    // the daemon can log deprecation warnings.
     if (await this.shouldUseDaemon()) {
       const daemonArgs: JsonObject = {
-        semantic_query: input.query,
+        query: input.query,
         limit: input.limit ?? 12,
-        detail: input.detail ?? "summary",
       };
-      if (effectiveKeyword) daemonArgs.keyword_query = effectiveKeyword;
-      if (input.scope) daemonArgs.scope = input.scope;
-      if (input.recallMode) daemonArgs.recall_mode = input.recallMode;
+      const tokenBudget = (input.customKwargs ?? {})["token_budget"];
+      if (typeof tokenBudget === "number" && tokenBudget > 0) {
+        daemonArgs.token_budget = tokenBudget;
+      }
       if (input.agentRole) daemonArgs.agent_role = input.agentRole;
+      // Legacy fields — only forwarded if caller explicitly passed them.
+      if (effectiveKeyword && input.keywordQuery !== undefined) {
+        daemonArgs.keyword_query = effectiveKeyword;
+      }
+      if (input.scope) daemonArgs.scope = input.scope;
+      if (input.recallMode && input.recallMode !== "precise") {
+        daemonArgs.recall_mode = input.recallMode;
+      }
+      if (input.detail) daemonArgs.detail = input.detail;
       if (input.ids && input.ids.length > 0) daemonArgs.ids = input.ids;
       const daemonResult = await this.callLocalDaemon("awareness_recall", daemonArgs);
-      // Daemon returns either an array of summary items or { items: [...] }
       const items = Array.isArray(daemonResult)
         ? daemonResult
         : (daemonResult as { items?: JsonObject[]; results?: JsonObject[] }).items

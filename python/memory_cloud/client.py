@@ -421,20 +421,34 @@ class MemoryCloudClient:
             body["ids"] = ids
 
         # Local daemon bridge: route through awareness_recall MCP tool.
+        # F-053 single-parameter surface — pass only `query` and let the daemon
+        # auto-route (query-type classifier + recency channel + budget-tier
+        # shaping). Legacy fields are still forwarded for backwards-compat with
+        # pre-F-053 daemons but marked explicitly so server-side deprecation
+        # logging can trace who's still sending them.
         if self._should_use_daemon():
             daemon_args: Dict[str, Any] = {
-                "semantic_query": query,
+                "query": query,
                 "limit": limit,
-                "detail": detail or "summary",
             }
-            if effective_keyword:
+            # Token budget drives bucket shaping (raw-heavy / mixed / card-only).
+            # Callers can override via custom_kwargs["token_budget"].
+            token_budget = (custom_kwargs or {}).get("token_budget")
+            if token_budget is not None:
+                daemon_args["token_budget"] = int(token_budget)
+            if agent_role:
+                daemon_args["agent_role"] = agent_role
+            # Legacy fields — only forwarded if caller explicitly passed them.
+            # Daemon will log [deprecated param used] for these.
+            if effective_keyword and keyword_query is not None:
                 daemon_args["keyword_query"] = effective_keyword
             if scope:
                 daemon_args["scope"] = scope
-            if recall_mode:
+            if recall_mode and recall_mode != "precise":
+                # "precise" is the SDK default — don't forward it as legacy.
                 daemon_args["recall_mode"] = recall_mode
-            if agent_role:
-                daemon_args["agent_role"] = agent_role
+            if detail is not None:
+                daemon_args["detail"] = detail
             if ids:
                 daemon_args["ids"] = ids
             daemon_result = self.call_local_daemon("awareness_recall", daemon_args)
