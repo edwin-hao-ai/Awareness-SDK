@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.10] - 2026-04-19
+
+### Added — F-059/F-060 protocol updates
+- Shared `skill-extraction` SSOT prompt now emits F-059 `pitfalls` +
+  `verification` arrays in skill shape (via SSOT sync).
+- `awareness_recall` accepts optional F-060 `hyde_hint` for client-
+  side HyDE boost — CC/OpenClaw agents get 8-15pp Recall@1 lift on
+  queries with large query-vs-document gap.
+
 ## [0.3.9] - 2026-04-19
 
 ### Added — F-056 SSOT wire-up (recall-friendliness guidance)

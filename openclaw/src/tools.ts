@@ -145,7 +145,9 @@ Required shape per skill:
 {
   "name": "3-8 words, action-oriented (\\"Publish SDK to npm\\")",
   "summary": "200-500 chars of second-person imperative — pasteable into an agent prompt. Include WHY in one clause so the agent knows when to deviate.",
-  "methods": [{"step": 1, "description": "≥20 chars, names a file/command/verification — no vague verbs"}],
+  "methods": [{"step": 1, "description": "≥20 chars, names a file/command/flag — no vague verbs"}],
+  "pitfalls": ["One-line known failure mode + how to avoid it (e.g. 'npm mirror rejects publish — always pass --registry=https://registry.npmjs.org/')"],
+  "verification": ["One-line post-run check (e.g. 'Run \`npm view <pkg> version\` — should match the bumped version')"],
   "trigger_conditions": [{"pattern": "When publishing @awareness-sdk/*", "weight": 0.9}],
   "tags": ["npm", "publish", "release"],
   "reusability_score": 0.0,
@@ -154,8 +156,18 @@ Required shape per skill:
 }
 \`\`\`
 
-The daemon discards any skill with any of the three scores < 0.5 — score
-honestly. ≥ 3 steps, ≥ 2 trigger patterns, 3-8 tags.
+MANDATORY content bars (daemon scores on 8 dims; skills below 28/40 are
+hidden from active_skills[]):
+- **≥ 1 pitfall** with a concrete avoidance — NOT "be careful"
+- **≥ 1 verification** line with a checkable signal (command output, file
+  exists, HTTP 200, etc.) — NOT "check that it worked"
+- **Every step mentions a concrete token**: file path, command, flag,
+  version number, or URL. "Update the config" fails; "Edit \`foo.json\` and
+  bump \`version\` field" passes.
+- ≥ 3 steps, ≥ 2 trigger patterns, 3-8 tags, all three scores ≥ 0.5.
+
+Discard if these cannot be satisfied — emitting a vague skill pollutes the
+TOC that future agents pick from.
 <!-- SHARED:skill-extraction END -->
 Then call awareness_record(action="submit_insights", insights=<json>).`, warning: "Skipping = NO searchable knowledge cards; over-extracting pollutes memory — empty arrays are OK for noise turns" },
         { step: 5, action: "handle _skill_crystallization_hint (F-034)", when: "awareness_record response contains _skill_crystallization_hint", what: 'Review hint.similar_cards, synthesize into a skill, submit: awareness_record(insights={skills:[{name, summary, methods:[], trigger_conditions:[], tags:[], source_card_ids:[]}]})', warning: "Converts repeated patterns into reusable skills — skipping wastes the signal." },
@@ -397,46 +409,48 @@ Then call awareness_record(action="submit_insights", insights=<json>).`, warning
     id: "awareness_record",
     name: "awareness_record",
     description:
-      "Save memory — pass ONE content string and the server does the rest.\n\n" +
-      "Call AFTER every meaningful action. If you don't record it, it's lost.\n" +
-      "PRIMARY: awareness_record(content=<detailed description with reasoning, code snippets, files>)\n" +
-      "WITH INSIGHTS: awareness_record(content=\"summary\", insights={...})\n\n" +
-      "CRITICAL: When response contains _extraction_instruction, you MUST follow it\n" +
-      "to extract insights, then call awareness_record(content=\"summary\", insights=<json>).\n" +
-      "Skipping = raw events stored but NO searchable knowledge cards created.",
+      "Save memory — ONE call saves the raw event AND any structured insights.\n\n" +
+      "Call AFTER every meaningful action. If you don't record it, it's lost.\n\n" +
+      "PREFERRED (single call, saves a round-trip):\n" +
+      "  awareness_record(content=<detailed description>, insights={\n" +
+      "    knowledge_cards: [{category, title, summary, tags}],\n" +
+      "    action_items: [...], risks: [...], skills: [...]\n" +
+      "  })\n\n" +
+      "FALLBACK (if you can't pre-extract):\n" +
+      "  awareness_record(content=<detailed description>)\n" +
+      "  → server returns `_extraction_instruction`; follow it and call again\n" +
+      "     with the same `content` plus `insights`. One round-trip, not two.\n\n" +
+      "Skipping `insights` altogether = raw events stored but NO searchable\n" +
+      "knowledge cards. Prefer to emit them inline whenever you understand the\n" +
+      "content well enough to describe R1-R8 compliant cards.",
     parameters: {
       type: "object",
       properties: {
         content: {
-          type: "string",
           description:
-            "Memory content (markdown, detailed natural language). The ONLY parameter " +
-            "callers need — server defaults action=write and triggers async extraction. " +
-            "Example: awareness_record(content=\"Today I decided to...\").",
+            "Memory content — string for a single memory or string[] for batch. " +
+            "Server infers what to do from what you pass, no action enum to remember. " +
+            "Example: awareness_record({content: 'Decided pgvector over Pinecone...', insights: {knowledge_cards: [...]}}).",
         },
         insights: {
           type: "object",
           description:
-            "Optional pre-extracted structured insights. Include knowledge_cards, " +
-            "action_items, risks, completed_tasks. When provided, skips the " +
-            "_extraction_instruction round-trip.",
+            "Pre-extracted structured insights {knowledge_cards, action_items, risks, skills, completed_tasks}. " +
+            "Pass inline with content to skip the _extraction_instruction round-trip. " +
+            "Pass alone (no content) to submit insights without a new memory.",
         },
-
-        // --- Advanced actions (explicit — server will not infer these) ---
+        task_id: { type: "string", description: "Task ID — pass with `status` to update an existing task." },
+        status: { type: "string", description: "New task status (e.g. 'done'). Used with task_id." },
+        metadata: { type: "object", description: "Optional metadata attached to memories." },
+        user_id: { type: "string", description: "User ID for multi-user memory attribution." },
+        // Legacy back-compat — accepted but LLM shouldn't need to set it.
+        // Server auto-infers routing from content / insights / task_id shape.
         action: {
           type: "string",
-          enum: ["write", "update_task"],
-          description:
-            "[DEPRECATED] Defaults to \"write\" when content is provided. " +
-            "update_task still requires explicit action=update_task + task_id + status.",
+          description: "[LEGACY · auto-inferred] Server-side dispatch hint. Leave unset — routing is inferred from which other fields you pass.",
         },
-        text: { type: "string", description: "[DEPRECATED] Legacy alias for content." },
-        task_id: { type: "string", description: "Task ID (only for action=update_task)." },
-        status: { type: "string", description: "New status (only for action=update_task)." },
-        metadata: { type: "object", description: "Optional metadata to attach to events." },
-        user_id: { type: "string", description: "User ID for multi-user memory attribution." },
+        text: { type: "string", description: "[LEGACY alias] — prefer `content`." },
       },
-      required: ["content"],
     },
     execute: async (_toolCallId: string, input: Record<string, unknown>) => {
       const result = await client.write(

@@ -221,7 +221,9 @@ Required shape per skill:
 {
   "name": "3-8 words, action-oriented (\"Publish SDK to npm\")",
   "summary": "200-500 chars of second-person imperative — pasteable into an agent prompt. Include WHY in one clause so the agent knows when to deviate.",
-  "methods": [{"step": 1, "description": "≥20 chars, names a file/command/verification — no vague verbs"}],
+  "methods": [{"step": 1, "description": "≥20 chars, names a file/command/flag — no vague verbs"}],
+  "pitfalls": ["One-line known failure mode + how to avoid it (e.g. 'npm mirror rejects publish — always pass --registry=https://registry.npmjs.org/')"],
+  "verification": ["One-line post-run check (e.g. 'Run `npm view <pkg> version` — should match the bumped version')"],
   "trigger_conditions": [{"pattern": "When publishing @awareness-sdk/*", "weight": 0.9}],
   "tags": ["npm", "publish", "release"],
   "reusability_score": 0.0,
@@ -230,8 +232,18 @@ Required shape per skill:
 }
 ```
 
-The daemon discards any skill with any of the three scores < 0.5 — score
-honestly. ≥ 3 steps, ≥ 2 trigger patterns, 3-8 tags.
+MANDATORY content bars (daemon scores on 8 dims; skills below 28/40 are
+hidden from active_skills[]):
+- **≥ 1 pitfall** with a concrete avoidance — NOT "be careful"
+- **≥ 1 verification** line with a checkable signal (command output, file
+  exists, HTTP 200, etc.) — NOT "check that it worked"
+- **Every step mentions a concrete token**: file path, command, flag,
+  version number, or URL. "Update the config" fails; "Edit `foo.json` and
+  bump `version` field" passes.
+- ≥ 3 steps, ≥ 2 trigger patterns, 3-8 tags, all three scores ≥ 0.5.
+
+Discard if these cannot be satisfied — emitting a vague skill pollutes the
+TOC that future agents pick from.
 <!-- SHARED:skill-extraction END -->
 
 ### 4. Lookup Structured Data (awareness_lookup)

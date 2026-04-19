@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 
 class RetrieveResult(TypedDict, total=False):
@@ -423,7 +423,12 @@ class Skill(TypedDict, total=False):
     trigger_conditions: List[SkillTrigger]
     tags: List[str]
     source_card_ids: List[str]
-    growth_stage: str       # seedling | budding | evergreen
+    # Lifecycle stage. Kept as plain str for legacy rows, but the typed union
+    # is exposed via `GrowthStage` for call sites that want narrower typing.
+    growth_stage: Literal["seedling", "budding", "evergreen"]
+    # F-059 — known failure modes + post-run checks. Optional for back-compat.
+    pitfalls: List[str]
+    verification: List[str]
     usage_count: int
     decay_score: float
     pinned: bool
@@ -432,6 +437,10 @@ class Skill(TypedDict, total=False):
     updated_at: str
     user_id: str
     last_used_at: str
+
+
+#: Exposed for consumers that want to type-narrow growth_stage.
+GrowthStage = Literal["seedling", "budding", "evergreen"]
 
 
 class SkillListResult(TypedDict, total=False):

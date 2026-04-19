@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.6.0] - 2026-04-19
+
+### Added — F-059 skill fields + F-060 client-side HyDE
+- `Skill` type now carries optional `pitfalls: string[]`, `verification: string[]`,
+  and `growth_stage: "seedling" | "budding" | "evergreen"`.
+- `retrieve({ hydeHint })` — pass a pre-synthesized hypothetical answer so the
+  daemon embeds it as the query vector (better semantic match for paraphrased
+  queries).
+- New `retrieveWithHyde(input, llmComplete)` helper — user plugs in their own
+  LLM completion callable; returns graceful fallback on LLM error.
+- 5 new hyde tests + 2 skill-types tests. `npx tsc --noEmit` 0 errors.
+
 ## [2.5.0] - 2026-04-18
 
 ### Changed — local daemon bridge uses F-053 single-parameter surface

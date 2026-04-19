@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.10] - 2026-04-19
+
+### Changed — F-059/F-060 spec re-sync
+- Bundled `awareness-spec.json` updated with F-059 skill shape
+  (pitfalls, verification, mandatory content bars) and F-060 HyDE
+  field description in `init_guides.search_guide`.
+
 ## [0.4.9] - 2026-04-19
 
 ### Changed — F-056 prompt SSOT re-sync (bundled `awareness-spec.json`)

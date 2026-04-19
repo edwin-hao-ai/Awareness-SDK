@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.16] - 2026-04-19
+
+### Added — F-059/F-060 passthrough
+
+- F-059 skill types (`pitfalls: string[]`, `verification: string[]`,
+  `growth_stage: seedling|budding|evergreen`) now flow from daemon
+  response into plugin consumers unchanged (types added in 0.6.15 SDK
+  updates; this bump tracks the daemon protocol).
+- F-060 `hyde_hint` recall parameter documented in tool descriptions
+  so OpenClaw agents generate client-side HyDE spontaneously.
+
 ## [0.6.15] - 2026-04-19
 
 ### Added — F-056 SSOT prompt wire-up (recall-friendliness R6-R8)

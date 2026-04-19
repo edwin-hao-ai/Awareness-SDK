@@ -149,6 +149,52 @@ export interface ActiveSkill {
   methods?: string[];
 }
 
+// ---------------------------------------------------------------------------
+// Skill — full record shape returned by /skills endpoints and the local daemon
+// ---------------------------------------------------------------------------
+
+export interface SkillMethod {
+  step: number;
+  description: string;
+  tool_hint?: string;
+}
+
+export interface SkillTrigger {
+  pattern: string;
+  weight?: number;
+}
+
+export interface Skill {
+  id: string;
+  memory_id: string;
+  user_id?: string | null;
+  name: string;
+  summary: string;
+  methods: SkillMethod[];
+  trigger_conditions: SkillTrigger[];
+  tags: string[];
+  source_card_ids: string[];
+  /** Lifecycle stage; typed union with a `string` fallback for legacy rows. */
+  growth_stage?: "seedling" | "budding" | "evergreen" | (string & {});
+  /** Known failure modes + how to avoid them (F-059). */
+  pitfalls?: string[];
+  /** Post-run check signals that confirm successful execution (F-059). */
+  verification?: string[];
+  usage_count?: number;
+  last_used_at?: string | null;
+  decay_score?: number;
+  pinned?: boolean;
+  /** active | archived | merged */
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SkillListResponse {
+  skills?: Skill[];
+  total?: number;
+}
+
 export interface SessionContext {
   memory_id?: string;
   generated_at?: string;

@@ -40,10 +40,13 @@ def test_mcp_helper_session_and_history_parse():
     second = client._begin_memory_session(memory_id="m1", source="python-sdk")
     assert first["session_id"] != second["session_id"]
 
-    backfilled = client._coerce_history_to_events(
-        history="User: hi\nAssistant: done",
+    # v2.0.0 removed _coerce_history_to_events; equivalent behaviour is now
+    # `_build_record_events` accepting a list of transcript lines.
+    backfilled = client._build_record_events(
+        ["User: hi", "Assistant: done"],
         source="python-sdk",
         session_id=second["session_id"],
+        scope="timeline",
     )
     assert len(backfilled) == 2
     assert backfilled[0]["session_id"] == second["session_id"]

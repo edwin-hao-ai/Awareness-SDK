@@ -427,7 +427,11 @@ export class AwarenessClient {
   ): Promise<unknown> {
     const userId = params.user_id !== undefined ? String(params.user_id) : undefined;
     switch (action) {
-      case "write": {
+      // F-058 bug fix · daemon's canonical default action is "remember".
+      // tools.ts dispatches `input.action ?? "remember"` so the LLM sending
+      // no action (or explicitly "remember") must not die on "Unknown action".
+      case "write":
+      case "remember": {
         const content = params.content ?? params.text ?? "";
         const insights = params.insights as Record<string, unknown> | undefined;
         if (Array.isArray(content)) {
@@ -448,6 +452,34 @@ export class AwarenessClient {
           insights,
         );
         return result;
+      }
+
+      case "remember_batch": {
+        // params.items is the daemon's canonical shape: [{content: "..."}].
+        // Accept params.content array as fallback for symmetry with "write".
+        const rawItems = (params.items as unknown[] | undefined)
+          ?? (params.content as unknown[] | undefined)
+          ?? [];
+        const steps = rawItems.map((s: unknown) =>
+          typeof s === "string" ? s : String((s as Record<string, unknown>).content ?? s),
+        );
+        const result = await this.rememberBatch(steps, userId);
+        const insights = params.insights as Record<string, unknown> | undefined;
+        if (insights) {
+          const insightsResult = await this.submitInsights(insights);
+          return { ...result as Record<string, unknown>, insights_result: insightsResult };
+        }
+        return result;
+      }
+
+      case "submit_insights": {
+        // Insights-only submission — no new memory content.
+        // Caller passes {insights: {knowledge_cards, action_items, risks, skills}}
+        // OR unwrapped {knowledge_cards, ...} directly; accept both shapes.
+        const insights =
+          (params.insights as Record<string, unknown> | undefined)
+            ?? (params as Record<string, unknown>);
+        return this.submitInsights(insights);
       }
 
       case "update_task":

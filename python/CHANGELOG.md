@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.6.0] - 2026-04-19
+
+### Added — F-059 skill fields + F-060 client-side HyDE
+- `Skill` type (TypedDict) now carries optional `pitfalls`, `verification`,
+  and `growth_stage: Literal["seedling","budding","evergreen"]`.
+- `client.retrieve(hyde_hint=...)` — pass a pre-synthesized hypothetical
+  answer so the daemon embeds it as the query vector.
+- New `client.retrieve_with_hyde(memory_id, query, llm_complete)` helper
+  — user plugs in their own LLM completion callable; graceful fallback on error.
+- 6 new hyde tests. Total Python SDK: 132 passed, 21 skipped.
+
+### Fixed — pre-existing test failures (3)
+- `client.record()` now hoists `extraction_request` to top-level result
+  (was nested under `ingest`) — matches TS SDK contract.
+- `test_export_reader` updated to use current `_build_record_events` API
+  after `_coerce_history_to_events` was removed in v2.0.0.
+
 ## [2.5.0] - 2026-04-18
 
 ### Changed — local daemon bridge uses F-053 single-parameter surface

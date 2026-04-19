@@ -258,28 +258,31 @@ describe("registerTools", () => {
   // awareness_record
   // =========================================================================
   describe("awareness_record", () => {
-    it("requires content (F-053 single-parameter surface)", () => {
+    it("has no required fields — server auto-infers routing from shape (F-058)", () => {
       const tools = setupTools();
       const schema = tools["awareness_record"].parameters as Record<string, unknown>;
-      expect(schema.required).toEqual(["content"]);
+      // After F-058 the LLM can call record with just content, or just
+      // insights, or just task_id+status. The server infers which path.
+      expect(schema.required).toBeUndefined();
     });
 
-    it("keeps action in properties but marks it [DEPRECATED]", () => {
+    it("keeps action in properties but marks it legacy / auto-inferred", () => {
       const tools = setupTools();
       const schema = tools["awareness_record"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, { description?: string }>;
       expect(props.action).toBeDefined();
-      expect(props.action.description ?? "").toMatch(/\[DEPRECATED\]/);
+      // New wording emphasizes auto-inference; accept either legacy or deprecated marker.
+      expect(props.action.description ?? "").toMatch(/\[LEGACY|\[DEPRECATED\]|auto-inferred/i);
     });
 
-    it("supports write and update_task actions", () => {
+    it("does NOT pin an action enum — any value is accepted", () => {
       const tools = setupTools();
       const schema = tools["awareness_record"].parameters as Record<string, unknown>;
       const props = schema.properties as Record<string, Record<string, unknown>>;
-      expect(props.action.enum).toEqual([
-        "write",
-        "update_task",
-      ]);
+      // Removing the enum in F-058 lets legacy callers still pass any action
+      // value (write/remember/submit_insights/remember_batch/update_task)
+      // without the openclaw adapter rejecting it up-front.
+      expect(props.action.enum).toBeUndefined();
     });
 
     it("has user_id and insights in schema", () => {

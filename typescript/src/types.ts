@@ -515,8 +515,15 @@ export interface Skill {
   trigger_conditions: SkillTrigger[];
   tags: string[];
   source_card_ids: string[];
-  /** seedling | budding | evergreen */
-  growth_stage: string;
+  /**
+   * Lifecycle stage of a skill. Prefer the typed union when available; the
+   * type falls back to `string` to stay compatible with legacy payloads.
+   */
+  growth_stage: "seedling" | "budding" | "evergreen" | (string & {});
+  /** Known failure modes + how to avoid them (F-059). Optional for backward compat. */
+  pitfalls?: string[];
+  /** Post-run check signals that confirm successful execution (F-059). */
+  verification?: string[];
   usage_count: number;
   last_used_at?: string | null;
   decay_score: number;

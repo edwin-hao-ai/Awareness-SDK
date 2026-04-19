@@ -277,6 +277,12 @@ export class MemoryCloudClient {
     detail?: "summary" | "full";
     /** Fetch specific items by ID (ignores query matching). */
     ids?: string[];
+    /**
+     * Optional hypothetical-document (HyDE) hint. When provided, the server uses
+     * the hint alongside the raw query to boost semantic retrieval on phrasing
+     * that doesn't literally match card wording.
+     */
+    hydeHint?: string;
     traceId?: string;
   }): Promise<RetrieveResponse> {
     const merged: JsonObject = {
@@ -341,6 +347,9 @@ export class MemoryCloudClient {
     }
     if (input.detail) body["detail"] = input.detail;
     if (input.ids && input.ids.length > 0) body["ids"] = input.ids;
+    if (input.hydeHint && input.hydeHint.trim().length > 0) {
+      body["hyde_hint"] = input.hydeHint.trim();
+    }
 
     // Local daemon bridge: use awareness_recall when in local/auto mode.
     // F-053 single-parameter surface — pass only `query` and let the daemon
@@ -368,6 +377,9 @@ export class MemoryCloudClient {
       }
       if (input.detail) daemonArgs.detail = input.detail;
       if (input.ids && input.ids.length > 0) daemonArgs.ids = input.ids;
+      if (input.hydeHint && input.hydeHint.trim().length > 0) {
+        daemonArgs.hyde_hint = input.hydeHint.trim();
+      }
       const daemonResult = await this.callLocalDaemon("awareness_recall", daemonArgs);
       const items = Array.isArray(daemonResult)
         ? daemonResult
@@ -383,6 +395,38 @@ export class MemoryCloudClient {
       jsonBody: body,
       traceId: input.traceId,
     });
+  }
+
+  /**
+   * Retrieve with a user-supplied LLM generating a HyDE (Hypothetical
+   * Document Embeddings) hint. The caller passes a `llmComplete` callable
+   * that wraps their own LLM provider (OpenAI, Anthropic, ollama, etc.).
+   * If the LLM call fails or returns a too-short string, the method falls
+   * back to a plain `retrieve()` with no `hyde_hint` — HyDE is always an
+   * optional boost, never required.
+   *
+   * @param input - Same option bag as `retrieve()`, minus `hydeHint`
+   *   (which is generated here).
+   * @param llmComplete - Async function that takes a prompt string and
+   *   returns a completion string. Any thrown error is caught and
+   *   causes fallback to plain retrieve.
+   */
+  async retrieveWithHyde(
+    input: Omit<Parameters<MemoryCloudClient["retrieve"]>[0], "hydeHint">,
+    llmComplete: (prompt: string) => Promise<string>,
+  ): Promise<RetrieveResponse> {
+    const hydePrompt =
+      `Write a single paragraph (100-200 characters) hypothetical answer to this question, as if it were already in a knowledge base. No preamble, no markdown.\n\nQuestion: ${input.query}`;
+    let hydeHint: string | undefined;
+    try {
+      const generated = await llmComplete(hydePrompt);
+      if (generated && generated.trim().length >= 20) {
+        hydeHint = generated.trim().slice(0, 400);
+      }
+    } catch {
+      // Any LLM error → fall back to raw retrieve (no hyde_hint)
+    }
+    return this.retrieve({ ...input, hydeHint });
   }
 
   async write(input: {

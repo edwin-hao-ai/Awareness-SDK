@@ -558,6 +558,56 @@ describe("AwarenessClient", () => {
       const result = await makeClient().write("nonexistent");
       expect(result).toEqual({ error: "Unknown action: nonexistent" });
     });
+
+    // F-058 bug · LLM defaults to "remember" when the tool description says so
+    // but the daemon's canonical action is "remember" / "remember_batch" /
+    // "submit_insights". Client must accept all three so the extraction
+    // round-trip doesn't die on "Unknown action: remember".
+    it("action=remember is accepted as an alias for write", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 1, written: 1 }));
+
+      const client = makeClient();
+      await client.write("remember", {
+        content: "Decided pgvector over Pinecone",
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.content).toBe("Decided pgvector over Pinecone");
+    });
+
+    it("action=remember_batch sends array items to /mcp/events/batch", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ accepted: 2, written: 2 }));
+
+      await makeClient().write("remember_batch", {
+        items: [
+          { content: "step 1" },
+          { content: "step 2" },
+        ],
+      });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain("/mcp/events/batch");
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.steps).toHaveLength(2);
+    });
+
+    it("action=submit_insights POSTs insights-only payload", async () => {
+      mockFetch.mockReturnValueOnce(jsonResponse({ ok: true, cards_created: 1 }));
+
+      await makeClient().write("submit_insights", {
+        insights: {
+          knowledge_cards: [
+            { title: "Use pgvector · JOIN hybrid search + $70/mo saved", category: "decision", summary: "long summary..." },
+          ],
+        },
+      });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain("/insights/submit");
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      // submitInsights wraps the payload as {insights: {...}} for the cloud POST
+      expect(body.insights.knowledge_cards).toHaveLength(1);
+    });
   });
 
   // =========================================================================
