@@ -93,6 +93,8 @@ Zero LLM calls. Runs on Apple M1 8GB in 14 minutes. [Reproducible benchmark scri
 
 ---
 
+Online docs: <https://awareness.market/docs?doc=typescript>
+
 ## Install
 
 ```bash
