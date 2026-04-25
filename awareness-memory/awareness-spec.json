@@ -201,6 +201,21 @@
       "name": "awareness_mark_skill_used",
       "short_desc": "Report skill usage outcome — success, partial, or failed",
       "long_desc": "Mark a skill as used after applying it. Pass outcome='success' (default), 'partial', or 'failed'. Success resets decay timer fully. Partial gives a reduced boost. Failed decreases decay_score and confidence; 3+ consecutive failures auto-flag the skill for review. Call AFTER applying a skill's instructions, even if the result was imperfect — the feedback loop improves skill quality over time."
+    },
+    {
+      "name": "awareness_facts",
+      "short_desc": "Read bi-temporal facts from the knowledge graph (active or as_of)",
+      "long_desc": "Query the F-074 bi-temporal fact store. Default returns only active facts (valid_to IS NULL). Pass as_of=<ISO ts> to rewind to a point in time. Optional filters: subject_id, predicate. Use this when you need ground-truth structured claims, not narrative recall."
+    },
+    {
+      "name": "awareness_related",
+      "short_desc": "n-hop graph traversal — find entities related to a starting entity",
+      "long_desc": "Walk the knowledge graph up to max_hops (1-4) from a given entity_id. Returns linked entities with the predicate path. Use when you need connection discovery: 'what is X related to', 'who knows X', 'what depends on X'."
+    },
+    {
+      "name": "awareness_timeline",
+      "short_desc": "Bi-temporal fact stream for one entity (active + superseded)",
+      "long_desc": "Returns the full time-machine view for a single entity, ordered by valid_from desc — both active and superseded facts. Use this for 'how did X evolve over time' / 'what did we believe about X last month' queries."
     }
   ],
   "mcp_instructions": [

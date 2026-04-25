@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.4.12] - 2026-04-25
+
+### Fixed — fresh-install daemon-start no longer fails on slow networks
+
+`tryStartDaemon` previously gave up after 10 seconds. On a brand-new machine
+the daemon takes 30–90s to start because `npx @awareness-sdk/local start`
+fetches the package and compiles `better-sqlite3` natively. We now wait up
+to 90s and, if it still hasn't responded, **print a warning and continue
+with MCP config sync** instead of exiting 1. The user's IDE will pick up
+the daemon once it finishes downloading.
+
+**Impact**: zero risk for existing users — they had the daemon already
+running so this branch never affects them.
+
+## [0.4.11] - 2026-04-25
+
+### Fixed — no-IDE fresh install no longer exits 1
+
+Setup CLI used to hard-fail with `Could not auto-detect IDE. Use --ide <name>`
+exit 1 when run on a host with no supported IDE installed (CI agents, headless
+SSH, fresh Docker containers). It now prints an informational message and
+continues with daemon-only setup, exit 0. Users can wire MCP later via
+`npx @awareness-sdk/setup --ide <name>`.
+
+**Impact**: zero risk for existing users — they always had IDEs detected and
+this branch never ran for them. Only edge cases improve.
+
 ## [0.4.10] - 2026-04-19
 
 ### Changed — F-059/F-060 spec re-sync

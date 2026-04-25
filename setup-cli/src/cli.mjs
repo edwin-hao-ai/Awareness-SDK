@@ -868,10 +868,12 @@ async function runLocalMode({ argv, dryRun, force, ask, isInteractive }) {
         return 1;
       }
 
-      // 4. Wait for daemon to be ready (up to 10 seconds)
-      process.stdout.write("Waiting for daemon to be ready");
+      // 4. Wait for daemon to be ready. First-run takes longer because npx
+      // fetches @awareness-sdk/local from npm and compiles better-sqlite3.
+      // 90s accommodates that; subsequent runs hit cache and finish in ~2s.
+      process.stdout.write("Waiting for daemon to be ready (first install can take ~60s)");
       const pollStart = Date.now();
-      const maxWait = 10000;
+      const maxWait = 90000;
       const pollInterval = 500;
       while (Date.now() - pollStart < maxWait) {
         if (await checkDaemonHealth()) {
@@ -884,14 +886,17 @@ async function runLocalMode({ argv, dryRun, force, ask, isInteractive }) {
       console.log("");
 
       if (!daemonReady) {
-        console.error("Daemon did not become ready within 10 seconds.");
-        console.error("Check logs:  npx @awareness-sdk/local logs");
-        console.error("Or start manually:  npx @awareness-sdk/local start");
-        console.error("\nTo use cloud mode instead: npx @awareness-sdk/setup --cloud");
-        return 1;
+        // Don't hard-fail: the daemon may still be downloading native deps.
+        // Print actionable next-steps and continue with MCP config sync so
+        // the user's IDE wires up correctly even if daemon comes up late.
+        console.warn("⚠️  Daemon did not become ready within 90 seconds.");
+        console.warn("   It may still be installing native dependencies in the background.");
+        console.warn("   Check status:   npx @awareness-sdk/local logs");
+        console.warn("   Or start manually: npx @awareness-sdk/local start");
+        console.warn("   MCP config will still be written so your IDE can connect once it's up.");
+      } else {
+        console.log("✓ Local daemon started successfully.\n");
       }
-
-      console.log("✓ Local daemon started successfully.\n");
     }
   }
 
@@ -1104,12 +1109,17 @@ async function resolveIdeTargets({ argv, ask }) {
     const detected = autoDetectAllIdes();
 
     if (detected.length === 0) {
-      // Nothing detected — interactive selection or error
+      // Nothing detected — interactive selection or graceful headless fallback
       if (!ask) {
-        console.log("Could not auto-detect IDE. Use --ide <name> to specify.");
-        console.log(`Supported: ${getSupportedIdeIds().join(", ")}`);
-        console.log("\nHint: Run this from your project root directory.");
-        return null;
+        // Headless: still start the daemon (return [] to skip per-IDE sync)
+        // and print clear next-step instructions. Previously we exited 1 here,
+        // which broke fresh-user installs in containers / CI / SSH where no
+        // IDE is present yet. The daemon URL the user can wire into any MCP
+        // client is now printed at the end of runLocalMode regardless.
+        console.log("ℹ️  No IDE detected. Continuing with daemon-only setup.");
+        console.log(`   To wire MCP later, run: npx @awareness-sdk/setup --ide <name>`);
+        console.log(`   Supported: ${getSupportedIdeIds().join(", ")}`);
+        return [];
       }
 
       console.log("Could not auto-detect IDE in this directory.");
@@ -1133,11 +1143,8 @@ async function resolveIdeTargets({ argv, ask }) {
     }
   }
 
-  if (ideTargets.length === 0) {
-    console.log("No IDE selected.");
-    return null;
-  }
-
+  // Empty array (no IDE) is allowed in headless mode — daemon-only setup.
+  // Only treat null as a hard error.
   return ideTargets;
 }
 
