@@ -261,7 +261,7 @@
         "step": 4,
         "action": "handle _extraction_instruction (legacy fallback)",
         "when": "awareness_record response contains _extraction_instruction (only when insights was omitted)",
-        "what": "Follow the instruction to extract insights, then call awareness_record(content=<json>)",
+        "what": "Follow the instruction to extract insights, then call awareness_record(action=\"submit_insights\", insights=<json_object>)",
         "warning": "Skipping this = memories stored but NO searchable knowledge cards created"
       },
       {
