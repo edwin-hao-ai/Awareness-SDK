@@ -1,5 +1,978 @@
 # Changelog
 
+## [0.11.6] - 2026-04-29
+
+### Fixed — docs-only onboarding, workspace UI loading, and graph embedding throttling
+
+- Onboarding now writes markdown-only scan settings before it triggers the
+  first workspace scan, so fresh local installs no longer silently re-enable
+  code scanning during setup.
+- `scan-config` legacy migration now preserves old `scan_code=true` behavior
+  only when the workspace index actually contains active code file nodes.
+  A docs-only `.awareness/index.db` no longer gets misclassified as a legacy
+  code-heavy install.
+- Turning `scan_code` off now prunes existing code file and symbol graph nodes
+  in batches from SQLite, which immediately shrinks live recall scope instead
+  of waiting for a future reindex.
+- Workspace picker and sidebar scanner data now load in the background, so the
+  local web UI no longer gets stuck on loading when switching workspaces or
+  opening docs-heavy projects.
+- Graph embedding now runs in smaller passes, coalesces duplicate triggers,
+  and automatically schedules follow-up passes while backlog remains. This
+  reduces CPU and RSS spikes on large repos without leaving the graph half-
+  embedded forever.
+
+## [0.11.5] - 2026-04-28
+
+### Fixed — workspace root safety and daemon workspace alignment
+
+- `awareness-local start` and stdio MCP startup now reject using the exact
+  home directory as the workspace root, so a misconfigured client no longer
+  creates `~/.awareness` and recursively scans the whole home directory.
+- stdio auto-start now always passes the requested `--project` to the daemon,
+  sends workspace identity headers on every `/mcp` request, and auto-switches
+  an already-running daemon onto the requested workspace before proxying.
+- MCP proxy retries now self-heal transient `project_mismatch` and
+  `project_switching` races during hot workspace switches instead of surfacing
+  spurious user-visible failures.
+
+## [0.11.4] - 2026-04-27
+
+### Added — defensive submit_insights fallback for legacy LLM clients
+
+- `daemon/engine/submit-insights.mjs` now accepts the insights payload via
+  either `params.insights` (preferred) or `params.content` (legacy / fallback
+  when an LLM follows the old extraction-instruction wording). Mirrors the
+  cloud MCP fix shipped today so end-to-end clients always create cards
+  regardless of which slot the LLM serialised the JSON into.
+- No behavior change for callers that already pass `insights={...}`.
+
+## [0.11.3] - 2026-04-27
+
+### Fixed — graph-embedder full fix: bound BOTH embed and similarity
+
+0.11.2 only capped the similarity step. Live testing showed the
+**embedding** step itself (per-node ML inference) also pegged CPU at
+359% with RSS past 1 GB on the Awareness monorepo (11,330 unembedded
+graph nodes), tripping `/healthz` to 000 around the 50s mark. This
+release adds the same caps to `embedGraphNodes`:
+
+- **Per-pass cap**: `total > 1500` → embed only the first 1500 nodes
+  this pass; rest catch up incrementally during normal operation
+- **Time-budget abort**: 30 s wall-clock budget per pass
+- Overrides: `AWARENESS_GRAPH_EMBED_MAX_PER_PASS=N`,
+  `AWARENESS_GRAPH_SIM_MAX_NODES=N`
+
+## [0.11.2] - 2026-04-27
+
+### Fixed — graph-embedder similarity caps (partial; see 0.11.3)
+
+When switching into a large workspace (e.g. the Awareness monorepo
+itself, ~11,667 graph nodes), the daemon's similarity-edge generator
+pegged CPU with O(n²) cosine-similarity comparisons inside each
+type-group. UI operations could appear hung even though the switch
+HTTP response returned quickly.
+
+Fixes:
+- **Hard cap**: `count > 2000` → skip similarity entirely with an
+  explanatory log line. Recall via FTS5 + per-card embedding still
+  works; the graph-similarity layer is a bonus, not load-bearing.
+- **Time-budget abort**: within the 2000-node cap, if elapsed exceeds
+  `30s` the loop returns gracefully (`aborted: 'budget'`).
+- Override via env: `AWARENESS_GRAPH_SIM_MAX_NODES=N`.
+
+Daemon health probes (`/healthz`) and concurrent MCP requests are no
+longer starved during graph similarity work on large repos.
+
+## [0.11.1] - 2026-04-26
+
+### Added — F-083 Phase 4 (additive): recall returns wiki_path
+
+Every `awareness_recall` summary item now carries a `wiki_path` (relative
+to `~/.awareness/`) pointing at the canonical markdown file the F-082 wiki
+tree wrote. Agents can WebFetch that .md for full context without calling
+`awareness_recall(detail='full', ...)` again.
+
+Computed deterministically from the same slug rule that `writeCardToWiki`
+uses on `awareness_record`, so no DB schema change is needed; older clients
+that ignore the new field continue to work.
+
+JSON envelope additions:
+- `_wiki_paths`: `[string|null, ...]` aligned with `_ids`
+- `_hint`: updated to mention reading the .md directly
+
+Human-readable text shows `📄 cards/YYYY/MM/<slug>.md` per result.
+
+## [0.11.0] - 2026-04-25
+
+### Added — F-081 Part B: Vibe-Publish via `awareness_publish_agent` MCP tool
+
+You can now turn any in-progress agent session into a Marketplace draft with
+one tool call:
+
+```
+awareness_publish_agent({ slug: "stripe-onboarding-expert", description: "..." })
+  → returns synthesis bundle for the host LLM to fill in
+
+awareness_publish_agent({ slug, manifest: { name, slug, description, skill_md, ... } })
+  → daemon scans for secrets locally, POSTs to /publish-drafts, returns dashboard URL
+```
+
+Free for everyone — no payment required to draft or publish.
+
+- New `core/secret-scanner.mjs`: 13 hard-blocker rules (Anthropic/OpenAI/AWS/
+  GitHub/npm/Slack/PEM/JWT/DB-URL/generic-secret), 5 soft-warning rules
+  (real emails, absolute paths, public IPs, internal hostnames). Redaction
+  with 4-char prefix for triage. False-positive guards.
+- New `daemon/engine/publish-agent.mjs`: assembleContextBundle (recent cards
+  + runtime), reviewDraft (scan + block on hard hits), submitDraftToBackend
+  (integrates with existing F-078 `/publish-drafts` endpoint).
+- `mcp-contract.mjs`: `awareness_publish_agent` registered with two-phase
+  schema (synthesize → submit).
+- `tool-bridge.mjs`: dispatches the tool through the engine.
+
+Requires cloud auth (`npx @awareness-sdk/setup --cloud`) since drafts post
+to the Marketplace backend. Local-only users see a friendly error message
+prompting setup.
+
+## [0.10.1] - 2026-04-25
+
+### Added — F-082 Phase 0-3: Markdown-First Memory wiki tree
+
+Every `awareness_record` now also writes a connected markdown wiki under
+`~/.awareness/`:
+
+- `cards/YYYY/MM/<date>-<category>-<slug>.md` — one file per knowledge card
+- `topics/<slug>.md` — auto-created topic pages aggregating cards
+- `journal/<YYYY-MM-DD>.md` — daily journal live-appended on every record (no cron)
+- `INDEX.md` — wiki home auto-refreshed every record (topic list, recent journal, skills)
+- `README.md` — one-time permanent user orientation
+
+**All event-driven.** Zero scheduled tasks. Failures are swallowed (the SQLite
+write path is unaffected). Existing `knowledge/<category>/<id>.md` continues
+to be written for backward compatibility.
+
+This unlocks:
+- `zip ~/.awareness/` to back up your memory
+- `git init` and push to your own private repo
+- Read your memory as a wiki without our software
+
+See `docs/features/f-082/PRD.md` for the full design.
+
+## [0.10.0] - 2026-04-25
+
+### Changed — scanner default flips to markdown-only (with backward-compat migration)
+
+`scan_code` default in `~/.awareness/scan-config.json` flipped from `true` to
+`false`. Memory recall benefits from markdown-only indexing — code already
+addressable via git/IDE, and indexing it crowded the vector space with low-
+quality matches. Index size shrinks 5–10× for typical repos.
+
+**Backward compatibility — automatic**: on first run after upgrade, if the
+daemon detects an existing `.awareness/index.db` (i.e. you've been using
+v0.9.x or older) and you don't have a `scan-config.json` yet, it writes one
+with `{ "scan_code": true }` to preserve your previous behavior. New installs
+get the cleaner default.
+
+**To adopt the new default explicitly**: delete `.awareness/scan-config.json`
+and re-run the daemon, or set `"scan_code": false`. The existing code chunks
+in `index.db` are preserved either way; only the rule for *future* indexing
+changes.
+
+## [0.9.12] - 2026-04-21
+
+### Fixed — wiki "click topic → click card" several-second freeze
+On real workspaces (~2.5k cards) the AwarenessClaw wiki tab took 1-3
+seconds to render a card detail and `/healthz` would briefly fall over
+during the wait. Two compounding causes:
+- `apiGetKnowledgeCard` (MOC card path) ran **one full-table
+  `tags LIKE '%"<tag>"%'` scan per MOC tag** and walked them sequentially
+  in better-sqlite3 (which is synchronous). A 5-tag MOC over 2.5k cards =
+  5 sequential ~50-150 ms scans — the event loop was blocked the entire
+  time so concurrent GETs (sidebar, healthz) queued behind it.
+- The whole handler was synchronous, so even the single-tag `tag_<name>`
+  pseudo-topic path could not yield to other in-flight requests after
+  its scan.
+
+Fix:
+- Combine N tag scans into ONE `WHERE ... AND (tags LIKE ? OR ...)` pass
+  followed by a JS-side intersect against a `Set(mocTags)`. Defensive
+  intersect rejects substring false positives (e.g. tag "go" must not
+  match "google"). Verified on a 5-tag fixture in
+  `test/api-tag-pseudo-topic.test.mjs`.
+- `apiGetKnowledgeCard` is now `async` and `await new Promise(setImmediate)`
+  is inserted after each synchronous LIKE scan so other requests can be
+  served between the scan and the JSON-parse phase.
+- Net: 5-tag MOC member fetch went from ~5×scan-time + blocked loop to
+  ~1×scan-time + voluntary yield. **No data-quality change** — the
+  defensive intersect guarantees the result set is identical to the old
+  per-tag loop.
+
+### Fixed — `/healthz` periodically dropped under graph-embedder load
+`generateSimilarityEdges` yielded every 50 outer iterations. On a
+6276-node workspace this is ~313 k 384-dim dot products between yields
+(~250-400 ms of pure CPU on M-series silicon) — long enough to fail a
+200 ms healthz timeout and make the daemon look dead from the UI side.
+Lowered `yieldEvery` to 8 (≈ 50 k dot products ≈ ~50 ms bursts) so
+healthz and parallel /api/v1 GETs always get a slot. **Algorithm and
+output edges are byte-identical** — only the CPU schedule changes.
+
+### Verified
+- `test/api-tag-pseudo-topic.test.mjs` — 5/5 (added a 5-tag MOC
+  perf+correctness regression that locks the OR-of-LIKEs + defensive
+  intersect contract).
+- All other existing tests (switch-ghost-pipeline, F-055
+  cross-workspace-isolation, cli-single-daemon) — green.
+
+## [0.9.11] - 2026-04-20
+
+### Fixed — workspace switch hang / log flood after 2+ consecutive switches
+Users reported AwarenessClaw freezing after switching workspaces more than
+twice in a row. Root cause was a family of fire-and-forget background
+pipelines that kept writing to an indexer **after** `switchProject()` had
+closed its SQLite DB, producing thousands of
+`The database connection is not open` errors per switch cycle (7606 lines
+observed in the 3-workspace × 3000-file repro) and occasional UI stalls
+because `scanState` was being clobbered by stale pipelines.
+
+Fixes in three layers:
+- **graph-embedder**: `embedGraphNodes` and `generateSimilarityEdges` now
+  accept an `AbortSignal` and check it between batches / yield points.
+  Both functions snapshot `daemon.indexer` at pipeline start so they
+  cannot swap onto a new workspace's DB mid-run. `triggerGraphEmbedding`
+  exposes its promise as `daemon._inflightGraphPipeline`.
+- **switchProject**: after aborting the scan controller, now awaits
+  `_inflightGraphPipeline` (up to 3 s) before `indexer.close()`, so the
+  pipeline exits cleanly instead of writing into the closed DB.
+- **defence in depth**: every `graphInsert*`, `storeEmbedding`,
+  `storeCardEmbedding`, `storeGraphEmbedding`, `refineMocWithLlm`,
+  `autoResolvePerception` and the maintenance timers (`runSkillDecay`,
+  graph-maintenance) short-circuit when `this.db.open === false`.
+  Workspace-scanner's link-discovery and wiki-generation passes check
+  `indexer.db?.open` before preparing statements.
+
+### Fixed — file-watcher debounce fires into a stale workspace
+`startWorkspaceWatcher` / `startGitHeadWatcher` leaked their debounce
+`setTimeout` through `watcher.close()`, so a 2 s debounced
+`triggerScan('incremental')` could fire against the NEW workspace
+after `switchProject()` moved on. Both watchers now capture
+`projectAtStart`, reject callbacks on mismatch, and wrap
+`watcher.close` to clear the pending debounce timer.
+
+### Fixed — cloud LLM refinement writes into the wrong workspace
+`_refineMocTitles` and `_checkPerceptionResolution` call the cloud
+`/chat` endpoint (not the client IDE's LLM). A slow round-trip could
+land the UPDATE on a MOC card or auto-resolve a perception signal in
+the workspace the user just switched away from. Both paths now
+snapshot `projectDir` + `indexer` before dispatching and re-check
+after `await`.
+
+### Verified
+- New regression test `test/switch-ghost-pipeline.test.mjs` — 3
+  back-to-back switches produce **zero** closed-DB log lines.
+- Stress test (not in CI): 7500 files × 7 workspaces × 3 cycles = 21
+  consecutive switches → 0 closed-DB errors, switch p95 = 399 ms,
+  healthz max = 196 ms, zero failures.
+- Existing `f055-cross-workspace-isolation` (3) +
+  `cli-single-daemon` (4) + `cloud-sync-shutdown-race` (18) all green.
+
+## [0.9.10] - 2026-04-19
+
+### Fixed — Wiki tag topic renders blank after "building index" spinner
+- AwarenessClaw sidebar lists tag aggregations (ids like `tag_<name>`) as
+  topics. The client's detail view used to client-side-filter the preloaded
+  50-card snapshot for members. When a tag's member cards lived outside
+  the top-50 (older cards), the filter yielded zero → retried 4× → showed
+  "Daemon is building the tag index, please wait…" for 3.2 s → rendered
+  a blank content pane.
+- Fix: `GET /api/v1/knowledge/<id>` now recognises `tag_<name>` pseudo-ids
+  and runs the same SQL tag-LIKE query `_countMocMembers` uses, returning
+  a `members[]` array backed by the full SQLite table (up to 500). The
+  AwarenessClaw client's `WikiContentArea.tsx` falls through to this
+  endpoint when client-side match returns zero.
+- Tests: `test/api-tag-pseudo-topic.test.mjs` — 4/4.
+
+### Fixed — graph-embedder FK warnings flooding the log
+- `storeGraphEmbedding` now swallows `FOREIGN KEY constraint failed`
+  silently (returns `skipped: 'stale_node'`). The race is between
+  `getUnembeddedGraphNodes()` returning a row and the INSERT landing
+  after workspace-scanner deleted that node; the embedding is stale
+  anyway, so there is nothing to warn about. Previously produced 30+
+  log lines per batch on active workspaces.
+- `embedGraphNodes` counts stale-node returns under `skipped` rather than
+  incrementing `embedded`.
+
+### Fixed — sync_status `last_push_at` always null despite recent pushes
+- CloudSync records events via `recordSyncEvent` into sync_state but never
+  mirrored them back to `config.json`, so `config.cloud.last_push_at`
+  stayed null forever. The /sync/status endpoint now derives the scalar
+  from the most-recent history entry in the matching direction when the
+  config field is missing. UI "Never synced" caption no longer lies when
+  pushes have clearly happened.
+
+## [0.9.9] - 2026-04-19
+
+### Fixed — P1: cloud sync cards push silently 404'd on production
+- v2 sync modules (`sync-push-optimistic`, `sync-pull-cards`,
+  `sync-handshake`, `sync-conflict`) built endpoints starting with
+  `/api/v1/…`. Production config ships `api_base =
+  https://awareness.market/api/v1`, so the final URL double-prefixed
+  to `https://awareness.market/api/v1/api/v1/…` → HTTP 404. Every
+  user running sync on the default cloud endpoint saw recurring
+  `[CloudSync] Card push failed: HTTP 404` lines and no card would
+  ever sync to the cloud, even though memories / tasks / skills /
+  documents did.
+- Fix: strip the redundant `/api/v1` prefix from those four modules;
+  match the convention already used by `sync-push.mjs`
+  (`/memories/…` relative to `apiBase`). Test mocks updated to
+  use production-shaped apiBase (`https://api.test/api/v1`) so the
+  bug cannot re-enter.
+- Regression guard: `test/sync-url-no-double-prefix.test.mjs`
+  asserts each v2 URL contains exactly one `/api/v1/` segment.
+
+### Fixed — P1: `/api/v1/workspaces` returned 450KB of 2600+ entries
+- The handler returned the full `Record<path, entry>` map on every
+  request. Power users who had navigated many projects accumulated
+  multi-thousand-entry registries, ballooning the payload and
+  slowing the AwarenessClaw Memory tab's initial load.
+- Fix: accept `?limit=<N>` (capped at 500) and `?q=<substr>`. When
+  either is present the response shape becomes
+  `{ workspaces: [{ path, …entry }], total }`, sorted by
+  `lastUsed` desc. With no params the legacy map shape is preserved
+  (clients that hit the endpoint without params still work).
+- Tests: `test/api-workspaces-pagination.test.mjs` — 4/4.
+
+## [0.9.8] - 2026-04-19
+
+### Fixed — P0: graph-embedder blocking Memory tab for 2+ minutes
+- `generateSimilarityEdges` was fully synchronous. On workspaces with
+  ~10K graph nodes (e.g. Awareness repo), the O(n²) comparison blocked
+  the Node event loop for ~152 s. All concurrent HTTP / MCP requests
+  (Memory tab knowledge loads, workspace switches, health checks)
+  queued behind it, presenting as "the app is frozen".
+- Fix: `generateSimilarityEdges` is now `async` and yields with
+  `await setImmediate()` every `yieldEvery=50` outer-loop iterations.
+  Total compute stays ≈ the same (~132 s for 10.9K nodes) but MCP
+  calls issued during compute now return in ~1–4 s instead of 144 s,
+  making the Memory tab responsive throughout. Callers that `await`
+  `runGraphEmbeddingPipeline` already propagate correctly; one
+  in-module caller updated to `await generateSimilarityEdges`.
+- Tests: 17/17 `test/graph-embedder.test.mjs` green. Four test call
+  sites updated from sync to `await`.
+
+## [0.9.7] - 2026-04-19
+
+### Fixed — CRITICAL: fresh npm install crash
+- `submit_insights` and `apply_skill` imported `scripts/skill-quality-score.mjs`
+  via a cross-directory relative path. The npm tarball's `files` whitelist
+  did NOT include that particular script, so **any user on 0.9.6 would hit
+  `Cannot find module '.../scripts/skill-quality-score.mjs'` on the first
+  skill-related call**.
+- Fix: moved the scorer into `src/daemon/skill-quality-score.mjs` (library
+  copy). `scripts/skill-quality-score.mjs` keeps its CLI entry for dev use.
+  No behaviour change — just unbroken imports.
+
+## [0.9.6] - 2026-04-19
+
+### Added — F-060 client-side HyDE + spec init_guides sync
+
+- **HyDE support (`hyde_hint` parameter)** — client agents with their own
+  LLM can now pass a hypothetical-answer string to `awareness_recall`.
+  When provided, the daemon embeds the hint instead of the raw query so
+  the semantic channel matches card summaries better. Purely opt-in; daemon
+  itself never calls an LLM. Mirrored in both local daemon and cloud MCP.
+- **`init_guides.search_guide`** now documents the HyDE field so Claude Code
+  / OpenClaw agents learn to use it spontaneously. 3 spec copies synced.
+- **Python SDK 3 pre-existing failures fixed** — `extraction_request` now
+  hoisted to top-level on `client.record()` (was nested under `ingest`);
+  `test_export_reader` updated to use current API (`_build_record_events`
+  replaces the v2.0.0-removed `_coerce_history_to_events`). 126/126 pass.
+
+## [0.9.5] - 2026-04-19
+
+### Added — F-059 phase 3: recall accuracy lift
+
+Recall eval on 12-card / 12-query fixture corpus:
+- **Before**: Recall@1 58% · Recall@3 83% · MRR 0.725 · NDCG@3 0.722
+- **After**:  Recall@1 58% · Recall@3 **100%** · MRR **0.778** · NDCG@3 **0.835**
+
+Changes:
+- **Card embeddings now stored** via new `card_embeddings` table (SQLite).
+  Previously only raw memories had vectors; cards ingested via
+  `submit_insights` had no semantic channel, fell back to FTS5 BM25 only.
+  Search fuses memory + card vectors in one pass.
+- **Default embedder switched to `Xenova/multilingual-e5-small`** (384-dim,
+  118 MB). Same dim as previous MiniLM-L6-v2 → no schema change. Cross-
+  lingual queries (CJK query → EN card) now get a real semantic bridge.
+  Opt-out `AWARENESS_EMBEDDER=english` restores 23 MB MiniLM for English-
+  heavy users.
+- **Title×2 embed trick**: when embedding a memory/card, prepend title
+  twice so the vector weights title tokens more (titles are the most
+  query-aligned surface on small corpora).
+- **RRF k: 60 → 10 (default)**. A 4-point grid search (k ∈ {10, 30, 60,
+  100}) on our eval showed k=10 lifts Recall@3 from 83% to 100% while
+  keeping Recall@1 stable. Small k gives top-ranked hits steeper RRF
+  contribution, which matters for short limits (5-10) on personal-memory
+  corpora. Classic k=60 is tuned for TREC-scale runs.
+- **Env-configurable**: `AWARENESS_RRF_K` lets power users override.
+- **New `scripts/rrf-k-sweep.mjs`**: re-runs the grid search end-to-end
+  so future tuning can verify on a user's real corpus.
+
+## [0.9.4] - 2026-04-19
+
+### Added — F-059 phase 2: realtime task auto-close + personal_preference contradiction
+
+- **Task auto-close on every record (no cron)**: `submit_insights` now runs
+  `runLifecycleChecks` (hybrid BM25 + real-vector cosine + RRF), closes open
+  tasks matched by completion-signal content. Previously only fired on
+  `remember` action.
+- **Real vector channel for auto-resolve**: new `task_embeddings` table caches
+  task vectors on `indexTask`; lifecycle's "vector" channel now uses real
+  cosine instead of Jaccard word-overlap proxy. Paraphrases like "fix npm
+  ENEEDAUTH" now resolve open task "Investigate npm publish bug".
+- **Personal preference contradiction supersedes old card**: `classifyCard`
+  detects divergent identity tags (vim ↔ zed, macOS ↔ linux) on
+  personal_preference / plan_intention / activity_preference / health_info /
+  career_info cards and promotes them to `update` verdict (supersedes old).
+  Also drops the classifier threshold from 0.70 → 0.50 for these categories
+  because preference summaries are shorter.
+- **Recall accuracy scorecard**: new `scripts/recall-accuracy-eval.mjs` seeds
+  12 fixture cards + issues 12 golden-labeled queries, measures Recall@1 /
+  Recall@3 / MRR / NDCG@3. Current baseline: **Recall@1 58% · Recall@3 83% ·
+  MRR 0.725 · NDCG@3 0.722**.
+
+### Tests
+- `f059-personal-preference-evolution.test.mjs` — 3 scenarios (dedup, merge,
+  contradiction supersede), all pass.
+
+## [0.9.3] - 2026-04-19
+
+### Added — F-059 skill growth stage + bidirectional card linkage
+
+- **Skill self-growth (no cron)**: `skills.growth_stage` column (`seedling` → `budding` → `evergreen`).
+  Promotion fires on every `submit_insights` and `apply_skill`:
+  - `seedling → budding`: ≥ 2 `source_card_ids` AND rubric ≥ 20/40
+  - `budding → evergreen`: ≥ 5 `source_card_ids` AND `usage_count` ≥ 2
+  - Never demotes. No batch job — incremental evaluation per call.
+- **Weighted, not hard-filtered**: `extractActiveSkills` ranks by `stage_weight × decay_score`
+  (evergreen × 1.0 > budding × 0.6 > seedling × 0.3). In-progress skills still surface but
+  bias towards mature ones.
+- **Card ↔ Skill bidirectional link**: new `knowledge_cards.linked_skill_ids` column.
+  Populated on skill insert/update so card hydration can show "skills that reference this card"
+  without a reverse scan of all skills.
+- **New `pitfalls[]` + `verification[]` skill columns**: persisted alongside methods.
+  Rubric scorer now recognizes dedicated arrays (previously only regex-scanned free-text).
+- **`apply_skill` hydration**: returns top-3 linked source cards (id + category + title + summary)
+  so the LLM has supporting context, not just card IDs. Also returns `growth_stage` and
+  `pitfalls`/`verification` arrays.
+
+### Changed — extraction prompt (SSOT · 10 surfaces synced)
+- Skill extraction prompt now mandates ≥ 1 concrete pitfall with avoidance, ≥ 1 verification
+  signal with a checkable check, and every step naming a concrete token (file/command/flag/
+  version). Vague skills are discarded.
+
+### Fixed
+- F-057 awk-extraction JSDoc terminator bug: new `f057-jsdoc-integrity.test.mjs` regression
+  test scans every `.mjs` under `src/` for dangling `/**` without a matching `*/`.
+
+## [0.9.2] - 2026-04-19
+
+### Added — prepublish gate (blocks publish on SSOT drift)
+- New `scripts/prepublish-gate.mjs` runs automatically on `npm publish`
+  via `prepublishOnly`. Blocks the publish if:
+  - `sdks/_shared/prompts/` has drifted from any of the 10 wired surfaces
+    (F-056 parity)
+  - `sdks/_shared/scripts/` has drifted from `awareness-memory` or
+    `claudecode` copies (F-036 parity)
+  - `awareness-spec.json` 3 copies (backend / local / setup-cli) aren't
+    byte-identical
+  - Any default `api_base` in `config.mjs` / `cloud-sync.mjs` /
+    `daemon.mjs` contains `localhost` or `127.0.0.1`
+- Prevents the "developer forgot to sync before publishing so users
+  get stale prompts" failure mode.
+
+### Fixed — card-quality-report reported `Skills: 0` incorrectly
+- `scripts/card-quality-report.mjs` queried non-existent columns
+  (`reusability_score`, `durability_score`, `specificity_score`) on
+  the `skills` table, silently catching and returning `[]`.
+- Real schema only has `decay_score` + `confidence`. Query fixed to
+  select existing columns. Skills count now accurate.
+- Also added `console.warn` when the skills query legitimately fails
+  (older DB with no skills table), instead of silent swallow.
+
+### Docs — CLAUDE.md covers cross-SDK prompt SSOT rules
+- Added F-056 `_shared/prompts/` rule block alongside the existing
+  F-036 `_shared/scripts/` rule.
+- Added explicit note on **development vs runtime**: `_shared/` is
+  development-time organisation; ship targets (`sdks/local/` etc)
+  carry the injected content. Developers MUST sync before publish
+  or users receive stale prompts. (The new prepublish gate enforces.)
+- Added 3 new pre-publish check-list items (F-056 parity, 3-copy
+  spec-json alignment).
+
+## [0.9.1] - 2026-04-19
+
+### Added — F-058 · card-quality-report (product-level eval tool)
+- New `scripts/card-quality-report.mjs` — scores every active card in
+  a real daemon database against the F-056 rubric (R1-R8). **The data
+  is the user's own LLM's real extraction output**, because our
+  architecture injects prompts into every surface (Claude Code /
+  OpenClaw / ClawHub / MCP) and the user's LLM does the extraction.
+- No API key needed. No LLM call. Just runs checks over stored cards.
+- Surfaces per-source / per-category breakdown + worst-N cards so
+  users can see which agents produce high-quality cards vs low.
+- Invocation:
+  ```bash
+  npx -p @awareness-sdk/local node_modules/@awareness-sdk/local/scripts/card-quality-report.mjs
+  # or
+  cd <project> && node node_modules/@awareness-sdk/local/scripts/card-quality-report.mjs
+  ```
+
+### Why this matters
+- Our product is **prompt injection at the surface** — every agent
+  (OpenClaw plugin, Claude Code skill, ClawHub skill, MCP server) reads
+  the shared F-056 SSOT prompt and has its own LLM do extraction.
+- Real "is the prompt working?" feedback comes from the user's daemon
+  data, not a benchmark we pre-run. `card-quality-report` is how that
+  feedback loop closes.
+- First real-user dogfooding surfaced: `Skills = 0` after many
+  sessions — meaning although `skill-extraction` was wired to every
+  surface, user LLMs never emitted any. That's a product gap worth
+  investigating, not a claim we can hand-wave.
+
+## [0.9.0] - 2026-04-19
+
+### Added — F-056 Phase 2.5: recall-friendliness signals (R6-R8)
+- Shared prompt SSOT now guides the extraction LLM on **what makes a
+  card retrievable**, not just structurally valid:
+  - **R6 grep-friendly title** — title must carry a concrete search term
+    (product/file/function/error), not a vague "Decision made".
+  - **R7 topic-specific tags** — 3-5 tags, stop-words banned
+    (`general`, `note`, `misc`…).
+  - **R8 multilingual keyword diversity** — cross-language concepts must
+    appear in both EN + CJK form so queries in either language match.
+- Per-category overview now carries **one GOOD + one BAD title example**
+  per category (13 categories), letting the LLM mimic exact patterns.
+- Pipeline lift target: precision@3 baseline 45.5 % → expected 55-60 %
+  once LLMs actually follow the new signals. Raise the regression guard
+  when real-user data confirms the lift.
+- Extraction prompt size: 11.5 KB → **10.1 KB** after trimming (-12 %).
+
+### Added — Web UI /search + multi-turn OpenClaw session quality tests
+- `f056-web-ui-search.test.mjs` — 7 assertions covering the dashboard
+  `/api/v1/search` endpoint: shape, precision@3 with distractors,
+  distractor suppression, CJK query, field completeness.
+- `f056-openclaw-session-quality.test.mjs` — 5-turn simulated OpenClaw
+  session (EN + 中文 mix). Asserts envelope-strip holds every turn, pure
+  pleasantries don't produce cards, and turn-5 recall surfaces turn-1
+  decision card.
+
+### Added — quantitative retrieval metrics with regression gates
+- `f056-retrieval-metrics.test.mjs` — 11 queries across EN / 中文 / 日本語
+  produce concrete numbers:
+  - precision@3 = **45.5 %** (baseline ≥ 45 %)
+  - recall@10 = **100 %** (baseline ≥ 70 %)
+  - MRR = **0.689** (baseline ≥ 0.55)
+- CI gates on regression, not on aspiration.
+
+### Added — multilingual extraction fixture corpus
+- 29 extraction eval cases × 3 languages (English / 中文 / 日本語) × 15
+  card categories + 5 noise cases. Used by
+  `f056-extraction-eval-offline.test.mjs` (static) and
+  `scripts/eval-extraction.mjs --live` (real-LLM, opt-in).
+
+### Added — 10th prompt-surface wire
+- `sdks/awareness-memory/SKILL.md` now carries the 5 SSOT slots too;
+  previous version only had a trivial example with the
+  no-longer-existing `category:"architecture"`. ClawHub users now get
+  the same extraction guidance as Claude Code / OpenClaw.
+
+## [0.9.0-rc.1] - 2026-04-18
+
+### Added — F-056 Phase 1+2: cross-SDK prompt SSOT
+- New `sdks/_shared/prompts/*.md` — **6 atomic prompt templates** that
+  are the single source of truth for every client LLM instruction:
+  `extraction-when-to-extract`, `extraction-when-not-to-extract`,
+  `extraction-scoring`, `extraction-quality-gate`, `category-overview`,
+  `skill-extraction`. One concept per file, live-or-die rule (unwired
+  templates get deleted).
+- New `scripts/sync-shared-prompts.mjs` — fans the templates out into
+  `<!-- SHARED:name BEGIN/END -->` slot markers across **all 9 surfaces**:
+  local daemon extraction-instruction, shared recall.js record-rule,
+  openclaw tools.ts step 4, Claude Code harness-builder (×2), Claude
+  Code save/done SKILL.md, Python backend `extraction_v1.py` +
+  `extraction_v2_pass2_synthesis.py`. Backtick-safe for JS/TS template
+  literals, `--check` mode for CI parity.
+- **Biggest effect for card quality**: skill extraction guidance was
+  previously only on the backend — now wired into every client-LLM
+  surface, so `insights.skills[]` actually gets populated from
+  `awareness_record` flows.
+- Runtime budget: ~9.2 KB extraction prompt (≈ 2.3K tokens), hard
+  ceiling 12 KB enforced by test.
+
+### Added — F-057 Phase 0: daemon refactor safety net
+- New `sdks/local/test/f057-golden-mcp.test.mjs` — 10 shape-level
+  golden contracts covering `awareness_init`, `_record` (plain,
+  pre-extracted, envelope-only, oversized), `_recall`, `_lookup`
+  (context + skills), `_mark_skill_used`. Refactor PRs that touch
+  `daemon.mjs` must keep these green.
+
+### Fixed — F-055 bug A: cross-topic persona pollution in `<who-you-are>`
+- `awareness_init` no longer injects every recent `personal_preference`
+  card into the rendered context. The old behavior meant a card like
+  "user enjoys making beef noodle on weekends" leaked into unrelated
+  sessions (e.g. a "debug daemon perf" query), corrupting the agent's
+  focus.
+- New gate (`helpers.filterPersonaByRelevance`): persona cards are
+  injected only when **(a) BM25-relevant to the current focus query**
+  or **(b) `confidence ≥ 0.9`** (high-signal long-term preferences).
+  Empty query mode keeps only (b). Hard cap at 3 cards.
+
+### Added — F-055 bug D: inbound knowledge card quality validator
+- `_submitInsights` now runs each client-submitted card through
+  `validateCardQuality` (in `core/lifecycle-manager.mjs`):
+  - R1 length gate — `summary_too_short` (≥80 chars technical / ≥40
+    chars personal-category)
+  - R2 summary-equals-title dedup — `summary_equals_title`
+  - R3 envelope defense — `envelope_pattern_in_content` (rejects
+    `Request:`, `Sender (untrusted metadata):`, `[Operational context
+    metadata …]`, `[Subagent Context]`)
+  - R4 placeholder — `placeholder_content` (TODO, lorem ipsum,
+    example.com)
+  - R5 soft warning — `no_markdown_structure` on long plain-text
+    summaries (logged, not blocked)
+- Rejected cards appear in `response.cards_skipped[]` so the client can
+  see why; other valid cards in the same batch still persist.
+
+### Fixed — F-055 bug C1: aggregator pages stealing Top1 in recall
+- `workspace_wiki` and `wiki_concept` auto-generated pages concatenate
+  child-card titles + tags into their own embeddings, which made them
+  out-rank source cards on direct-hit queries (observed 2026-04-18:
+  "清汤牛肉面" → aggregator 36 % > recipe card 34 %).
+- `unifiedCascadeSearch` now applies a `-0.10` RRF-score offset to
+  items of type `workspace_wiki` / `wiki_concept` before shape. Direct
+  hits again land at Top1; aggregators still appear in Top3-5 for
+  concept-browse queries.
+
+### Fixed — F-055 bug C2: perception pulling unrelated prior decisions
+- `_buildPerception.related_decision` used to fire whenever any tag
+  overlapped between the new card and an existing decision, which
+  mis-matched cross-topic cards that happened to share a generic tag
+  (observed 2026-04-18: recording a beef-noodle-recipe card pulled a
+  pgvector-decision card).
+- Now uses a **language-agnostic embedding cosine gate** via the new
+  `isSemanticallyRelated({newText, candidateText}, {embedFn, cosineFn,
+  threshold=0.55})` helper. Zero stop-word lists, zero per-language
+  dictionaries — the E5-multilingual embedder handles 100+ languages
+  out of the box. Graceful skip when the embedder is unavailable.
+
+### Added — shared enum in `constants.mjs`
+- New `PERSONAL_CARD_CATEGORIES` Set is the single source of truth for
+  all personal-card categories. Used by `filterPersonaByRelevance`,
+  `validateCardQuality`, and `buildInitResult`. Avoid inlining the
+  category list elsewhere.
+
+### Test coverage
+- +110 new unit tests across 10 files:
+  - `f055-persona-gate.test.mjs` — 12
+  - `f055-persona-gate-perf.test.mjs` — 3 (10k persona load < 50 ms)
+  - `f055-card-quality-gate.test.mjs` — 18
+  - `f055-submit-insights-gate.test.mjs` — 4
+  - `f055-aggregator-penalty.test.mjs` — 3
+  - `f055-perception-tag-gate.test.mjs` — 10
+  - `f055-defense-in-depth.test.mjs` — 6
+  - `f055-extraction-prompt.test.mjs` — 6
+  - `f056-extraction-prompt-quality.test.mjs` — 14
+  - `f056-shared-prompts-parity.test.mjs` — 3
+  - `f056-extraction-eval-offline.test.mjs` — 19
+  - `f057-golden-mcp.test.mjs` — 10
+- Updated 2 existing tests for new persona-gate behavior
+  (`mcp-handlers.test.mjs`, `mcp-contract.test.mjs`) — explicit
+  `confidence: 0.95` on persona fixtures.
+- Guard detector tests switched to `await _buildPerception(...)` after
+  the function became async (needed for embedding cosine gate).
+- Full suite: **1128/1128 tests pass** (+23 over 0.8.2 baseline).
+
+### Scope note
+- F-055 bug A/C/D, F-056 Phase 1+2, F-057 Phase 0 — all landed
+  together. F-055 bug B already shipped in
+  `@awareness-sdk/openclaw-memory@0.6.14`. F-055b (AwarenessClaw
+  desktop workspace) is code-only (DMG not rebuilt in this release).
+- Backend Python prompts (`extraction_v1.py`,
+  `extraction_v2_pass2_synthesis.py`) now use the SSOT markers but no
+  behavioural change — same canonical text, just deduplicated.
+- Live-LLM prompt-quality eval: `scripts/eval-extraction.mjs` (not in
+  the default test run — needs an API key). Use it when tuning prompts.
+
+## [0.8.2] - 2026-04-18
+
+### Fixed — CJK/emoji project paths crashing memory saves (Windows + macOS)
+- **User-reported bug**: Windows users with Chinese usernames (`C:\Users\张三\...`)
+  and macOS users with localized workspace folders (`Awareness 文件夹`, `Project 🚀`)
+  saw `记忆保存失败：Invalid character in header content ["X-Awareness-Project-Dir"]`
+  on every `awareness_record` / `awareness_recall` / `awareness_init` call.
+- **Root cause**: Node's `http.request()` rejects non-ISO-8859-1 bytes + control
+  chars in raw header values and throws `TypeError` **synchronously** from the
+  `http.request(...)` call site — which means the TypeError bypasses
+  `req.on('error')` entirely and bubbles up as "memory save failed" in the UI.
+  Affected every OS (not Windows-specific), just surfaces more often on Windows.
+- **Fix (daemon side, backward-compatible)**:
+  - `daemon.mjs::_handleRequest` now reads `X-Awareness-Project-Dir-B64` first
+    (base64 of UTF-8 bytes), decodes it, and falls back to the legacy
+    `X-Awareness-Project-Dir` header only when B64 is absent or malformed.
+  - Legacy ASCII clients continue to work unchanged.
+  - CORS `Access-Control-Allow-Headers` now permits the new B64 header.
+  - The decoder ignores malformed base64 rather than returning 500.
+
+### Added — regression tests
+- `test/project-dir-header-decode.test.mjs` — 7 tests covering:
+  ASCII plain, B64-CJK round-trip, emoji round-trip, B64-priority-over-legacy,
+  malformed-B64 fallback, missing-header pass-through, mismatched-path rejection.
+- All 1019 existing tests still pass (0 regressions).
+
+### Client pairing
+- This ships in tandem with `AwarenessClaw` desktop `memory-client.ts`
+  `applyProjectDirHeader()` — ASCII paths keep the legacy header, CJK/emoji
+  paths switch to B64, encoding failures silently degrade to "no header"
+  instead of crashing. See `AwarenessClaw/packages/desktop/CHANGELOG.md`.
+
+## [0.8.1] - 2026-04-18
+
+### Fixed — AwarenessClaw desktop envelope leaking into card titles
+- **User-reported bug**: screenshot audit showed knowledge-card titles
+  literally starting with `Request: 你现在能做什么?` — the OpenClaw-style
+  `Request: <user>\nResult: <assistant>` envelope from AwarenessClaw
+  desktop's chat turn_briefs was leaking straight into auto-generated
+  card titles.
+- **Root cause**: `daemon._remember()` called `classifyNoiseEvent()` to
+  decide skip-or-keep, but NEVER called `cleanContent()` (defined in
+  `noise-filter.mjs:109`) to actually strip the envelope. So the raw
+  `Request:` prefix survived into (a) auto-title derivation
+  (first sentence of content), (b) SQLite FTS index, (c) vector embed,
+  and (d) LLM extraction prompt — which then produced cards with the
+  envelope prefix in the title field.
+- **Fix**: `_remember()` now runs `cleanContent()` after the noise-reason
+  check. The sanitized content is used for title auto-gen, persistence,
+  FTS indexing, embedding, and extraction.
+
+### Added — tests + scorecard
+- `test/remember-envelope-strip.test.mjs` — 7 unit tests (4 on cleanContent
+  regex + 3 on daemon._remember integration path). All pass.
+- `test/remember-envelope-scorecard.test.mjs` — realistic 8-turn
+  AwarenessClaw batch, measures:
+  - Clean titles:      8/8 = 100%
+  - Clean contents:    8/8 = 100%
+  - Body preserved:    8/8 = 100%
+  - Token savings:     14.3% (45/315 tokens saved)
+  - Composite score:   9.95 / 10.00
+
+### Regression
+- sdks/local full suite: 1023 tests, 1018 pass, 5 skipped, 0 fail
+  (+7 new vs 0.8.0 baseline).
+
+### Compatibility
+- Pure daemon-side fix, no schema change, no new API. AwarenessClaw
+  desktop keeps sending the same `Request:/Result:` envelope — daemon
+  now silently strips it before persistence. No client update required.
+
+## [0.8.0] - 2026-04-18
+
+### Added — single-parameter recall/record (F-053 Phase 1+2)
+- **`awareness_recall(query)` and `awareness_record(content)` are now real
+  single-parameter APIs.** The daemon decides scope, detail, recall mode,
+  token-tier shape, and action — not the caller. Example:
+  `awareness_recall({ query: "why did we choose pgvector?" })` just works.
+- **Legacy multi-parameter clients keep working** (8-week deprecation
+  window). Passing `semantic_query`, `keyword_query`, `detail`, `ids`,
+  `scope`, `recall_mode`, `multi_level`, `cluster_expand`, `action`,
+  etc. still returns results, but logs a rate-limited
+  `[deprecated param used] <name>` warning so migration signal surfaces
+  without log spam.
+- **Token-budget drives the raw-vs-card mix automatically.**
+  Sub-20K budgets → compressed card summaries; 20K-50K → mixed
+  top-3 raw + top-5 card; 50K+ → raw-heavy verbatim (MemPalace-style).
+- **Three-source cascade under the hood.** `unifiedCascadeSearch` fuses
+  memory + knowledge-card + workspace-graph hits via RRF with opacity —
+  callers cannot tell which channel produced a result.
+
+### Changed — retrieval defaults (post-benchmark evidence)
+- **Default embedder flipped from `all-MiniLM-L6-v2` (English-only, 23 MB)
+  to `multilingual-e5-small` (100+ langs, 118 MB).** Same English quality
+  (+2pp MTEB) with usable Chinese/Japanese/Korean/etc. The 95 MB extra
+  one-time download is worth it for anyone outside pure English.
+  Backwards-compat: the search engine is now model-aware — existing
+  `all-MiniLM` embeddings continue to recall via their own query vector;
+  new writes use multilingual. No forced reindex.
+- **Default rerank flipped from `fusion` to `none`.** Internal benchmark
+  (20Q LongMemEval) showed the fusion formula dropping R@5 from 90% to
+  60% — it mixes growth_stage / card_type / recency signals that help
+  card retrieval but hurt long-document session retrieval.
+  Users who want fusion can still opt in via `RERANK_METHOD=fusion`.
+
+### Added — benchmarking infrastructure
+- New `benchmarks/longmemeval/run_f053_daemon_path.mjs` drives
+  `unifiedCascadeSearch` end-to-end on LongMemEval_S. Unlike the existing
+  Python runner (which independently re-implements RRF), this exercises
+  the actual daemon retrieval path. Flags: `--limit=N`, `--stratified=N`
+  (every question type × N), `--phase3` (enable archetype routing),
+  `--budget=N`.
+- New L5 mutation-testing baseline doc lives at
+  `docs/features/f-053/L5_MUTATION_BASELINE.md` — target score ≥ 80%,
+  first Stryker run due 2026-07-17.
+
+### Internal
+- L1 guards added: `verify-recall-single-param-guard.mjs` pins the MCP
+  schema `required` field; `verify-query-router-no-hardcode.mjs` fails
+  CI if the Phase 3 classifier grows any keyword hard-code.
+- 1000 test suite green in `sdks/local/`; 169 green in `openclaw/`;
+  84 green in `setup-cli/`. Zero regressions.
+- Phase 3 archetype-routing code is on main but disabled by default
+  (feature-flag via daemon config) while we wait for a card-heavy
+  benchmark that can quantify its lift. LongMemEval alone can't measure
+  Phase 3 because the haystack is pure raw sessions with no knowledge
+  cards — shape is mathematically a no-op when one bucket is empty.
+
+### Web UI
+- **Web UI search now benefits from Phase 3 query-type routing.** The REST
+  endpoints `/api/v1/search` (used by the main memory search, the Cmd+K
+  panel, and the onboarding recall-suggestions card) and
+  `/api/v1/memories/search` previously bypassed Phase 3 by calling
+  `search.recall(...)` with the old multi-parameter shape. They now hit
+  `unifiedCascadeSearch` on the primary path, so recency channel,
+  budget-tier bucket shaping, and cross-encoder rerank are active for
+  everyone — not just MCP `awareness_recall` callers. Pre-Phase-3 daemons
+  fall back to the legacy `recall` path transparently.
+  - New optional `budget` query param lets operators tune the raw/card
+    mix per request (default 20000 = mixed tier).
+  - New L1 guard `scripts/verify-web-search-cascade-aligned.mjs` fails
+    CI if either handler regresses.
+- `renderMd()` now tolerates JSON-injected content where `\n` was
+  encoded as a literal backslash-n pair (common when `awareness_record`
+  is invoked from a shell with double-escaped JSON). Markdown renders
+  correctly without requiring callers to fix their escape layer.
+
+### Fixed — stringified `insights` no longer rejected (2026-04-18 bug)
+- **Root cause**: some MCP clients (observed in Claude Code with large
+  `insights` payloads) serialize nested object arguments as JSON strings
+  on the wire. The old stdio schema declared `insights: { type: 'object' }`
+  with `required: ['action']` — client-side Zod validation then rejected
+  the call with `-32602 Input validation error: expected object, received
+  string` before the request ever reached the daemon.
+- **Fix** (three layers):
+  1. `sdks/claudecode/mcp-stdio.cjs` (sync'd to `sdks/awareness-memory/`)
+     — schema now matches F-053 (`required: ['content']` /
+     `required: ['query']`) and `insights` drops its strict `type`
+     declaration so wire-stringified payloads pass validation.
+  2. `mcp-stdio.cjs` `proxyToolCall` now calls `normalizeToolArgs`,
+     which auto-parses stringified `insights` / `items` / `tags` /
+     `ids` / `source_exclude` before forwarding to the daemon.
+  3. Daemon `tool-bridge.mjs` applies the same `normalizeStructuredArgs`
+     defense on the `awareness_record` path — so even clients that skip
+     the stdio bridge (direct HTTP to `/mcp`) get the same safety net.
+- **New L1 guard** `scripts/verify-mcp-stdio-schema-aligned.mjs` pins
+  the F-053 single-param schema + permissive insights shape across both
+  stdio entry points, preventing schema drift.
+- **New L2 tests** lock the behavior: `sdks/local/test/tool-bridge-normalize.test.mjs`
+  (7 tests) and `sdks/claudecode/test-mcp-stdio-normalize.cjs` (11 tests).
+
+### Fixed — Web UI + Onboarding search aligned to Phase 3 cascade (2026-04-18)
+- The REST endpoints `/api/v1/search` and `/api/v1/memories/search` now
+  route through `unifiedCascadeSearch` as their primary path. This closes
+  the gap where the MCP `awareness_recall` path had Phase 3 query-type
+  auto routing + recency channel + budget-tier shaping but the Web UI
+  (`index.html` line 1972 main search, line 2891 Cmd+K panel) and the
+  onboarding "try recall" card (`recall-suggestions.js` line 103) were
+  silently falling back to the old `search.recall` path.
+- Optional `?budget=N` query parameter (default 20000) lets callers pick
+  the raw/card mix tier without editing code.
+- New L1 guard `scripts/verify-web-search-cascade-aligned.mjs`.
+- New L2 tests `sdks/local/test/api-hybrid-search.test.mjs` (10 tests
+  covering primary path, budget forwarding, result unwrap, legacy
+  fallback, L3 chaos, FTS-only fallback, empty-query short-circuit).
+
+### Test totals (2026-04-18)
+- `sdks/local` unit suite: **1016 total / 1011 pass / 5 skipped / 0 fail**
+  (up from 994 pre-fix; +17 new tests from this release).
+- 5 L1 guards all green:
+  `verify-recall-single-param-guard.mjs`,
+  `verify-query-router-no-hardcode.mjs`,
+  `verify-backend-zero-llm.mjs`,
+  `verify-web-search-cascade-aligned.mjs`,
+  `verify-mcp-stdio-schema-aligned.mjs`.
+- Multi-turn recall scorecard: **10.00 / 10.00** (unchanged across three
+  regression runs).
+
+### Known limitations carried over
+- Cloud sync still uses the legacy multi-parameter surface internally
+  (retargets to single-param in a follow-up).
+- Phase 4 promotion cron is designed (`PHASE_4_DESIGN.md`) but not
+  implemented — waiting on multi-week usage data to validate the
+  promote/archive thresholds.
+
+## [0.7.3] - 2026-04-17
+
+### Fixed — memory quality (shipping the OpenClaw "distilled essence" philosophy)
+- **Polluted knowledge cards no longer pass the noise filter**. Pre-0.7.3 the
+  `classifyNoiseEvent` hard-block list (`Sender (untrusted metadata)`,
+  `[Operational context metadata ...]`, `[Subagent Context]`, …) was matched
+  against the raw content via `startsWith`, but the OpenClaw plugin wraps its
+  turn payloads in `Request: <metadata>` / `Result: <metadata>` envelopes. The
+  envelope prefix made every framework-metadata block slip past the filter
+  and end up as a `problem_solution` card titled `"Request: Sender
+  (untrusted metadata): { label: AwarenessClaw Desktop... }"`. Fix:
+  `SYSTEM_METADATA_PREFIXES` is now matched against both the raw trim and a
+  copy with the `Request:` / `Result:` / `Send:` / `Received:` / `User:` /
+  `Assistant:` / `Tool:` envelope stripped. `turn_brief` and `[turn_brief`
+  variants added to the prefix list. Real user requests that merely start
+  with `Request:` still pass — only framework-metadata payloads are blocked.
+- **Extraction is salience-aware, not greedy**. The old prompt told the client
+  LLM "HIGH_SALIENCE — always create cards for …", which drove it to emit a
+  `problem_solution` card for every turn that had any content at all —
+  including bare user prompts like "test if recall works". The new prompt
+  borrows the OpenClaw native `MEMORY.md` philosophy (*distilled essence, not
+  raw logs*): the LLM is first asked whether the content is worth recalling
+  six months from now, and `knowledge_cards: []` is a **first-class answer**.
+- **Per-card salience scores**. Every emitted card must now carry three
+  LLM self-assessed scores (0.0-1.0): `novelty_score`, `durability_score`,
+  `specificity_score`. The daemon discards any card where
+  `novelty_score < 0.4` or `durability_score < 0.4` before insertion. Missing
+  scores (legacy LLM clients) are waved through for compatibility.
+- **No more character-length gate**. Dropped the old
+  `MIN_EXTRACTABLE_CHARS = 150` hard-coded floor. A 15-character user
+  preference can be more valuable than a 5000-character log dump — the LLM is
+  trusted to judge value on substance, not size.
+
+### Added
+- **`sdks/_shared/prompts/extraction-salience.md`** — canonical single source of
+  truth for the extraction philosophy. All 10 extraction surfaces (see
+  `Awareness/CLAUDE.md` → "Skill / MCP 工具变更必须全表面同步") now carry the
+  same natural-language guidance. A future
+  `scripts/verify-extraction-prompt-parity.mjs` will gate CI on parity.
+- **`sdks/local/scripts/clean-noise-cards.mjs`** — one-shot audit tool that
+  re-runs the 0.7.3 noise filter against every active card. Cards matching
+  framework-metadata patterns are archived (not deleted; fully reversible via
+  `UPDATE knowledge_cards SET status='active'`). Supports `--dry-run` and
+  `--db PATH`. Run once per upgrade to clean up pre-0.7.3 pollution.
+- **Backend extraction prompts updated** (`extraction_v1.py`): backend is
+  zero-LLM — this file is a template the backend hands back to the client's
+  LLM. Same salience-aware framing now lives there too so cloud users see the
+  same behavior change as local users.
+
+### Synced surfaces (10 of 10 for extraction guidance)
+1. `backend/awareness/prompts/extraction_v1.py`
+2. `backend/awareness-spec.json → init_guides.write_guide`
+3. `sdks/local/src/daemon/extraction-instruction.mjs`
+4. `sdks/_shared/scripts/recall.js` (record-rule)
+5. `sdks/claudecode/scripts/harness-builder.mjs` (fallback record-rule)
+6. `sdks/awareness-memory/scripts/harness-builder.mjs` (mirror of #5)
+7. `sdks/openclaw/src/tools.ts` (workflow step 4)
+8. `sdks/claudecode/skills/save/SKILL.md`
+9. `sdks/claudecode/skills/done/SKILL.md`
+10. `sdks/_shared/prompts/extraction-salience.md` (canonical)
+
+The v2 two-pass synthesis prompt (`extraction_v2_pass2_synthesis.py`) is still
+on the legacy framing and will be synced in 0.7.4.
+
 ## [0.7.2] - 2026-04-17
 
 ### Fixed — memory recovers after 0.7.0 regression

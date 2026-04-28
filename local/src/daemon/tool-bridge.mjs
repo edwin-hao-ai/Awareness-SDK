@@ -15,7 +15,71 @@ const KNOWN_TOOLS = new Set([
   'awareness_apply_skill',
   'awareness_mark_skill_used',
   'awareness_workspace_search',
+  'awareness_publish_agent',
 ]);
+
+// F-053 post-0.8.0 defensive normalize: some MCP clients (incl. older
+// versions of Claude Code's stdio bridge) serialize nested object/array
+// arguments to JSON strings on the wire. Rather than reject the call with
+// an opaque "expected object, received string" validation error, normalize
+// stringified values back to their native form before the handler sees
+// them. This makes the daemon Postel-liberal: accept common client bugs,
+// emit structured output.
+const STRUCTURED_ARG_FIELDS = ['insights', 'items', 'tags', 'ids', 'source_exclude'];
+
+function tryParseJson(value) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  const first = trimmed[0];
+  if (first !== '{' && first !== '[') return value;
+  try { return JSON.parse(trimmed); }
+  catch { return value; }
+}
+
+/**
+ * F-058 action auto-inference. Callers used to have to pass action=remember /
+ * submit_insights / remember_batch / update_task explicitly. Now the server
+ * figures out what to do from the presence of content / insights / items /
+ * task_id — so the LLM can just describe WHAT it wants in one shape and
+ * never see an action enum.
+ *
+ * Priority (first match wins, so an explicit `action` still overrides):
+ *   1. items: array      → remember_batch
+ *   2. task_id + status  → update_task
+ *   3. content present   → remember (default)
+ *   4. insights only     → submit_insights
+ */
+function inferRecordAction(args) {
+  if (Array.isArray(args.items) && args.items.length > 0) return 'remember_batch';
+  if (args.task_id && args.status) return 'update_task';
+  const hasContent = typeof args.content === 'string'
+    ? args.content.length > 0
+    : Array.isArray(args.content) && args.content.length > 0;
+  if (hasContent) return 'remember';
+  if (args.insights && typeof args.insights === 'object') return 'submit_insights';
+  return undefined;
+}
+
+function normalizeStructuredArgs(args) {
+  if (!args || typeof args !== 'object') return args || {};
+  let mutated = false;
+  const out = { ...args };
+  for (const field of STRUCTURED_ARG_FIELDS) {
+    if (!(field in out)) continue;
+    const original = out[field];
+    const parsed = tryParseJson(original);
+    if (parsed !== original) {
+      out[field] = parsed;
+      mutated = true;
+    }
+  }
+  if (mutated) {
+    // eslint-disable-next-line no-console
+    console.warn('[awareness_record] normalized stringified structured args — client wire layer may be serializing nested objects');
+  }
+  return out;
+}
 
 function trackToolCall(name, success) {
   track('mcp_tool_called', { tool_name: name, success });
@@ -40,6 +104,12 @@ export async function callMcpTool(daemon, name, args) {
 
     switch (name) {
       case 'awareness_init': {
+        // F-053 post-0.8.0: `max_sessions` defaults to 0 for new sessions so
+        // the init payload carries only focus-relevant cards + tasks + perception
+        // + user prefs, not the noisy "what were we doing yesterday" summary.
+        // Callers who actively want continuity can opt in with max_sessions:3+.
+        // Rationale: on a fresh session the prior-session summaries eat 500-1000
+        // prompt tokens without helping the user's new task.
         const initResult = buildInitResult({
           createSession: (source) => daemon._createSession(source),
           indexer: daemon.indexer,
@@ -48,6 +118,7 @@ export async function callMcpTool(daemon, name, args) {
           days: args.days ?? 7,
           maxCards: args.max_cards ?? 5,
           maxTasks: args.max_tasks ?? 0,
+          maxSessions: args.max_sessions ?? 0,
           renderContextOptions: {
             localUrl: `http://localhost:${daemon.port}`,
             currentFocus: args.query,
@@ -63,27 +134,35 @@ export async function callMcpTool(daemon, name, args) {
           search: daemon.search,
           args,
           indexer: daemon.indexer,
+          getArchetypeIndex: () => daemon._ensureArchetypeIndex(),
         });
         break;
       }
 
       case 'awareness_record': {
+        // F-058 · auto-infer the action from params shape so the LLM only
+        // has to describe what it wants (content, insights, task_id…) —
+        // no action enum to remember. Legacy callers that still pass
+        // `action` win over inference (backward compatibility).
+        const recordArgs = normalizeStructuredArgs(args);
+        const action = recordArgs.action || inferRecordAction(recordArgs);
         let recordResult;
-        switch (args.action) {
+        switch (action) {
+          case 'write':       // legacy alias
           case 'remember':
-            recordResult = await daemon._remember(args);
+            recordResult = await daemon._remember(recordArgs);
             break;
           case 'remember_batch':
-            recordResult = await daemon._rememberBatch(args);
+            recordResult = await daemon._rememberBatch(recordArgs);
             break;
           case 'update_task':
-            recordResult = await daemon._updateTask(args);
+            recordResult = await daemon._updateTask(recordArgs);
             break;
           case 'submit_insights':
-            recordResult = await daemon._submitInsights(args);
+            recordResult = await daemon._submitInsights(recordArgs);
             break;
           default:
-            recordResult = { error: `Unknown action: ${args.action}` };
+            recordResult = { error: 'awareness_record requires at least one of: content, insights, or task_id+status' };
         }
         result = mcpResult(recordResult);
         break;
@@ -124,15 +203,62 @@ export async function callMcpTool(daemon, name, args) {
 
           const methods = JSON.parse(skill.methods || '[]');
           const triggerConditions = JSON.parse(skill.trigger_conditions || '[]');
+          const sourceCardIds = JSON.parse(skill.source_card_ids || '[]');
+          let pitfalls = [];
+          try { pitfalls = JSON.parse(skill.pitfalls || '[]'); } catch {}
+          let verification = [];
+          try { verification = JSON.parse(skill.verification || '[]'); } catch {}
+
+          // Hydrate top-3 source cards so the skill is self-contained —
+          // LLM sees the linked context, not just IDs. "skill = head of its
+          // card cluster" (user ask 2026-04-19). Keep bounded to avoid
+          // token blow-up on widely-linked skills.
+          let linkedCards = [];
+          if (sourceCardIds.length > 0) {
+            try {
+              const placeholders = sourceCardIds.slice(0, 3).map(() => '?').join(',');
+              const rows = daemon.indexer.db
+                .prepare(`SELECT id, category, title, summary FROM knowledge_cards WHERE id IN (${placeholders}) AND status = 'active' LIMIT 3`)
+                .all(...sourceCardIds.slice(0, 3));
+              linkedCards = rows.map((r) => ({
+                id: r.id,
+                category: r.category,
+                title: r.title,
+                summary: r.summary,
+              }));
+            } catch { /* cards may have been superseded — skip hydration */ }
+          }
+
+          // F-059 · apply_skill is a usage signal — re-evaluate growth
+          // stage (usage_count just incremented, may push budding →
+          // evergreen). Best-effort; no failure path.
+          try {
+            const { evaluateSkillGrowth } = await import('./skill-growth.mjs');
+            const { scoreSkill } = await import('./skill-quality-score.mjs');
+            const rubric = scoreSkill({
+              name: skill.name,
+              summary: skill.summary || '',
+              methods,
+              trigger_conditions: triggerConditions,
+              tags: JSON.parse(skill.tags || '[]'),
+              pitfalls,
+              verification,
+            }).total;
+            evaluateSkillGrowth(daemon.indexer, skill_id, rubric);
+          } catch { /* growth eval best-effort */ }
 
           result = mcpResult({
             skill_name: skill.name,
             summary: skill.summary,
             methods,
+            pitfalls,
+            verification,
             trigger_conditions: triggerConditions,
-            source_card_count: JSON.parse(skill.source_card_ids || '[]').length,
+            source_card_count: sourceCardIds.length,
+            linked_cards: linkedCards,
+            growth_stage: skill.growth_stage || 'seedling',
             usage_count: (skill.usage_count || 0) + 1,
-            guidance: `Execute this ${methods.length}-step skill "${skill.name}" for the current task${context ? `: "${context}"` : ''}. Follow each step in order. Adapt descriptions to the specific context. Report completion status after finishing.`,
+            guidance: `Execute this ${methods.length}-step skill "${skill.name}" for the current task${context ? `: "${context}"` : ''}. Follow each step in order. Adapt descriptions to the specific context. Report completion status after finishing.${linkedCards.length > 0 ? ` Linked knowledge cards (${linkedCards.length}) provide supporting context.` : ''}`,
           });
         } catch (err) {
           result = mcpResult({ error: `Failed to apply skill: ${err.message}` });
@@ -252,6 +378,66 @@ export async function callMcpTool(daemon, name, args) {
           total: formatted.length,
           query,
         });
+        break;
+      }
+
+      case 'awareness_publish_agent': {
+        // F-081 Part B vibe-publish.
+        // Two-phase: (a) if no manifest passed, return synthesis bundle for the
+        // host-LLM to fill in and call back; (b) if manifest passed, scan + POST
+        // to backend and return Dashboard URL.
+        const slug = args.slug;
+        if (!slug) {
+          result = mcpResult({ error: 'slug is required' });
+          break;
+        }
+        const description = args.description || '';
+        const kind = args.kind === 'memory_pack' ? 'memory_pack' : 'agent';
+
+        // Lazy import to avoid loading at daemon boot
+        const { assembleContextBundle, handlePublishAgent } = await import('./engine/publish-agent.mjs');
+
+        if (!args.manifest) {
+          // Phase A: return synthesis bundle. Host-LLM should call this tool again with manifest.
+          const bundle = assembleContextBundle({ daemon, slug, description });
+          result = mcpResult({
+            phase: 'synthesize',
+            bundle,
+            next_step: 'Synthesize a manifest from the bundle, then call awareness_publish_agent again with manifest=<your json>.',
+          });
+          break;
+        }
+
+        // Phase B: have manifest. Validate kind/slug and ship.
+        const manifest = { ...args.manifest, slug, category: kind === 'memory_pack' ? 'pack' : 'agent' };
+        if (!manifest.skill_md || !manifest.name) {
+          result = mcpResult({
+            error: 'manifest must include name and skill_md',
+            received_keys: Object.keys(manifest),
+          });
+          break;
+        }
+
+        const apiBase = daemon?.cloudConfig?.apiBase || daemon?.apiBase || process.env.AWARENESS_API_BASE_URL;
+        const apiKey = daemon?.cloudConfig?.apiKey || daemon?.apiKey;
+        const memoryId = daemon?.cloudConfig?.memoryId || daemon?.memoryId;
+        if (!apiBase || !apiKey) {
+          result = mcpResult({
+            error: 'cloud_not_configured: vibe-publish requires cloud auth. Run `npx @awareness-sdk/setup --cloud` to link a memory.',
+          });
+          break;
+        }
+
+        const r = await handlePublishAgent({
+          daemon,
+          draft: manifest,
+          apiBase,
+          apiKey,
+          memoryId,
+          context: assembleContextBundle({ daemon, slug, description }),
+          runtimeSource: daemon?.runtime || 'local-daemon',
+        });
+        result = mcpResult(r);
         break;
       }
 

@@ -11,7 +11,9 @@ import {
   apiTelemetryStatus, apiTelemetryEnable,
   apiTelemetryRecent, apiTelemetryDelete, apiTelemetryTrack,
 } from './telemetry-api-handlers.mjs';
+import { apiPromptInject } from './prompt-injector.mjs';
 import { track } from '../core/telemetry.mjs';
+import { isUnsafeWorkspaceRoot } from '../core/workspace-root.mjs';
 
 export async function handleApiRoute(daemon, req, res, url) {
   const route = url.pathname.replace('/api/v1', '');
@@ -27,6 +29,11 @@ export async function handleApiRoute(daemon, req, res, url) {
 
   if (route === '/memories/search' && req.method === 'GET') {
     return apiSearchMemories(daemon, req, res, url);
+  }
+
+  // F-072 · host-LLM friendly prompt injector (no-key, read-only)
+  if (route === '/prompt/inject' && req.method === 'GET') {
+    return apiPromptInject(daemon, req, res, url);
   }
 
   if (route === '/knowledge' && req.method === 'GET') {
@@ -56,7 +63,7 @@ export async function handleApiRoute(daemon, req, res, url) {
   }
 
   if (route === '/workspaces' && req.method === 'GET') {
-    return apiWorkspaces(res);
+    return apiWorkspaces(res, url);
   }
 
   if (route === '/config' && req.method === 'GET') {
@@ -258,14 +265,31 @@ export function apiListMemories(daemon, _req, res, url) {
   return jsonResponse(res, { items: rows, total, limit, offset });
 }
 
-export function apiSearchMemories(daemon, _req, res, url) {
+export async function apiSearchMemories(daemon, _req, res, url) {
   const q = url.searchParams.get('q') || '';
   const limit = parseInt(url.searchParams.get('limit') || '20', 10);
+  const budget = parseInt(url.searchParams.get('budget') || '20000', 10);
 
-  if (!q || !daemon.indexer) {
+  if (!q) {
     return jsonResponse(res, { items: [], total: 0, query: q });
   }
 
+  // F-053 Phase 3 · primary path: unifiedCascadeSearch gives query-type
+  // routing, recency channel, budget-tier shaping, and cross-encoder rerank.
+  if (daemon.search && typeof daemon.search.unifiedCascadeSearch === 'function') {
+    try {
+      const out = await daemon.search.unifiedCascadeSearch(q, { tokenBudget: budget, limit });
+      const items = Array.isArray(out?.results) ? out.results : Array.isArray(out) ? out : [];
+      return jsonResponse(res, { items, total: items.length, query: q });
+    } catch (err) {
+      console.error('[api] /memories/search cascade error:', err.message);
+    }
+  }
+
+  // FTS-only last-resort fallback for daemons without the search module.
+  if (!daemon.indexer) {
+    return jsonResponse(res, { items: [], total: 0, query: q });
+  }
   const results = daemon.indexer.search(q, { limit });
   return jsonResponse(res, { items: results, total: results.length, query: q });
 }
@@ -434,24 +458,81 @@ export function apiSyncStatus(daemon, _req, res) {
   const cloud = config.cloud || {};
   const history = daemon.cloudSync ? daemon.cloudSync.getSyncHistory() : [];
 
+  // Previously last_push_at/last_pull_at read from a config field that's
+  // never actually written — CloudSync records events into sync_state
+  // via recordSyncEvent() but doesn't mirror them back to config.json.
+  // Derive the two scalars from the history the same source the UI sees,
+  // so the status panel no longer shows "Never synced" despite a recent
+  // push. Config-level override still wins if the field is set explicitly.
+  const deriveLast = (direction) => {
+    for (const h of history) {
+      if (h?.details?.direction === direction && h?.timestamp) return h.timestamp;
+    }
+    return null;
+  };
+
   return jsonResponse(res, {
     cloud_enabled: !!cloud.enabled,
     api_base: cloud.api_base || null,
     memory_id: cloud.memory_id || null,
     memory_name: cloud.memory_name || null,
     auto_sync: cloud.auto_sync ?? true,
-    last_push_at: cloud.last_push_at || null,
-    last_pull_at: cloud.last_pull_at || null,
+    last_push_at: cloud.last_push_at || deriveLast('push'),
+    last_pull_at: cloud.last_pull_at || deriveLast('pull'),
     history,
   });
 }
 
-export async function apiWorkspaces(res) {
+/**
+ * Workspace registry endpoint.
+ *
+ * Default response is the full `Record<path, entry>` map — kept for back-compat
+ * with clients written before pagination existed.
+ *
+ * Query params (all optional):
+ *   - `limit=<N>`    — return at most N entries, sorted by lastUsed desc.
+ *                      When present, the response shape flips to
+ *                      `{ workspaces: [{ path, ...entry }], total }` which
+ *                      is much smaller for users with thousands of registered
+ *                      workspaces (e.g. AwarenessClaw Memory tab previously
+ *                      pulled a 450KB 2600-entry blob on every load).
+ *   - `q=<substr>`   — case-insensitive path substring filter. Applied before
+ *                      limit.
+ */
+export async function apiWorkspaces(res, url) {
   try {
     const { loadWorkspaces } = await import('../core/config.mjs');
-    const ws = loadWorkspaces();
+    const ws = loadWorkspaces() || {};
+    const sanitizedEntries = Object.entries(ws).filter(([workspacePath]) => {
+      const resolved = path.resolve(workspacePath);
+      if (isUnsafeWorkspaceRoot(resolved)) return false;
+      if (!fs.existsSync(resolved)) return false;
+      return true;
+    });
+
+    const limitRaw = url?.searchParams?.get('limit');
+    const q = (url?.searchParams?.get('q') || '').trim().toLowerCase();
+    const limit = limitRaw != null ? Math.max(0, Math.min(500, Number(limitRaw) || 0)) : null;
+
+    // Back-compat: no limit + no query → return the raw map.
+    if (limit === null && !q) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(Object.fromEntries(sanitizedEntries)));
+    }
+
+    const filtered = q
+      ? sanitizedEntries.filter(([p]) => p.toLowerCase().includes(q))
+      : sanitizedEntries;
+    filtered.sort(([, a], [, b]) => {
+      const ta = Date.parse(a?.lastUsed || '') || 0;
+      const tb = Date.parse(b?.lastUsed || '') || 0;
+      return tb - ta;
+    });
+    const page = limit !== null ? filtered.slice(0, limit) : filtered;
+    const workspaces = page.map(([p, entry]) => ({ path: p, ...entry }));
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify(ws));
+    return res.end(JSON.stringify({ workspaces, total: filtered.length }));
   } catch {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end('{}');
@@ -998,6 +1079,7 @@ export function apiTimeline(daemon, _req, res, url) {
 export async function apiHybridSearch(daemon, _req, res, url) {
   const q = url.searchParams.get('q') || '';
   const limit = parseInt(url.searchParams.get('limit') || '20', 10);
+  const budget = parseInt(url.searchParams.get('budget') || '20000', 10);
   const scope = url.searchParams.get('scope') || 'all';
 
   if (!q) {
@@ -1005,6 +1087,20 @@ export async function apiHybridSearch(daemon, _req, res, url) {
   }
 
   if (daemon.search) {
+    // F-053 Phase 3 · primary path: unifiedCascadeSearch applies query-type
+    // routing (recall-recent / concept / default), recency channel, budget-tier
+    // bucket shaping, and cross-encoder rerank. Web UI + onboarding must hit
+    // this path so they match the MCP `awareness_recall` behavior.
+    if (typeof daemon.search.unifiedCascadeSearch === 'function') {
+      try {
+        const out = await daemon.search.unifiedCascadeSearch(q, { tokenBudget: budget, limit });
+        const items = Array.isArray(out?.results) ? out.results : Array.isArray(out) ? out : [];
+        return jsonResponse(res, { items, total: items.length, query: q });
+      } catch (err) {
+        console.error('[api] unified cascade search error:', err.message);
+      }
+    }
+    // Legacy fallback for pre-Phase-3 daemon builds (no unifiedCascadeSearch).
     try {
       const results = await daemon.search.recall({
         semantic_query: q,
@@ -1016,7 +1112,7 @@ export async function apiHybridSearch(daemon, _req, res, url) {
       });
       return jsonResponse(res, { items: results, total: results.length, query: q });
     } catch (err) {
-      console.error('[api] hybrid search error:', err.message);
+      console.error('[api] hybrid search recall fallback error:', err.message);
     }
   }
 
@@ -1037,9 +1133,45 @@ export async function apiHybridSearch(daemon, _req, res, url) {
   return jsonResponse(res, { items: [], total: 0, query: q });
 }
 
-export function apiGetKnowledgeCard(daemon, _req, res, cardId) {
+export async function apiGetKnowledgeCard(daemon, _req, res, cardId) {
   if (!daemon.indexer) {
     return jsonResponse(res, { error: 'Indexer not available' }, 503);
+  }
+
+  // Tag pseudo-topic support (id prefix `tag_<tagname>`). The sidebar lists
+  // both MOC cards and tag aggregations as topics; when a user clicks a
+  // tag topic we need the authoritative member list from the daemon
+  // rather than relying on the client's capped 50-card snapshot. Without
+  // this fallback, tag topics whose members are older than the top-50
+  // render as "indexing… then blank" because the client never fetches
+  // them from SQLite directly.
+  if (typeof cardId === 'string' && cardId.startsWith('tag_')) {
+    const tag = cardId.slice(4).trim().toLowerCase();
+    if (!tag) return jsonResponse(res, { error: 'Empty tag' }, 400);
+    const rows = daemon.indexer.db.prepare(
+      `SELECT id, title, summary, category, growth_stage, confidence, created_at, tags
+       FROM knowledge_cards
+       WHERE status = 'active'
+         AND (card_type IS NULL OR card_type != 'moc')
+         AND tags LIKE ?
+       ORDER BY created_at DESC
+       LIMIT 500`
+    ).all(`%"${tag}"%`);
+    // Yield to event loop after the synchronous full-table LIKE scan so a
+    // burst of clicks (sidebar topic → detail) doesn't block /healthz or
+    // other parallel GETs while a single request hogs better-sqlite3.
+    await new Promise((r) => setImmediate(r));
+    const members = rows.map((row) => ({ ...row, tags: _safeJsonParse(row.tags, []) }));
+    return jsonResponse(res, {
+      id: cardId,
+      card_type: 'tag',
+      title: tag.replace(/\b\w/g, (c) => c.toUpperCase()),
+      tags: [tag],
+      source_memories: [],
+      related_cards: [],
+      evolution_chain: [],
+      members,
+    });
   }
 
   const card = daemon.indexer.db
@@ -1071,38 +1203,48 @@ export function apiGetKnowledgeCard(daemon, _req, res, cardId) {
     ? daemon.indexer.getEvolutionChain(cardId)
     : [];
 
-  // MOC cards: resolve members via tag-match (local daemon has no card_links table;
-  // MOC membership is derived from shared tags — see indexer.tryAutoMoc). For every
-  // tag in the MOC, find all non-MOC active cards whose tags JSON contains that tag.
-  // Deduplicate by card id and cap at 500 members to keep the response small.
-  // NOTE: this MUST use the same query shape as _countMocMembers() so that the
-  // sidebar badge count matches what's rendered in the detail view.
+  // MOC cards: resolve members via tag-match. PRIOR IMPLEMENTATION ran one
+  // full-table `tags LIKE '%"<tag>"%'` per MOC tag — for a 5-tag MOC over
+  // 2.5k active cards this means 5 sequential synchronous scans, each
+  // ~50-150 ms in better-sqlite3, blocking the event loop the whole time.
+  // NEW: pull the candidate set ONCE with a single `tags LIKE '%"' || ? || '"%' OR ...`
+  // (one pass), parse tags in JS, and check intersection with mocTags Set.
+  // Same result set, ~5× less wall-time, and we yield to the loop after
+  // the scan so concurrent /healthz / other GETs don't queue.
   let members = [];
   if (card.card_type === 'moc') {
-    const mocTags = _safeJsonParse(card.tags, []);
-    if (Array.isArray(mocTags) && mocTags.length > 0) {
-      const seen = new Set();
-      const stmt = daemon.indexer.db.prepare(
+    const mocTags = _safeJsonParse(card.tags, [])
+      .map((t) => String(t || '').trim().toLowerCase())
+      .filter(Boolean);
+    if (mocTags.length > 0) {
+      const tagSet = new Set(mocTags);
+      // Build OR-of-LIKEs so SQLite scans the table exactly once instead
+      // of once per tag. The LIMIT 500 sort still applies post-OR.
+      const orClause = mocTags.map(() => 'tags LIKE ?').join(' OR ');
+      const params = mocTags.map((t) => `%"${t}"%`);
+      const rows = daemon.indexer.db.prepare(
         `SELECT id, title, summary, category, growth_stage, confidence, created_at, tags
          FROM knowledge_cards
          WHERE status = 'active'
            AND (card_type IS NULL OR card_type != 'moc')
-           AND tags LIKE ?
+           AND (${orClause})
          ORDER BY created_at DESC
          LIMIT 500`
-      );
-      for (const rawTag of mocTags) {
-        const tag = String(rawTag || '').trim().toLowerCase();
-        if (!tag) continue;
-        const rows = stmt.all(`%"${tag}"%`);
-        for (const row of rows) {
-          if (seen.has(row.id)) continue;
-          seen.add(row.id);
-          members.push({
-            ...row,
-            tags: _safeJsonParse(row.tags, []),
-          });
-        }
+      ).all(...params);
+      // Yield before the JS filter so even a 500-row response can't tail
+      // a 100ms scan with another 50ms of synchronous JSON.parse work.
+      await new Promise((r) => setImmediate(r));
+      const seen = new Set();
+      for (const row of rows) {
+        if (seen.has(row.id)) continue;
+        const parsedTags = _safeJsonParse(row.tags, []);
+        // Defensive intersect — the OR-of-LIKEs may match substrings, so
+        // re-confirm the tag is actually present in the parsed array.
+        const hasMocTag = Array.isArray(parsedTags) &&
+          parsedTags.some((t) => tagSet.has(String(t || '').trim().toLowerCase()));
+        if (!hasMocTag) continue;
+        seen.add(row.id);
+        members.push({ ...row, tags: parsedTags });
       }
     }
   }

@@ -17,7 +17,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { validateTaskQuality, checkTaskDedup } from './lifecycle-manager.mjs';
+import { validateTaskQuality, checkTaskDedup, validateCardQuality } from './lifecycle-manager.mjs';
+
+// 0.7.3: salience post-process floors. The extraction prompt (see
+// sdks/_shared/prompts/extraction-salience.md) instructs the client LLM
+// to self-score each card on novelty/durability/specificity and warns
+// that cards below these floors will be dropped server-side. Keep
+// these aligned with the floors documented in the prompt.
+const SALIENCE_NOVELTY_FLOOR = 0.4;
+const SALIENCE_DURABILITY_FLOOR = 0.4;
 
 // Valid knowledge card categories — dynamically loaded from awareness-spec.json
 // with a hardcoded fallback for resilience (matches cloud backend VALID_CATEGORIES).
@@ -235,6 +243,24 @@ export class KnowledgeExtractor {
     if (insights.knowledge_cards) {
       for (const kc of insights.knowledge_cards) {
         if (!isStructurallyValidKnowledgeCard(kc)) continue;
+
+        // 0.7.3 salience gate: the LLM is asked to self-score each card
+        // on three axes in the extraction prompt (see
+        // sdks/_shared/prompts/extraction-salience.md). We discard cards
+        // that score low — under-extraction is cheaper than a polluted
+        // knowledge base. Missing scores are treated as "legacy LLM that
+        // didn't follow the new prompt" and waved through with a warning.
+        const novelty = typeof kc.novelty_score === 'number' ? kc.novelty_score : null;
+        const durability = typeof kc.durability_score === 'number' ? kc.durability_score : null;
+        if (novelty !== null && novelty < SALIENCE_NOVELTY_FLOOR) {
+          console.log(`[extractor] dropping card "${(kc.title || '').slice(0, 60)}" — novelty_score=${novelty.toFixed(2)} < ${SALIENCE_NOVELTY_FLOOR}`);
+          continue;
+        }
+        if (durability !== null && durability < SALIENCE_DURABILITY_FLOOR) {
+          console.log(`[extractor] dropping card "${(kc.title || '').slice(0, 60)}" — durability_score=${durability.toFixed(2)} < ${SALIENCE_DURABILITY_FLOOR}`);
+          continue;
+        }
+
         cards.push({
           id: this._generateId('kc'),
           category: normalizeCategory(kc.category),
@@ -245,6 +271,10 @@ export class KnowledgeExtractor {
           source: metadata.source || null,
           source_memory_id: metadata.id,
           created_at: new Date().toISOString(),
+          novelty_score: novelty,
+          durability_score: durability,
+          specificity_score: typeof kc.specificity_score === 'number' ? kc.specificity_score : null,
+          salience_reason: kc.salience_reason || null,
         });
       }
     }
@@ -488,6 +518,23 @@ export class KnowledgeExtractor {
    * @returns {Promise<string>} Filepath of the written card
    */
   async saveCard(card) {
+    // F-058 bug B — the rule-based extractor path (extractByRules) bypassed
+    // the F-055 R1-R5 quality gate, polluting the card store with
+    // summary=title, <80-char, envelope-leaked cards. Apply the same gate
+    // here so BOTH LLM-submitted and daemon-internal paths reject noise.
+    const gate = validateCardQuality(card);
+    if (!gate.ok) {
+      console.warn(
+        `[knowledge-extractor] Rejected rule-based card (${gate.reasons.join(', ')}): ${(card?.title || '').substring(0, 60)}`,
+      );
+      return null;
+    }
+    if (gate.warnings.length > 0) {
+      console.warn(
+        `[knowledge-extractor] Accepted with warnings (${gate.warnings.join(', ')}): ${(card?.title || '').substring(0, 60)}`,
+      );
+    }
+
     const categoryDir = this._categoryToDir(card.category);
     const filename = this._buildFilename(card.title, card.id);
     const filepath = path.join(categoryDir, filename);

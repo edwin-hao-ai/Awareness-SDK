@@ -76,14 +76,18 @@ export function buildRecallSummaryContent(summaries, mode = 'local') {
     const meta = [scorePct, age, tokEst].filter(Boolean).join(', ');
     const metaStr = meta ? ` (${meta})` : '';
     const summary = item.summary ? `\n   ${item.summary}` : '';
-    return `${index + 1}. ${type} ${title}${metaStr}${summary}`;
+    const wiki = item.wiki_path ? `\n   📄 ${item.wiki_path}` : '';
+    return `${index + 1}. ${type} ${title}${metaStr}${summary}${wiki}`;
   });
 
   const readableText = `Found ${summaries.length} memories:\n\n${lines.join('\n\n')}`;
   const idsMeta = {
     _ids: summaries.map((item) => item.id),
+    // F-083 Phase 4: agents can fetch the .md file directly for full context.
+    // Path is relative to ~/.awareness/. Backward compatible — older clients ignore it.
+    _wiki_paths: summaries.map((item) => item.wiki_path || null),
     _meta: { detail: 'summary', total: summaries.length, mode },
-    _hint: 'To see full content, call awareness_recall(detail="full", ids=[...]) with IDs above.',
+    _hint: 'To see full content, call awareness_recall(detail="full", ids=[...]) with IDs above. Or read the .md file directly via _wiki_paths (paths relative to ~/.awareness/).',
   };
 
   return {
@@ -129,7 +133,7 @@ export function buildRecallNoQueryContent() {
   return {
     content: [{
       type: 'text',
-      text: 'No query provided. Use semantic_query or keyword_query to search.',
+      text: 'No query provided. Pass a `query` parameter — e.g. awareness_recall({ query: "why did we pick pgvector" }).',
     }],
   };
 }
@@ -164,62 +168,102 @@ export function getToolDefinitions() {
           days: { type: 'number', description: 'Days of history to load', default: 7 },
           max_cards: { type: 'number', default: 5 },
           max_tasks: { type: 'number', default: 5 },
+          max_sessions: {
+            type: 'number',
+            default: 0,
+            description: 'How many recent-session summaries to include. Default 0 (fresh-session mode — skips "what were we doing yesterday" noise). Pass 3+ for continuity workflows.',
+          },
         },
       },
     },
     {
       name: 'awareness_recall',
       description:
-        'Search persistent memory for past decisions, solutions, and knowledge. ' +
-        'Use progressive disclosure: detail=summary first, then detail=full with ids.',
+        'Search persistent memory. Pass ONE query string — daemon picks budget, mode, and detail. ' +
+        'Example: awareness_recall({ query: "why did we pick pgvector" }).',
       inputSchema: {
         type: 'object',
         properties: {
-          semantic_query: { type: 'string', description: 'Natural language search query' },
-          keyword_query: { type: 'string', description: 'Exact keyword match' },
-          scope: { type: 'string', enum: RECALL_SCOPE_VALUES, default: 'all' },
-          recall_mode: { type: 'string', enum: RECALL_MODE_VALUES, default: 'hybrid' },
-          limit: { type: 'number', default: 10, maximum: 30 },
-          detail: {
+          query: {
             type: 'string',
-            enum: RECALL_DETAIL_VALUES,
-            default: 'summary',
-            description: 'summary = lightweight index; full = complete content for specified ids',
+            description:
+              'Natural-language query. The ONLY parameter callers need — daemon auto-routes ' +
+              'across memories + knowledge cards + workspace graph and picks the best detail level.',
           },
-          ids: { type: 'array', items: { type: 'string' }, description: 'Item IDs to expand (with detail=full)' },
+          token_budget: {
+            type: 'number',
+            description:
+              'Optional budget hint in tokens (default 5000). ≥50K → raw-heavy mix, ' +
+              '20K-50K → balanced, <20K → compressed card summaries.',
+            default: 5000,
+          },
+          limit: { type: 'number', default: 10, maximum: 30 },
+          hyde_hint: {
+            type: 'string',
+            description:
+              'OPTIONAL HyDE boost: a 100-200 char hypothetical answer to the query, as if it were already in the knowledge base. ' +
+              'If you know a concrete answer the user is asking for, write it here — daemon embeds it instead of the raw question, ' +
+              'which matches card summaries better. Ignore if uncertain; empty string disables. ' +
+              'Example: query="npm ENEEDAUTH fix" hyde_hint="Pass --registry=https://registry.npmjs.org/ explicitly; China mirror rejects publish."',
+          },
+
+          // --- [DEPRECATED] Legacy multi-parameter surface (kept for compatibility) ---
+          // These still work but log a deprecation warning. Remove after 8 weeks (F-053 Phase 5).
+          semantic_query: { type: 'string', description: '[DEPRECATED] Use `query` instead.' },
+          keyword_query: { type: 'string', description: '[DEPRECATED] Use `query` instead.' },
+          scope: { type: 'string', enum: RECALL_SCOPE_VALUES, description: '[DEPRECATED] Daemon auto-scopes.' },
+          recall_mode: { type: 'string', enum: RECALL_MODE_VALUES, description: '[DEPRECATED] Daemon auto-routes.' },
+          detail: { type: 'string', enum: RECALL_DETAIL_VALUES, description: '[DEPRECATED] Budget-driven.' },
+          ids: { type: 'array', items: { type: 'string' }, description: '[DEPRECATED] Progressive disclosure — pair with detail=full.' },
           agent_role: { type: 'string' },
-          multi_level: { type: 'boolean', description: 'Enable broader context retrieval across sessions and time ranges' },
-          cluster_expand: { type: 'boolean', description: 'Enable topic-based context expansion for deeper exploration' },
-          include_installed: { type: 'boolean', description: 'Also search installed market memories', default: true },
-          source_exclude: { type: 'array', items: { type: 'string' }, description: 'Exclude memories from these sources' },
+          multi_level: { type: 'boolean', description: '[DEPRECATED] Always on.' },
+          cluster_expand: { type: 'boolean', description: '[DEPRECATED] Always on.' },
+          include_installed: { type: 'boolean', description: '[DEPRECATED] Always on.', default: true },
+          source_exclude: { type: 'array', items: { type: 'string' }, description: '[DEPRECATED]' },
         },
+        required: ['query'],
       },
     },
     {
       name: 'awareness_record',
       description:
-        'Record memories, update tasks, or submit insights. ' +
-        'Use action=remember for single records, remember_batch for bulk.',
+        'Save to memory. Pass whatever you have — the server infers what to do:\n' +
+        '  · `content` (string or string[]) → save as a new memory; attach optional `insights` {knowledge_cards, action_items, risks, skills} inline to skip the extraction round-trip.\n' +
+        '  · `items: [...]` → batch save multiple memories.\n' +
+        '  · `task_id` + `status` → update an existing task.\n' +
+        '  · `insights` alone → submit pre-extracted insights (no new memory).\n' +
+        'Examples: awareness_record({ content: "Decided pgvector over Pinecone…", insights: {knowledge_cards: [...]} }); awareness_record({ task_id: "task_abc", status: "done" }).',
       inputSchema: {
         type: 'object',
         properties: {
-          action: {
-            type: 'string',
-            enum: RECORD_ACTION_VALUES,
+          content: {
+            description:
+              'Memory content (string or array of strings for batch). The primary knob — pass this when recording a new observation / decision / step.',
           },
-          content: { type: 'string', description: 'Memory content (markdown)' },
-          title: { type: 'string', description: 'Memory title' },
-          items: { type: 'array', description: 'Batch items for remember_batch' },
-          insights: { type: 'object', description: 'Pre-extracted knowledge cards, tasks, risks' },
+          insights: {
+            type: 'object',
+            description:
+              'Pre-extracted structured insights. Include knowledge_cards[], action_items[], risks[], skills[], completed_tasks[]. When supplied alongside `content`, the daemon persists both in one call (no _extraction_instruction round-trip).',
+          },
+          items: {
+            type: 'array',
+            description: 'Batch items: array of {content: "..."} objects. Used instead of a string `content` when recording multiple memories at once.',
+          },
+
+          // Task-update surface
+          task_id: { type: 'string', description: 'Task ID (required for task updates).' },
+          status: { type: 'string', description: 'New task status (e.g. "done").' },
+
+          // Metadata
+          title: { type: 'string', description: 'Optional memory title (auto-generated if absent).' },
           session_id: { type: 'string' },
           agent_role: { type: 'string' },
           event_type: { type: 'string' },
           tags: { type: 'array', items: { type: 'string' } },
-          task_id: { type: 'string' },
-          status: { type: 'string' },
-          source: { type: 'string', description: 'Client source identifier (e.g. desktop, openclaw-plugin, mcp)' },
+          source: { type: 'string', description: 'Client source identifier (e.g. desktop, openclaw-plugin, mcp).' },
         },
-        required: ['action'],
+        // Intentionally NOT marking anything required — the server auto-infers
+        // the path from the presence of content / items / insights / task_id.
       },
     },
     {
@@ -294,6 +338,42 @@ export function getToolDefinitions() {
           include_neighbors: { type: 'boolean', default: false, description: 'Include similar files via graph traversal' },
         },
         required: ['query'],
+      },
+    },
+    {
+      name: 'awareness_publish_agent',
+      description:
+        'F-081 Vibe-Publish: turn the current session into a marketplace agent or pack draft. ' +
+        'You (the host LLM) synthesize a manifest from the session context the daemon hands back, ' +
+        'the daemon scans it locally for secrets, then POSTs to /publish-drafts. ' +
+        'Returns a dashboard URL the user opens to review and publish. ' +
+        'Free for everyone — no payment required to draft or publish.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          slug: {
+            type: 'string',
+            pattern: '^[a-z0-9][a-z0-9-]{0,79}$',
+            description: 'Lowercase slug, dashes ok. e.g. "stripe-onboarding-expert".',
+          },
+          description: {
+            type: 'string',
+            maxLength: 280,
+            description: 'One- or two-sentence description (≤ 280 chars).',
+          },
+          kind: {
+            type: 'string',
+            enum: ['agent', 'memory_pack'],
+            default: 'agent',
+            description: '"agent" for an executable agent profile, "memory_pack" for a knowledge bundle.',
+          },
+          manifest: {
+            type: 'object',
+            description:
+              'Manifest you synthesized in the same response cycle. Required fields: name, slug, description, skill_md. Optional: tags, license, language. Daemon will scan and reject if it contains secrets.',
+          },
+        },
+        required: ['slug'],
       },
     },
   ];

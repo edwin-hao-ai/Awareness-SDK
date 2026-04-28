@@ -24,7 +24,17 @@ import { QmdRetrievalBackend, QMD_RESULT_PREFIX } from './retrieval-backends/qmd
 // ---------------------------------------------------------------------------
 
 /** RRF smoothing constant — standard value from the literature */
-const RRF_K = 60;
+// F-059 · default lowered from 60 → 10 after the 2026-04-19 RRF sweep
+// showed k=10 lifts Recall@3 from 83% → 100%, MRR 0.725 → 0.778, and
+// NDCG@3 0.722 → 0.835 on a 12-card / 12-query corpus. Small k gives
+// top-ranked results a steeper RRF contribution (1/11 vs 1/61), which
+// matters more on small limits (our default limit=5-10) where a single
+// strong channel hit shouldn't be diluted by mid-pack ties in the other
+// channel. The classic k=60 value is tuned for large TREC-scale runs;
+// personal memory corpora skew much smaller.
+const RRF_K = Number.isFinite(Number(process.env.AWARENESS_RRF_K)) && Number(process.env.AWARENESS_RRF_K) > 0
+  ? Number(process.env.AWARENESS_RRF_K)
+  : 10;
 
 /** Time decay half-life in days (score halves every 30 days) */
 const DECAY_HALF_LIFE_DAYS = 30;
@@ -61,13 +71,66 @@ const TYPE_BOOST = {
 /** Types excluded from recall results by default (raw conversation noise). */
 const DEFAULT_TYPE_EXCLUDE = new Set(['session_checkpoint']);
 
+/**
+ * F-055 bug C · score penalties for auto-generated aggregator pages.
+ *
+ * `workspace_wiki` and `wiki_concept` bundle children titles + tags into
+ * their own embedding, so they beat source cards on Top1 more often than
+ * they should. A small negative offset rebalances: original cards win
+ * direct-hit queries, aggregators still show up in Top3-5 for browse
+ * intents (keyword contains "concepts", "wiki", etc.).
+ */
+const TYPE_AGGREGATOR_PENALTY = {
+  workspace_wiki: -0.10,
+  wiki_concept: -0.10,
+};
+
+function _aggregatorPenaltyForType(type) {
+  if (!type) return 0;
+  return TYPE_AGGREGATOR_PENALTY[type] ?? 0;
+}
+
+/**
+ * F-053 Phase 1c · Card-vs-raw discriminator for budget-tier shaping.
+ *
+ * A "card" = LLM-extracted structured knowledge (compact, 200-800 char summary).
+ * Everything else (turn content, workspace files, graph nodes) is treated as
+ * "raw/material" — preserved verbatim, better for nuance-heavy queries.
+ *
+ * Used by `_shapeByBudgetTier()` to split the RRF-fused pool into two buckets
+ * and apply tier-specific quotas (raw-heavy / mixed / card-only).
+ */
+const CARD_TYPES = new Set([
+  'knowledge_card', 'card',
+  'decision', 'problem_solution', 'workflow', 'insight', 'pitfall', 'key_point',
+  'personal_preference', 'important_detail', 'plan_intention',
+  'activity_preference', 'health_info', 'career_info', 'custom_misc',
+  'risk', 'skill', 'session_summary',
+]);
+
+/**
+ * F-053 Phase 1c · Raw-quota ratio per budget tier.
+ *
+ * Mapped from the ACCEPTANCE Journey 3 shape:
+ *   - raw-heavy (≥50K)  → ~70% raw (MemPalace-style verbatim)
+ *   - mixed    (20-50K) → ~37.5% raw (3:5 ≈ "top-3 raw + top-5 card")
+ *   - card-only (<20K)  → 0% raw (pure compressed cards)
+ */
+const BUDGET_TIER_RAW_RATIO = {
+  'raw-heavy': 0.70,
+  'mixed': 0.375,
+  'card-only': 0.0,
+};
+
 /** Common CJK tech terms → English for cross-language query expansion. */
 const CJK_TECH_TERMS = [
   ['部署', 'deploy deployment'],
   ['配置', 'config configuration'],
   ['记忆', 'memory'],
+  ['记录', 'record'],
   ['召回', 'recall retrieval'],
   ['搜索', 'search'],
+  ['查询', 'query'],
   ['知识', 'knowledge'],
   ['卡片', 'card'],
   ['分类', 'category classification'],
@@ -88,6 +151,36 @@ const CJK_TECH_TERMS = [
   ['权限', 'permission'],
   ['工作流', 'workflow'],
   ['类型', 'type'],
+  // F-059 phase 3 · everyday high-frequency words caught out by
+  // short dict. Missing these meant queries like "怎么写高质量内容"
+  // dropped below top-3 even when FTS had the card.
+  ['写', 'write writing'],
+  ['内容', 'content'],
+  ['高质量', 'high quality'],
+  ['质量', 'quality'],
+  ['详细', 'detailed detail'],
+  ['文档', 'document docs'],
+  ['字段', 'field'],
+  ['方法', 'method'],
+  ['函数', 'function'],
+  ['进化', 'evolve evolution'],
+  ['成长', 'growth grow'],
+  ['升级', 'upgrade'],
+  ['版本', 'version'],
+  ['发布', 'publish release'],
+  ['注入', 'inject injection'],
+  ['偏好', 'preference prefer'],
+  ['任务', 'task'],
+  ['风险', 'risk'],
+  ['链路', 'pipeline chain'],
+  ['端到端', 'end-to-end e2e'],
+  ['容器', 'container'],
+  ['启动', 'start startup'],
+  ['关闭', 'close shutdown'],
+  ['自动', 'auto automatic'],
+  ['检测', 'detect detection'],
+  ['重启', 'restart'],
+  ['迁移', 'migrate migration'],
 ];
 
 // ---------------------------------------------------------------------------
@@ -149,6 +242,7 @@ export class SearchEngine {
       cluster_expand = false,
       include_installed = true,
       current_source,   // caller's source identifier (e.g. 'claude-code', 'openclaw-plugin')
+      hyde_hint,        // F-060 · client-generated hypothetical answer (HyDE)
     } = params;
 
     // Fire-and-forget telemetry for recall mode usage analytics
@@ -162,11 +256,16 @@ export class SearchEngine {
       return this.getFullContent(ids);
     }
 
-    // CJK cross-language expansion: if query is primarily CJK, also search in English
-    // This helps because ~75% of memories are in English even for Chinese-speaking users.
+    // CJK cross-language expansion: if query contains ANY substantial CJK
+    // run, also search in English. Previously required 30% dominance which
+    // missed mixed queries like `awareness_record 怎么写高质量内容` (27%
+    // CJK due to long English identifier) even though the CJK portion
+    // clearly asks "how to write high quality content".
     const cjkChars = (semantic_query || '').match(/[\u4e00-\u9fff\u3400-\u4dbf]/g);
+    const cjkRuns = (semantic_query || '').match(/[\u4e00-\u9fff\u3400-\u4dbf]{3,}/g);
     const isCjkDominant = cjkChars && cjkChars.length > (semantic_query || '').length * 0.3;
-    const expandedKeyword = isCjkDominant
+    const hasCjkRun = cjkRuns && cjkRuns.length > 0;
+    const expandedKeyword = (isCjkDominant || hasCjkRun)
       ? this._expandCjkToEnglish(keyword_query || semantic_query || '')
       : keyword_query;
 
@@ -177,9 +276,21 @@ export class SearchEngine {
     let enrichedSemantic = semantic_query;
     try {
       if (semantic_query && this.indexer?.getRecentMemories) {
-        const recentMems = this.indexer.getRecentMemories(3_600_000, 8);
-        const hint = this._buildSessionContextHint(recentMems);
-        if (hint) enrichedSemantic = `${semantic_query} ${hint}`;
+        // F-053 post-benchmark fix: enrichment corrupts the query in
+        // batch-seed / reindex / haystack scenarios where `recent memories`
+        // are topically unrelated to the user's actual question. On
+        // LongMemEval_S 60Q this alone moved R@5 from ~92% to 96.67%.
+        //
+        // Heuristic: a query already carrying ≥4 signal tokens (alphanumeric
+        // runs ≥3 chars) is specific enough to retrieve itself. Short
+        // ambiguous queries ("auth bug", "deploy") still benefit from
+        // context enrichment.
+        const signalTokens = (semantic_query.match(/[\p{L}\p{N}_]{3,}/gu) || []);
+        if (signalTokens.length < 4) {
+          const recentMems = this.indexer.getRecentMemories(3_600_000, 8);
+          const hint = this._buildSessionContextHint(recentMems);
+          if (hint) enrichedSemantic = `${semantic_query} ${hint}`;
+        }
       }
     } catch { /* non-fatal — degrade gracefully */ }
 
@@ -197,6 +308,11 @@ export class SearchEngine {
       include_installed,
       token_budget: params.token_budget,
     });
+    // F-060 · HyDE is a pure embed-input override; planner doesn't know
+    // about it, so splice it on after plan() so searchLocal sees it.
+    if (typeof hyde_hint === 'string' && hyde_hint.trim().length >= 20) {
+      normalizedParams.hyde_hint = hyde_hint.trim();
+    }
 
     // Dual-channel: local (always) + cloud (optional, with timeout protection)
     const [localResults, cloudResults] = await Promise.all([
@@ -219,8 +335,9 @@ export class SearchEngine {
       }
     }
 
-    // CJK cross-language boost: run additional English search if CJK dominant
-    if (isCjkDominant && expandedKeyword && expandedKeyword !== keyword_query) {
+    // CJK cross-language boost: run additional English search if ANY
+    // substantial CJK run is present (was: 30% dominance gate).
+    if ((isCjkDominant || hasCjkRun) && expandedKeyword && expandedKeyword !== keyword_query) {
       try {
         const engParams = { ...normalizedParams, semantic_query: expandedKeyword, keyword_query: expandedKeyword };
         const engResults = await this.searchLocal(engParams);
@@ -294,6 +411,297 @@ export class SearchEngine {
   }
 
   // -------------------------------------------------------------------------
+  // F-053 Phase 1 · Unified cascade search (single-parameter API)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Single-parameter recall entry point. Caller passes ONE query string and
+   * an optional `{ tokenBudget, limit }`; daemon picks every other knob.
+   *
+   * Token-budget tiers decide how many candidates to pull (a raw-heavy client
+   * with 50K+ budget gets more items so we can surface raw memory chunks;
+   * a 5K-budget client gets just the top cards):
+   *   - budget >= 50_000  → pull >= 25 items  ("raw-heavy" tier)
+   *   - budget 20K-49.9K  → pull >= 12 items  ("mixed" tier)
+   *   - budget <  20K     → pull exactly `limit` items  ("card-only" tier)
+   *
+   * The returned shape is `{ results: [...] }` where no item exposes which
+   * retrieval channel produced it (no `source_channel`, `cascade_layer`, or
+   * `recall_mode` fields). LLMs and users cannot tell the mode — which is
+   * the whole point (see docs/analysis/MEMPALACE_COMPARISON_2026-04-17.md).
+   *
+   * Phase 1 delegates to the existing `recall()` chain (which already does
+   * FTS5 + embedding + RRF + workspace graph expansion). Phase 2 will flip
+   * the MCP handler to route here; Phase 3 will add archetype-based query
+   * routing; Phase 4 will add the promotion cron.
+   *
+   * @param {string} query
+   * @param {{ tokenBudget?: number, limit?: number }} [opts]
+   * @returns {Promise<{ results: object[] }>}
+   */
+  async unifiedCascadeSearch(query, opts = {}) {
+    const tokenBudget = Number.isFinite(opts.tokenBudget) && opts.tokenBudget > 0
+      ? opts.tokenBudget
+      : 5_000;
+    const limit = Number.isFinite(opts.limit) && opts.limit > 0 ? opts.limit : 10;
+
+    if (typeof query !== 'string' || !query.trim()) {
+      return { results: [] };
+    }
+
+    const tier = tokenBudget >= 50_000 ? 'raw-heavy'
+      : tokenBudget >= 20_000 ? 'mixed'
+      : 'card-only';
+
+    // F-053 Phase 3: caller-supplied archetype strategy overrides the Phase 1c
+    // default `rawRatio` and can bias the graph channel pull. `opts.strategy`
+    // is intentionally a plain data object (no cross-cutting classifier call
+    // inside the search engine) so classification stays at the daemon layer
+    // and this method stays synchronous-ish and unit-testable with mocks.
+    const strategy = opts.strategy && typeof opts.strategy === 'object' ? opts.strategy : null;
+
+    const pull = tier === 'raw-heavy' ? Math.max(limit, 25)
+      : tier === 'mixed' ? Math.max(limit, 12)
+      : limit;
+
+    // Channel 1 · memory + card (full recall chain: FTS + embed + rerank +
+    // workspace 1-hop expansion + cloud + hydration + budgeter).
+    const recallPromise = Promise.resolve().then(() => this.recall({
+      semantic_query: query,
+      scope: 'all',
+      recall_mode: 'hybrid',
+      limit: pull,
+      detail: 'summary',
+      multi_level: true,
+      cluster_expand: true,
+      include_installed: true,
+      token_budget: tokenBudget,
+      hyde_hint: opts.hyde_hint,  // F-060 · passthrough
+    })).catch(() => []);
+
+    // Channel 2 · graph_nodes FTS (direct workspace/wiki/doc/symbol hits,
+    // independent of the recall() pipeline so graph failures don't mask
+    // memory results and vice versa). Phase 3 strategy.graphBoost multiplies
+    // the base limit — e.g. "list-enum" archetype tilts graph-heavy.
+    const baseGraphLimit = Math.max(3, Math.ceil(pull / 3));
+    const graphLimit = strategy && Number.isFinite(strategy.graphBoost)
+      ? Math.max(1, Math.round(baseGraphLimit * (1 + strategy.graphBoost)))
+      : baseGraphLimit;
+    const graphPromise = Promise.resolve().then(() => {
+      const ftsQuery = typeof this.buildFtsQuery === 'function'
+        ? this.buildFtsQuery(query, null)
+        : query;
+      if (!ftsQuery || typeof this._searchGraphNodesFts !== 'function') return [];
+      return this._searchGraphNodesFts(ftsQuery, graphLimit) || [];
+    }).catch(() => []);
+
+    // F-053 Phase 3 · Channel 3 · direct recency feed for recall-recent archetype.
+    // Meta queries like "what did we just discuss" have weak semantic + BM25
+    // signal, so the recall() primary channel often returns almost nothing.
+    // When the classifier says "user wants recency", inject the most recent
+    // N memories directly from the indexer (chronological, no ranking) so the
+    // recency re-rank below has something meaningful to order.
+    const wantsRecency = strategy && Number.isFinite(strategy.recencyBoost) && strategy.recencyBoost > 1;
+    const recencyPromise = wantsRecency
+      ? Promise.resolve().then(() => {
+          if (typeof this.indexer?.getRecentMemories !== 'function') return [];
+          // 24-hour window, up to pull items. indexer returns {id, title, tags, created_at}.
+          const recents = this.indexer.getRecentMemories(24 * 60 * 60 * 1000, Math.max(pull, 10)) || [];
+          return recents.map((m) => ({
+            ...m,
+            type: m.type || 'turn_summary',
+            summary: m.summary || m.fts_content || '',
+          }));
+        }).catch(() => [])
+      : Promise.resolve([]);
+
+    const [primaryList, graphList, recencyList] = await Promise.all([
+      recallPromise,
+      graphPromise,
+      recencyPromise,
+    ]);
+
+    // RRF-fuse all ranked lists. Items present in multiple channels get
+    // their rank contributions summed (standard RRF with k=60).
+    const fused = this._rrfFuseMany(
+      [
+        Array.isArray(primaryList) ? primaryList : [],
+        Array.isArray(graphList) ? graphList : [],
+        Array.isArray(recencyList) ? recencyList : [],
+      ],
+      pull,
+    );
+
+    // F-055 bug C · aggregator-type penalty. `workspace_wiki` and
+    // `wiki_concept` pages are auto-generated aggregators that concatenate
+    // titles + tags from multiple source cards, which makes their embeddings
+    // artificially "full" on any topic covered by their children. Without
+    // a penalty they occasionally beat the original source card on Top1
+    // (observed 2026-04-18: "清汤牛肉面" query → aggregator 36% > recipe card
+    // 34%). A small negative score offset lets original cards regain Top1
+    // for direct-hit queries while aggregators still surface in Top3-5 for
+    // concept-browsing queries.
+    for (const item of fused) {
+      const penalty = _aggregatorPenaltyForType(item.type);
+      if (penalty !== 0) {
+        item.rrfScore = (item.rrfScore ?? 0) + penalty;
+      }
+    }
+    fused.sort((a, b) => (b.rrfScore ?? 0) - (a.rrfScore ?? 0));
+
+    // F-053 Phase 3 · recency-primary ranking for recall-recent archetype.
+    // When the classifier detects a "what did we just discuss / continue
+    // where we left off" query, the user explicitly wants chronological
+    // proximity, not semantic proximity. Swap to recency-dominant score:
+    //   newScore = recencyBoost × freshness_decay(age) + 0.1 × rrfScore
+    // The 0.1 keeps semantic as a tie-breaker among items of similar age,
+    // so a freshly recorded memory of an adjacent topic still wins against
+    // a freshly recorded memory of a far topic. 1-hour half-life fits
+    // typical "just now / today" usage. Callers that want longer windows
+    // set strategy.recencyHalfLifeMs explicitly.
+    if (strategy && Number.isFinite(strategy.recencyBoost) && strategy.recencyBoost > 1) {
+      const now = Date.now();
+      const HALF_LIFE_MS = Number.isFinite(strategy.recencyHalfLifeMs)
+        ? strategy.recencyHalfLifeMs
+        : 60 * 60 * 1000;
+      for (const item of fused) {
+        const created = item.created_at
+          ? Date.parse(item.created_at) || now
+          : now;
+        const ageMs = Math.max(0, now - created);
+        const decay = Math.pow(0.5, ageMs / HALF_LIFE_MS);
+        const baseSem = item.rrfScore || 0;
+        // Recency becomes PRIMARY; semantic stays as a tie-breaker.
+        item.rrfScore = strategy.recencyBoost * decay + 0.1 * baseSem;
+      }
+      fused.sort((a, b) => (b.rrfScore ?? 0) - (a.rrfScore ?? 0));
+    }
+
+    // Apply budget-tier shaping. Phase 3 `strategy.rawRatio` overrides the
+    // Phase 1c tier ratio when the classifier is confident (strategy != null);
+    // otherwise the Phase 1c budget-tier default applies.
+    const shaped = strategy && Number.isFinite(strategy.rawRatio)
+      ? this._shapeByRatio(fused, strategy.rawRatio, limit)
+      : this._shapeByBudgetTier(fused, tier, limit);
+
+    // Opacity: strip any field that would tell callers which retrieval
+    // channel produced a result. `source` is a retrieval-layer marker
+    // ('local'/'cloud'/'both' from recall, 'graph_fts'/'workspace' from
+    // graph); content fields (id, title, summary, type, score, tags,
+    // created_at, file_path) are preserved.
+    const OPAQUE_STRIP = new Set([
+      'source', 'source_channel', 'cascade_layer', 'recall_mode',
+      'record_source', 'db_source', 'source_origin',
+    ]);
+    const results = shaped.map((r) => {
+      const out = {};
+      for (const [k, v] of Object.entries(r)) {
+        if (!OPAQUE_STRIP.has(k)) out[k] = v;
+      }
+      return out;
+    });
+
+    return { results };
+  }
+
+  /**
+   * Variadic Reciprocal Rank Fusion: merge N ranked lists. Each position
+   * within a list contributes `1 / (RRF_K + rank)` to the item's score;
+   * duplicates across lists have their contributions summed. Output is
+   * sorted descending by fused score.
+   *
+   * @param {object[][]} lists
+   * @param {number} limit
+   * @returns {object[]}
+   */
+  _rrfFuseMany(lists, limit) {
+    const scoreMap = new Map();
+    for (const list of lists) {
+      if (!Array.isArray(list)) continue;
+      for (let i = 0; i < list.length; i++) {
+        const r = list[i];
+        if (!r || !r.id) continue;
+        const contrib = 1 / (RRF_K + i + 1);
+        const existing = scoreMap.get(r.id);
+        if (existing) {
+          existing.rrfScore += contrib;
+        } else {
+          scoreMap.set(r.id, { ...r, rrfScore: contrib });
+        }
+      }
+    }
+    const out = [...scoreMap.values()];
+    out.sort((a, b) => b.rrfScore - a.rrfScore);
+    return out.slice(0, limit);
+  }
+
+  /**
+   * F-053 Phase 1c · Budget-tier-aware result shaping.
+   *
+   * Splits the RRF-fused pool into `cards` (LLM-extracted) and `raws`
+   * (verbatim memory, workspace, graph), then picks per-tier quotas so the
+   * caller's token budget directly drives the raw-vs-compressed mix.
+   *
+   * Short-circuit: when `fused.length <= limit`, return the list as-is so
+   * low-volume queries don't lose ranking fidelity to an artificial bucket
+   * split.  This also makes the function a no-op under small test fixtures.
+   *
+   * Backfill: if one bucket has fewer items than its quota (e.g. card-only
+   * tier but memory has zero cards yet), the other bucket fills the gap so
+   * the caller always gets up to `limit` items.  Final ordering is by
+   * `rrfScore` descending — shaping chooses which items to keep, not their
+   * relative order.
+   *
+   * @param {object[]} fused    - RRF-fused ranked list (already sorted desc)
+   * @param {string}   tier     - 'raw-heavy' | 'mixed' | 'card-only'
+   * @param {number}   limit    - Upper bound on returned items
+   * @returns {object[]}
+   */
+  _shapeByBudgetTier(fused, tier, limit) {
+    const rawRatio = BUDGET_TIER_RAW_RATIO[tier] ?? 0;
+    return this._shapeByRatio(fused, rawRatio, limit);
+  }
+
+  /**
+   * F-053 Phase 3 · Generic raw/card bucket shaping by arbitrary ratio.
+   *
+   * Extracted from `_shapeByBudgetTier` so the Phase 3 archetype strategy can
+   * pass its own `rawRatio` (e.g. 0.80 for `decision-why`, 0.10 for
+   * `fact-what`) without having to pretend it's a budget tier. Behaviour is
+   * identical to Phase 1c shaping — bucket pick + backfill + pool-≤-limit
+   * short-circuit — only the ratio source differs.
+   *
+   * @param {object[]} fused
+   * @param {number}   rawRatio  - Desired raw-bucket fraction, 0..1.
+   * @param {number}   limit
+   * @returns {object[]}
+   */
+  _shapeByRatio(fused, rawRatio, limit) {
+    if (!Array.isArray(fused) || fused.length === 0) return [];
+    if (fused.length <= limit) return fused;
+
+    const ratio = Math.max(0, Math.min(1, Number.isFinite(rawRatio) ? rawRatio : 0));
+    const rawQuota = Math.max(0, Math.min(limit, Math.round(limit * ratio)));
+    const cardQuota = limit - rawQuota;
+
+    const cards = fused.filter((r) => CARD_TYPES.has(r?.type));
+    const raws = fused.filter((r) => !CARD_TYPES.has(r?.type));
+
+    const pickCards = cards.slice(0, cardQuota);
+    const pickRaws = raws.slice(0, rawQuota);
+
+    const takenIds = new Set([...pickCards, ...pickRaws].map((r) => r.id));
+    const shortage = limit - (pickCards.length + pickRaws.length);
+    const backfill = shortage > 0
+      ? fused.filter((r) => !takenIds.has(r?.id)).slice(0, shortage)
+      : [];
+
+    const combined = [...pickCards, ...pickRaws, ...backfill];
+    combined.sort((a, b) => (b.rrfScore ?? 0) - (a.rrfScore ?? 0));
+    return combined.slice(0, limit);
+  }
+
+  // -------------------------------------------------------------------------
   // Local search (FTS5 + embedding → RRF fusion)
   // -------------------------------------------------------------------------
 
@@ -325,7 +733,7 @@ export class SearchEngine {
   }
 
   async _searchLocalBuiltin(params) {
-    const { semantic_query, keyword_query, scope, recall_mode, limit, agent_role } = params;
+    const { semantic_query, keyword_query, scope, recall_mode, limit, agent_role, hyde_hint } = params;
 
     const ftsQuery = this.buildFtsQuery(semantic_query, keyword_query);
     const searchOpts = { limit: limit * 2, agent_role };
@@ -337,11 +745,20 @@ export class SearchEngine {
     }
 
     // Channel 2: Embedding cosine similarity (~10ms typical)
+    // F-060 · if the client provided a HyDE hint (a hypothetical answer
+    // synthesised by the caller's own LLM), prefer it as the embed input.
+    // Hypothetical answers sit in the same semantic space as card
+    // summaries, so they bridge the query-vs-document gap better than
+    // the raw query. Raw query is still used for FTS5 so keyword hits
+    // aren't lost. HyDE is purely opt-in; daemon never calls an LLM.
+    const embedInput = (typeof hyde_hint === 'string' && hyde_hint.trim().length >= 20)
+      ? hyde_hint.trim()
+      : (semantic_query || keyword_query);
     let embeddingResults = [];
-    if (recall_mode !== 'keyword' && this.embedder && (semantic_query || keyword_query)) {
+    if (recall_mode !== 'keyword' && this.embedder && embedInput) {
       try {
         embeddingResults = await this._embeddingSearch(
-          semantic_query || keyword_query,
+          embedInput,
           scope,
           searchOpts,
         );
@@ -854,8 +1271,14 @@ export class SearchEngine {
   async _embeddingSearch(queryText, scope, opts) {
     const isCJK = detectNeedsCJK(queryText);
 
-    // Retrieve all stored embeddings from the indexer (includes model_id)
-    const allEmbeddings = this.indexer.getAllEmbeddings?.(scope) || [];
+    // Retrieve all stored embeddings from the indexer (memory + card tables).
+    // F-059: knowledge_cards populated via submit_insights now cache their
+    // own embeddings in the `card_embeddings` table; merging them here gives
+    // the semantic channel full corpus coverage (previously memory-only).
+    const memoryEmbs = this.indexer.getAllEmbeddings?.(scope) || [];
+    const cardEmbs = this.indexer.getAllCardEmbeddings?.() || [];
+    const allEmbeddings = [...memoryEmbs, ...cardEmbs];
+    if (process.env.DEBUG_RECALL) console.log(`[_embeddingSearch] q="${queryText.slice(0,50)}" mem=${memoryEmbs.length} card=${cardEmbs.length} scope=${scope}`);
     if (allEmbeddings.length === 0) return [];
 
     // Determine which models have stored embeddings
@@ -901,6 +1324,7 @@ export class SearchEngine {
 
     // Sort by similarity descending, take top-K
     scored.sort((a, b) => b.embeddingScore - a.embeddingScore);
+    if (process.env.DEBUG_RECALL) console.log(`[_embeddingSearch] top3: ${scored.slice(0,3).map(s => `${s.id.slice(0,20)}=${s.embeddingScore.toFixed(3)}`).join(' | ')}`);
     return scored.slice(0, opts.limit || 10);
   }
 

@@ -315,10 +315,13 @@ describe('buildInitResult', () => {
     assert.equal(result.active_skills[0].methods.length, 1);
   });
 
-  it('splits preferences from other cards via splitPreferences', () => {
+  it('splits preferences from other cards via splitPreferences (F-055: high-confidence only when no focus)', () => {
+    // F-055 bug A — persona cards only surface when BM25-relevant to the
+    // current focus OR their confidence ≥ 0.9. This test bumps the mock
+    // persona cards to confidence=0.95 so they still appear without focus.
     const cards = [
-      makeCard('p1', 'Likes dark mode', { category: 'personal_preference' }),
-      makeCard('p2', 'Morning runner', { category: 'activity_preference' }),
+      makeCard('p1', 'Likes dark mode', { category: 'personal_preference', confidence: 0.95 }),
+      makeCard('p2', 'Morning runner', { category: 'activity_preference', confidence: 0.95 }),
       makeCard('kc1', 'Auth pattern', { category: 'decision' }),
     ];
     const indexer = createMockIndexer({ cards });
@@ -330,23 +333,38 @@ describe('buildInitResult', () => {
       maxCards: 5,
     });
 
-    assert.ok(result.user_preferences.length >= 1, 'should have user_preferences');
+    assert.ok(result.user_preferences.length >= 1, 'should have high-confidence user_preferences');
     assert.ok(
       result.user_preferences.every((c) =>
-        ['personal_preference', 'activity_preference', 'important_detail', 'career_info'].includes(c.category)
+        ['personal_preference', 'activity_preference', 'important_detail', 'career_info',
+         'plan_intention', 'health_info', 'custom_misc'].includes(c.category)
       ),
-      'user_preferences should only contain preference categories'
+      'user_preferences should only contain personal categories'
     );
-    assert.ok(
-      result.knowledge_cards.every((c) =>
-        !['personal_preference', 'activity_preference', 'important_detail', 'career_info'].includes(c.category)
-        || result.user_preferences.length >= 15  // overflow goes to knowledge_cards
-      ),
-      'knowledge_cards should not contain preference categories (unless overflow)'
-    );
+    // knowledge_cards path now comes from splitPreferences on recentCards, so
+    // confidence-filtered personas may still appear in recentCards even
+    // when filtered out of user_preferences. The important invariant: a
+    // persona card with confidence<0.9 and no focus-match is NOT in
+    // user_preferences.
   });
 
-  it('rendered_context is a string containing XML', () => {
+  it('F-055 bug A: low-confidence persona dropped when no focus', () => {
+    const cards = [
+      makeCard('p1', 'Weekend hobby', { category: 'personal_preference', confidence: 0.7 }),
+      makeCard('kc1', 'Auth pattern', { category: 'decision' }),
+    ];
+    const indexer = createMockIndexer({ cards });
+    const result = buildInitResult({
+      createSession,
+      indexer,
+      loadSpec: loadSpec(),
+      source: 'test',
+      maxCards: 5,
+    });
+    assert.equal(result.user_preferences.length, 0, 'low-confidence persona dropped without focus');
+  });
+
+  it('rendered_context is a markdown string containing the card title', () => {
     const indexer = createMockIndexer({
       cards: [makeCard('kc1', 'Some card')],
     });
@@ -358,17 +376,32 @@ describe('buildInitResult', () => {
     });
 
     assert.equal(typeof result.rendered_context, 'string');
+    // Post 2026-04-20: body is markdown (not XML), per user directive
+    // "markdown-first, memory content only". But <awareness-memory> wrapper
+    // is retained as a load-bearing string anchor — sdks/openclaw/src/hooks.ts
+    // uses `.replace("</awareness-memory>", ...)` to inject perception
+    // signals, record-rule, and dashboard hints. Dropping the wrapper
+    // silently loses those injections.
     assert.ok(
-      result.rendered_context.includes('<awareness-memory>'),
-      'rendered_context should contain <awareness-memory> XML tag'
+      result.rendered_context.startsWith('<awareness-memory>'),
+      'rendered_context must start with <awareness-memory> (openclaw hooks contract)'
     );
     assert.ok(
-      result.rendered_context.includes('</awareness-memory>'),
-      'rendered_context should contain closing tag'
+      result.rendered_context.endsWith('</awareness-memory>'),
+      'rendered_context must end with </awareness-memory> (openclaw hooks contract)'
+    );
+    assert.match(
+      result.rendered_context,
+      /^##\s/m,
+      'rendered_context body should contain at least one markdown heading'
+    );
+    assert.ok(
+      result.rendered_context.includes('Some card'),
+      'rendered_context should reference the knowledge card'
     );
   });
 
-  it('includes init_guides from spec and empty agent_profiles', () => {
+  it('init_guides field is preserved for schema compat (empty for local daemon)', () => {
     const guides = { sub_agent_guide: 'You are a helpful agent.' };
     const indexer = createMockIndexer();
     const result = buildInitResult({
@@ -378,7 +411,10 @@ describe('buildInitResult', () => {
       source: 'test',
     });
 
-    assert.deepEqual(result.init_guides, guides);
+    // Field shape preserved so downstream `result.init_guides?.xxx` doesn't
+    // throw, but content is no longer inlined (saves ~7500 chars/init).
+    // Consumers that need the guide text load it from spec.json directly.
+    assert.deepEqual(result.init_guides, {});
     assert.deepEqual(result.agent_profiles, []);
   });
 });
@@ -431,16 +467,16 @@ describe('_buildInitPerception (via buildInitResult rendered_context)', () => {
       source: 'test',
     });
 
-    const xml = result.rendered_context;
-    const stalenessMatches = xml.match(/type="staleness"/g) || [];
+    const md = result.rendered_context;
+    const stalenessMatches = md.match(/\[staleness\]/g) || [];
     assert.ok(stalenessMatches.length <= 2, `staleness signals should be capped at 2, got ${stalenessMatches.length}`);
     // First two stale cards should appear as staleness signals, third should not
-    assert.ok(xml.includes('Stale Card AAA') && xml.includes('Stale Card BBB'),
+    assert.ok(md.includes('Stale Card AAA') && md.includes('Stale Card BBB'),
       'first two stale cards should appear as staleness signals');
-    // Count only within perception section: only 2 staleness signal elements
-    const perceptionBlock = xml.split('<perception>')[1]?.split('</perception>')[0] || '';
-    const perceptionStaleness = (perceptionBlock.match(/type="staleness"/g) || []).length;
-    assert.equal(perceptionStaleness, 2, 'perception section should have exactly 2 staleness signals');
+    // Count only within Attention section: only 2 staleness signal bullets
+    const attentionBlock = md.split('## Attention')[1]?.split(/^## /m)[0] || '';
+    const attentionStaleness = (attentionBlock.match(/\[staleness\]/g) || []).length;
+    assert.equal(attentionStaleness, 2, 'Attention section should have exactly 2 staleness signals');
   });
 
   it('generates guard signals from pitfall/risk cards', () => {
