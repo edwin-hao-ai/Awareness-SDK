@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero-banner.svg" alt="Awareness — Long-Term Memory for AI Agents" width="100%"/>
+  <img src="assets/local-20s.gif" alt="Awareness — Long-Term Memory for AI Agents" width="100%"/>
 </p>
 
 <p align="center">
